@@ -59,7 +59,7 @@
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@earendil-works/pi-tui": "catalog:",
-    "@inquirer/prompts": "8.5.2",
+    "@inquirer/prompts": "8.7.4",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/proper-lockfile": "^4.1.4",
