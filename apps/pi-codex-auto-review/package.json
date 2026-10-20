@@ -59,7 +59,7 @@
         "@earendil-works/pi-tui": "catalog:",
         "@repo/typescript-config": "workspace:*",
         "@types/node": "catalog:",
-        "pi-ollama-cloud": "0.12.2",
+        "pi-ollama-cloud": "0.13.0",
         "typescript": "catalog:"
     },
     "engines": {
