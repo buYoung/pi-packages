@@ -1,27 +1,41 @@
-import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { Writable } from "node:stream";
-import { awaitWithSignal } from "../core/protocol/transport.ts";
+import { Effect } from "effect";
+import { ChildProcess, ChildProcessSpawner } from "effect/process";
+import { toDevinFailure, type DevinError, type DevinFailure } from "../core/errors.ts";
+import { fromPlatformError } from "../core/platform.ts";
+import { failWith } from "../core/validation.ts";
 
-export function openLoginURL(url: string, signal: AbortSignal): Promise<void> {
-  signal.throwIfAborted();
-  if (process.platform !== "darwin") return Promise.reject(new Error("Opening the browser automatically is supported on macOS only. Open the shown URL yourself."));
-  return new Promise<void>((resolve, reject) => {
-    const child = spawn("/usr/bin/open", [url], { stdio: "ignore", signal });
-    child.once("error", reject);
-    child.once("close", (code) => code === 0 ? resolve() : reject(new Error("Could not open the browser. Open the shown URL yourself.")));
+/** Opens the URL with the macOS `open` command. Other systems show the URL for the user to open. */
+export function openLoginURL(url: string): Effect.Effect<void, DevinError, ChildProcessSpawner.ChildProcessSpawner> {
+  if (process.platform !== "darwin") return failWith("Opening the browser automatically is supported on macOS only. Open the shown URL yourself.");
+  return Effect.gen(function* () {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+    const exitCode = yield* spawner.exitCode(ChildProcess.make("/usr/bin/open", [url], { stdin: "ignore", stdout: "ignore", stderr: "ignore", detached: false }))
+      .pipe(Effect.mapError(fromPlatformError));
+    if (exitCode !== 0) return yield* failWith("Could not open the browser. Open the shown URL yourself.");
   });
 }
 
 /** Does not echo input. The code value never goes into logs, errors or structured events. */
-export async function readAuthorizationCode(signal: AbortSignal): Promise<string> {
-  signal.throwIfAborted();
-  if (process.stdin.readableEnded) throw new Error("Authorization code input ended.");
-  process.stderr.write("Paste the authorization code or callback URL from the browser (input is hidden): ");
-  const silentOutput = new Writable({ write(_chunk, _encoding, callback) { callback(); } });
-  const input = createInterface({ input: process.stdin, output: silentOutput, terminal: Boolean(process.stdin.isTTY) });
-  let onClose!: () => void;
-  const closed = new Promise<never>((_resolve, reject) => { onClose = () => reject(new Error("Authorization code input ended.")); input.once("close", onClose); });
-  try { return await awaitWithSignal(Promise.race([input.question("", { signal }), closed]), signal); }
-  finally { input.off("close", onClose); input.close(); silentOutput.end(); process.stderr.write("\n"); }
-}
+export const readAuthorizationCode: Effect.Effect<string, DevinFailure> = Effect.suspend(() => {
+  if (process.stdin.readableEnded) return failWith("Authorization code input ended.");
+  return Effect.acquireUseRelease(
+    Effect.sync(() => {
+      process.stderr.write("Paste the authorization code or callback URL from the browser (input is hidden): ");
+      const silentOutput = new Writable({ write(_chunk, _encoding, callback) { callback(); } });
+      return { silentOutput, input: createInterface({ input: process.stdin, output: silentOutput, terminal: Boolean(process.stdin.isTTY) }) };
+    }),
+    ({ input }) => Effect.callback<string, DevinFailure>((resume, signal) => {
+      const onClose = () => resume(failWith("Authorization code input ended."));
+      input.once("close", onClose);
+      input.question("", { signal }).then((value) => resume(Effect.succeed(value)), (error: unknown) => resume(Effect.fail(toDevinFailure(error))));
+      return Effect.sync(() => input.off("close", onClose));
+    }),
+    ({ input, silentOutput }) => Effect.sync(() => {
+      input.close();
+      silentOutput.end();
+      process.stderr.write("\n");
+    }),
+  );
+});

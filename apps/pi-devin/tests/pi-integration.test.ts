@@ -3,27 +3,30 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { PassThrough, Writable } from "node:stream";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { Effect } from "effect";
 import { expect, test } from "vitest";
 import { InMemoryCredentialStore, InMemoryModelsStore, normalizeContext } from "@earendil-works/pi-ai";
 import { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { registerDevinExtension } from "../src/pi/extension.ts";
 import { DEVIN_COMMAND_NAME, registerDevinCommand, updateUsageStatus, USAGE_STATUS_KEY } from "../src/pi/devin-command.ts";
 import { DevinPanel } from "../src/pi/devin-panel.ts";
-import { DEFAULT_PREFERENCES, devinSettingsPath, fileDevinSettings, memoryDevinSettings } from "../src/pi/devin-settings.ts";
+import { DEFAULT_PREFERENCES, devinSettingsPath, fileDevinSettings, memoryDevinSettings } from "../src/pi/settings/devin-settings.ts";
 import { FusionPicker } from "../src/pi/fusion-picker.ts";
 import { formatTokens, progressBar, relativeTime, remainingTone, sessionUsage, usageReport, usageStatusText } from "../src/pi/usage.ts";
-import { accountUsagePath, fileAccountUsageStore } from "../src/pi/usage-store.ts";
+import { accountUsagePath, fileAccountUsageStore } from "../src/pi/settings/usage-store.ts";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { fileFusionSettings, fusionSettingsPath, memoryFusionSettings } from "../src/pi/fusion-settings.ts";
+import { fileFusionSettings, fusionSettingsPath, memoryFusionSettings } from "../src/pi/settings/fusion-settings.ts";
 import { FUSION_MODEL_ID, type DevinModel } from "../src/pi/models.ts";
-import { FUSION_CHILD_ENV, SIDEKICK_REPORT_MESSAGE, type SidekickToolOptions } from "../src/pi/sidekick.ts";
-import { extensionArgs, PACKAGE_ROOT } from "../src/pi/sidekick-runtime.ts";
-import { SIDEKICK_REPORT_CHAR_LIMIT } from "../src/pi/sidekick-report.ts";
+import { extensionArgs, PACKAGE_ROOT } from "../src/pi/sidekick/command.ts";
+import { FUSION_CHILD_ENV, SIDEKICK_REPORT_MESSAGE } from "../src/pi/sidekick/prompts.ts";
+import { SIDEKICK_REPORT_CHAR_LIMIT } from "../src/pi/sidekick/report.ts";
+import type { SidekickToolOptions } from "../src/pi/sidekick/tool.ts";
 import type { DevinProvider } from "../src/pi/provider.ts";
 import { DEVIN_STATE_ENTRY } from "../src/pi/lifecycle.ts";
 import { CHAT_METHOD } from "../src/core/protocol/protobuf.ts";
 import type { JsonObject } from "../src/core/types.ts";
-import { errorStreamResponse, finalFrames, MODELS_METHOD, streamResponse } from "./helpers.ts";
+import { failWith } from "../src/core/validation.ts";
+import { errorStreamResponse, finalFrames, MODELS_METHOD, runSync, streamResponse } from "./helpers.ts";
 import { providerCredential, providerFixture, type CapturedProviderRequest } from "./provider-fixture.ts";
 
 const usageFrame = { usage: { inputTokens: 3, outputTokens: 2 } };
@@ -77,7 +80,7 @@ function fakeSidekick(script: (command: JsonObject, child: FakeChild) => void) {
     spawned.push({ command, args, options, child });
     return child;
   }) as unknown as NonNullable<SidekickToolOptions["runtime"]>["spawn"];
-  return { spawned, runtime: { spawn, resolveCommand: () => ({ command: "fake-pi", args: ["fake-cli.js"] }) } };
+  return { spawned, runtime: { spawn, resolveCommand: Effect.succeed({ command: "fake-pi", args: ["fake-cli.js"] }) } };
 }
 const waitUntil = async (predicate: () => boolean, label: string) => {
   for (let attempt = 0; attempt < 500 && !predicate(); attempt++) await new Promise((resolve) => setTimeout(resolve, 5));
@@ -199,7 +202,7 @@ test("public loader → OAuth → model/thinking → tool results, host retry an
     expect(JSON.stringify(finalPrompts).includes("failed-tool")).toBe(false);
     const assistant = finalPrompts.find((entry) => Array.isArray(entry.toolCalls))!;
     expect(assistant.modelUid).toBe("swe-2-high"); expect(assistant.signature).toBe("native-signature");
-    const state = provider.lifecycle.snapshot(); expect(state.execution!.used).toBe(3); expect(state.execution!.settled).toBe(true);
+    const state = runSync(provider.lifecycle.snapshot); expect(state.execution!.used).toBe(3); expect(state.execution!.settled).toBe(true);
     const stored = manager.getBranch().filter((entry) => entry.type === "custom" && entry.customType === DEVIN_STATE_ENTRY);
     expect(stored.length > 0).toBeTruthy();
     expect(JSON.stringify(stored).includes(providerCredential.sessionToken)).toBe(false);
@@ -211,7 +214,7 @@ test("public loader → OAuth → model/thinking → tool results, host retry an
     const modelWithHeader = runtime.getModel("devin", model.id)!;
     const answer = await runtime.completeSimple(modelWithHeader, { messages: [{ role: "user", content: "env", timestamp: 2 }] }, { reasoning: "medium", env: { REQUEST_LABEL: "request-override" } });
     expect(answer.stopReason, answer.errorMessage ?? "unexpected finish").toBe("stop"); expect(fixture.chatCalls()).toBe(4);
-    provider.lifecycle.finish();
+    runSync(provider.lifecycle.finish);
     runtime.registerNativeProvider({ ...provider });
     await session.extensionRunner.emit({ type: "session_start", reason: "reload" });
     expect(errors.length).toBe(1); expect(errors[0]).toMatch(/collides/);
@@ -441,7 +444,7 @@ test("/devin-fusion: a lead/sidekick chosen by arguments is written to the globa
     await session.prompt(`/devin-fusion ${leadID} swe-2-high`);
     expect(leadID).toBe("swe-2");
     const selected = { leadID, sidekickID: "swe-2-high" };
-    expect(f.fusionSettings.read()).toStrictEqual(selected);
+    expect(runSync(f.fusionSettings.read)).toStrictEqual(selected);
     // The current session model is replaced with a new object of the same ID, so the name and pair match immediately.
     const current = session.model as DevinModel;
     expect(current.id).toBe(FUSION_MODEL_ID);
@@ -457,7 +460,7 @@ test("/devin-fusion: a lead/sidekick chosen by arguments is written to the globa
     // Models not in the list and bad arguments leave the saved value unchanged. The command sends no model request.
     await session.prompt(`/devin-fusion ${leadID} not-a-model`);
     await session.prompt("/devin-fusion only-one-argument");
-    expect(f.fusionSettings.read()).toStrictEqual(selected);
+    expect(runSync(f.fusionSettings.read)).toStrictEqual(selected);
     expect(f.chats().length).toBe(0);
     expect(f.errors).toStrictEqual([]);
   } finally { await f.dispose(); }
@@ -469,16 +472,16 @@ test("Fusion global store: corrupt or malformed files read as defaults and are n
     const path = fusionSettingsPath(join(directory, "agent"));
     expect(path).toBe(join(directory, "agent", "pi-devin", "fusion.json"));
     const store = fileFusionSettings(path);
-    expect(store.read()).toBe(undefined);
-    store.write({ leadID: "swe-2", sidekickID: "swe-2-high" });
+    expect(runSync(store.read)).toBe(undefined);
+    runSync(store.write({ leadID: "swe-2", sidekickID: "swe-2-high" }));
     expect(JSON.parse(await readFile(path, "utf8"))).toStrictEqual({ schemaVersion: 1, leadID: "swe-2", sidekickID: "swe-2-high" });
-    expect(store.read()).toStrictEqual({ leadID: "swe-2", sidekickID: "swe-2-high" });
+    expect(runSync(store.read)).toStrictEqual({ leadID: "swe-2", sidekickID: "swe-2-high" });
     // A file saved in the legacy format is read as is. effectiveFusion maps it to the new IDs.
     await writeFile(path, JSON.stringify({ schemaVersion: 1, leadID: "family:lead", sidekickID: "uid:side" }));
-    expect(store.read()).toStrictEqual({ leadID: "family:lead", sidekickID: "uid:side" });
+    expect(runSync(store.read)).toStrictEqual({ leadID: "family:lead", sidekickID: "uid:side" });
     for (const invalid of ["{broken", JSON.stringify({ schemaVersion: 2, leadID: "swe-2", sidekickID: "swe-2-high" }), JSON.stringify({ schemaVersion: 1, leadID: " ", sidekickID: "swe-2-high" }), JSON.stringify({ schemaVersion: 1, leadID: "swe-2", sidekickID: 7 })]) {
       await writeFile(path, invalid);
-      expect(store.read()).toBe(undefined);
+      expect(runSync(store.read)).toBe(undefined);
       expect(await readFile(path, "utf8")).toBe(invalid);
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
@@ -502,7 +505,7 @@ test("/devin: a recommended filter changed by argument is saved globally and app
     await session.setModel(hidden);
     const leadsBefore = f.provider().getFusionChoices()!.leads.length;
     await session.prompt(`/${DEVIN_COMMAND_NAME} recommended on`);
-    expect(f.devinSettings.read()).toStrictEqual({ recommendedOnly: true, showUsageStatus: false });
+    expect(runSync(f.devinSettings.read)).toStrictEqual({ recommendedOnly: true, showUsageStatus: false });
     // Recommended groups stay groups with the default list's level mappings, so `/thinking` still picks the recommended UID.
     expect(levelMaps(f.runtime.getModels("devin"))).toStrictEqual(levelMaps(expected));
     expect(levelMaps(f.runtime.getAvailableSnapshot().filter((model) => model.provider === "devin"))).toStrictEqual(levelMaps(expected));
@@ -512,10 +515,10 @@ test("/devin: a recommended filter changed by argument is saved globally and app
     await session.prompt(`/${DEVIN_COMMAND_NAME} recommended off`);
     expect(f.runtime.getModels("devin").map((model) => model.id)).toStrictEqual(allIDs);
     await session.prompt(`/${DEVIN_COMMAND_NAME} status on`);
-    expect(f.devinSettings.read()).toStrictEqual({ recommendedOnly: false, showUsageStatus: true });
+    expect(runSync(f.devinSettings.read)).toStrictEqual({ recommendedOnly: false, showUsageStatus: true });
     // Bad arguments leave the saved value unchanged. The command sends no catalog or model request.
     for (const invalid of ["bogus", "recommended maybe", "status on extra"]) await session.prompt(`/${DEVIN_COMMAND_NAME} ${invalid}`);
-    expect(f.devinSettings.read()).toStrictEqual({ recommendedOnly: false, showUsageStatus: true });
+    expect(runSync(f.devinSettings.read)).toStrictEqual({ recommendedOnly: false, showUsageStatus: true });
     expect(catalogRequests()).toBe(before);
     expect(f.chats().length).toBe(0);
     expect(f.errors).toStrictEqual([]);
@@ -540,7 +543,7 @@ test("usage: the status line and details come only from the last account status 
     expect(usageStatusText(undefined, usage)).toBe("devin · ↑3 ↓2");
     expect([progressBar(98), progressBar(0), progressBar(150), progressBar(12.5)]).toStrictEqual(["▕█████████░▏", "▕░░░░░░░░░░▏", "▕██████████▏", "▕█░░░░░░░░░▏"]);
     expect([remainingTone(20), remainingTone(40), remainingTone(41)]).toStrictEqual(["error", "warning", "success"]);
-    const report = usageReport(account, usage, provider.lifecycle.budget(), account.fetchedAtMs + 5 * 60_000).map((line) => line.text);
+    const report = usageReport(account, usage, runSync(provider.lifecycle.budget), account.fetchedAtMs + 5 * 60_000).map((line) => line.text);
     expect(report[0]).toMatch(/^Account quota · fetched \d\d\/\d\d \d\d:\d\d \(5m ago\) · not live$/);
     expect(report.slice(1)).toStrictEqual(["  Daily  ▕██████████▏ 100% left · reset time unknown", "  Weekly ▕██████████▏ 100% left · reset time unknown",
       "This session · lead conversation (sidekick excluded)", "  1 request · input 3 · output 2 · cache read 0 · cache write 0", "Run budget · last run", "  ▕█░░░░░░░░░▏ 1/8 model calls used"]);
@@ -550,17 +553,17 @@ test("usage: the status line and details come only from the last account status 
     const statuses: [string, string | undefined][] = [];
     const context = (mode: string) => ({ mode, ui: { theme: { fg: (tone: string, text: string) => `[${tone}]${text}` },
       setStatus: (key: string, text: string | undefined) => { statuses.push([key, text]); } }, sessionManager: f.manager }) as never;
-    updateUsageStatus(context("tui"), provider, f.devinSettings);
-    f.devinSettings.write({ ...DEFAULT_PREFERENCES, showUsageStatus: true });
-    updateUsageStatus(context("tui"), provider, f.devinSettings);
-    updateUsageStatus(context("rpc"), provider, f.devinSettings);
+    runSync(updateUsageStatus(context("tui"), provider, f.devinSettings));
+    runSync(f.devinSettings.write({ ...DEFAULT_PREFERENCES, showUsageStatus: true }));
+    runSync(updateUsageStatus(context("tui"), provider, f.devinSettings));
+    runSync(updateUsageStatus(context("rpc"), provider, f.devinSettings));
     expect(statuses).toStrictEqual([[USAGE_STATUS_KEY, undefined], [USAGE_STATUS_KEY, "devin [success]day ▕██████████▏100% [success]week ▕██████████▏100% · ↑3 ↓2"]]);
     // At message_end Pi has not stored the response yet, so it is counted once; a stored response is not counted twice.
     const pending = { role: "assistant", provider: "devin", usage: { input: 10, output: 20, cacheRead: 0, cacheWrite: 0 } };
     const storedMessage = f.manager.getBranch().flatMap((entry) => entry.type === "message" && entry.message.role === "assistant" ? [entry.message] : [])[0];
     statuses.length = 0;
-    updateUsageStatus(context("tui"), provider, f.devinSettings, pending);
-    updateUsageStatus(context("tui"), provider, f.devinSettings, storedMessage);
+    runSync(updateUsageStatus(context("tui"), provider, f.devinSettings, pending));
+    runSync(updateUsageStatus(context("tui"), provider, f.devinSettings, storedMessage));
     expect(statuses.map(([, text]) => text?.replace(/^.* · /, ""))).toStrictEqual(["↑13 ↓22", "↑3 ↓2"]);
     expect(f.fixture.requests.length).toBe(requestsBefore);
     // Display strings contain no tokens or account identifiers.
@@ -569,7 +572,7 @@ test("usage: the status line and details come only from the last account status 
     expect(usageReport({ billingStrategy: "BILLING_STRATEGY_CREDITS", fetchedAtMs: 0 }, usage, { used: 0, limit: 8, isActive: true }, 0)[1].text).toMatch(/Not a quota-billed account \(BILLING_STRATEGY_CREDITS\)/);
     expect([formatTokens(999), formatTokens(1234), formatTokens(12_345), formatTokens(1_234_567)]).toStrictEqual(["999", "1.2k", "12k", "1.2M"]);
     expect([relativeTime(0, 20_000), relativeTime(20_000, 0), relativeTime(90 * 60_000, 0), relativeTime(3 * 86_400_000, 0), relativeTime(0, 2 * 60_000)]).toStrictEqual(["just now", "soon", "in 1h 30m", "in 3d", "2m ago"]);
-    expect(usageReport(account, usage, provider.lifecycle.budget(), account.fetchedAtMs + 10_000)[0].text).toMatch(/fetched .+ \(just now\)/);
+    expect(usageReport(account, usage, runSync(provider.lifecycle.budget), account.fetchedAtMs + 10_000)[0].text).toMatch(/fetched .+ \(just now\)/);
     expect(f.errors).toStrictEqual([]);
   } finally { await f.dispose(); }
 });
@@ -629,7 +632,7 @@ test("/devin screen: shows usage details and toggles, saves on every toggle and 
   let isFailing = false, closed = 0;
   const panel = new DevinPanel({ theme: plainTheme, report: () => [{ text: "Account quota · not received yet", isHeading: true }],
     preferences: { recommendedOnly: false, showUsageStatus: false },
-    onChange: async (next) => { if (isFailing) throw new Error("disk full"); changes.push(next); },
+    onChange: (next) => Effect.suspend(() => isFailing ? failWith("disk full") : Effect.sync(() => { changes.push(next); })),
     requestRender: () => {}, done: () => { closed++; } });
   const settle = () => new Promise((resolve) => setImmediate(resolve));
   expect(panel.render(70).includes("Account quota · not received yet")).toBeTruthy();
@@ -654,19 +657,19 @@ test("shared quota file: the newer record wins, another scope is not read, and m
   const usage = { billingStrategy: "BILLING_STRATEGY_QUOTA", dailyRemainingPercent: 80, weeklyRemainingPercent: 90, fetchedAtMs: 2000 };
   try {
     expect(path).toBe(join(directory, "agent", "pi-devin", "account-usage.json"));
-    expect(store.read(scope)).toBe(undefined);
-    store.write(scope, usage);
-    store.write(scope, { dailyRemainingPercent: 99, fetchedAtMs: 1000 }); // An older check from another process is ignored.
-    expect(store.read(scope)).toStrictEqual(usage);
-    expect(store.read(other)).toBe(undefined);
+    expect(runSync(store.read(scope))).toBe(undefined);
+    runSync(store.write(scope, usage));
+    runSync(store.write(scope, { dailyRemainingPercent: 99, fetchedAtMs: 1000 })); // An older check from another process is ignored.
+    expect(runSync(store.read(scope))).toStrictEqual(usage);
+    expect(runSync(store.read(other))).toBe(undefined);
     expect(JSON.parse(await readFile(path, "utf8"))).toStrictEqual({ schemaVersion: 1, scope, usage });
     // After a sign-in the new session's record replaces the old one even if its clock is older.
-    store.write(other, { fetchedAtMs: 500 });
-    expect([store.read(scope), store.read(other)]).toStrictEqual([undefined, { fetchedAtMs: 500 }]);
+    runSync(store.write(other, { fetchedAtMs: 500 }));
+    expect([runSync(store.read(scope)), runSync(store.read(other))]).toStrictEqual([undefined, { fetchedAtMs: 500 }]);
     for (const bytes of ["{", JSON.stringify({ schemaVersion: 2, scope, usage }), JSON.stringify({ schemaVersion: 1, scope: "short", usage }),
       JSON.stringify({ schemaVersion: 1, scope, usage: { ...usage, dailyRemainingPercent: "80" } }), JSON.stringify({ schemaVersion: 1, scope, usage: { ...usage, fetchedAtMs: -1 } })]) {
       await writeFile(path, bytes);
-      expect(store.read(scope)).toBe(undefined);
+      expect(runSync(store.read(scope))).toBe(undefined);
       expect(await readFile(path, "utf8")).toBe(bytes);
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
@@ -678,13 +681,13 @@ test("/devin global store: corrupt or malformed files read as defaults and are n
     const path = devinSettingsPath(join(directory, "agent"));
     expect(path).toBe(join(directory, "agent", "pi-devin", "settings.json"));
     const store = fileDevinSettings(path);
-    expect(store.read()).toStrictEqual(DEFAULT_PREFERENCES);
-    store.write({ recommendedOnly: true, showUsageStatus: false });
+    expect(runSync(store.read)).toStrictEqual(DEFAULT_PREFERENCES);
+    runSync(store.write({ recommendedOnly: true, showUsageStatus: false }));
     expect(JSON.parse(await readFile(path, "utf8"))).toStrictEqual({ schemaVersion: 1, recommendedOnly: true, showUsageStatus: false });
-    expect(fileDevinSettings(path).read()).toStrictEqual({ recommendedOnly: true, showUsageStatus: false });
+    expect(runSync(fileDevinSettings(path).read)).toStrictEqual({ recommendedOnly: true, showUsageStatus: false });
     for (const invalid of ["{broken", JSON.stringify({ schemaVersion: 2, recommendedOnly: true, showUsageStatus: true }), JSON.stringify({ schemaVersion: 1, recommendedOnly: "yes", showUsageStatus: true })]) {
       await writeFile(path, invalid);
-      expect(store.read()).toStrictEqual(DEFAULT_PREFERENCES);
+      expect(runSync(store.read)).toStrictEqual(DEFAULT_PREFERENCES);
       expect(await readFile(path, "utf8")).toBe(invalid);
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
@@ -694,15 +697,15 @@ test("/devin: when the list refresh fails after saving, the saved value stays an
   const commands = new Map<string, { handler: (args: string, ctx: never) => Promise<void> }>();
   const settings = memoryDevinSettings();
   let rebuilds = 0;
-  const provider = { rebuildModels: () => { rebuilds++; }, getModels: () => [], getAccountUsage: () => undefined,
-    lifecycle: { budget: () => ({ used: 0, limit: 8, isActive: false }) } };
+  const provider = { rebuildModels: Effect.sync(() => { rebuilds++; }), getModels: () => [], getAccountUsage: () => undefined,
+    lifecycle: { budget: Effect.succeed({ used: 0, limit: 8, isActive: false }) } };
   registerDevinCommand({ registerCommand: (name: string, definition: never) => { commands.set(name, definition); } } as never, provider as never, settings);
   const notes: [string, string][] = [];
   const ctx = { mode: "rpc", hasUI: true, model: undefined, sessionManager: { getBranch: () => [] },
     ui: { notify: (message: string, type: string) => { notes.push([type, message]); } },
     modelRegistry: { refresh: async () => { throw new Error("registry busy"); } } } as never;
   await commands.get(DEVIN_COMMAND_NAME)!.handler("recommended on", ctx);
-  expect(settings.read()).toStrictEqual({ recommendedOnly: true, showUsageStatus: false });
+  expect(runSync(settings.read)).toStrictEqual({ recommendedOnly: true, showUsageStatus: false });
   expect(rebuilds).toBe(1);
   expect(notes.map(([type]) => type)).toStrictEqual(["warning", "info"]);
   expect(notes[0][1]).toMatch(/Settings were saved, but the model list could not be rebuilt: registry busy/);

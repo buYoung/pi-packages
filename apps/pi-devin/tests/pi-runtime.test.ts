@@ -8,7 +8,7 @@ import { registerDevinExtension } from "../src/pi/extension.ts";
 import type { DevinProvider } from "../src/pi/provider.ts";
 import { CHAT_METHOD } from "../src/core/protocol/protobuf.ts";
 import type { JsonObject } from "../src/core/types.ts";
-import { finalFrames, statusResponse, streamResponse } from "./helpers.ts";
+import { finalFrames, runSync, statusResponse, streamResponse } from "./helpers.ts";
 import { providerFixture, providerHostCredential } from "./provider-fixture.ts";
 
 async function runtimeFixture(options: Parameters<typeof providerFixture>[0] & {
@@ -65,26 +65,26 @@ test("real session runtime fork/resume/reload/tree and account switch boundaries
   const status = statusResponse(); const f = await runtimeFixture({ status });
   try {
     await f.runtime.session.prompt("first"); await f.runtime.session.prompt("second");
-    const originalFile = f.runtime.session.sessionFile!, original = f.current().lifecycle.snapshot();
+    const originalFile = f.runtime.session.sessionFile!, original = runSync(f.current().lifecycle.snapshot);
     const originalProvider = f.current();
     const firstUser = f.runtime.session.sessionManager.getBranch().find((entry) => entry.type === "message" && entry.message.role === "user")!;
     expect((await f.runtime.fork(firstUser.id, { position: "at" })).cancelled).toBe(false);
     await f.runtime.session.prompt("fork");
-    expect(f.current().lifecycle.snapshot().cascadeId).not.toBe(original.cascadeId);
+    expect(runSync(f.current().lifecycle.snapshot).cascadeId).not.toBe(original.cascadeId);
     expect(f.current()).not.toBe(originalProvider);
     expect((await f.runtime.switchSession(originalFile)).cancelled).toBe(false);
     await f.runtime.session.prompt("resumed");
-    expect(f.current().lifecycle.snapshot().cascadeId).toBe(original.cascadeId);
-    expect(f.current().lifecycle.snapshot().nextStepIndex).toBe(3);
+    expect(runSync(f.current().lifecycle.snapshot).cascadeId).toBe(original.cascadeId);
+    expect(runSync(f.current().lifecycle.snapshot).nextStepIndex).toBe(3);
     const beforeReload = f.current(); await f.runtime.session.reload(); await f.registrations.at(-1)!.ready;
     expect(f.current()).not.toBe(beforeReload);
     expect(f.runtime.session.modelRuntime.getProviders().filter((provider) => provider.id === "devin").length).toBe(1);
     await f.runtime.session.prompt("reloaded");
-    expect(f.current().lifecycle.snapshot().nextStepIndex).toBe(4);
+    expect(runSync(f.current().lifecycle.snapshot).nextStepIndex).toBe(4);
     const firstAnswer = f.runtime.session.sessionManager.getBranch().find((entry) => entry.type === "message" && entry.message.role === "assistant")!;
     expect((await f.runtime.session.navigateTree(firstAnswer.id, { summarize: false })).cancelled).toBe(false);
     await f.runtime.session.prompt("tree");
-    const tree = f.current().lifecycle.snapshot();
+    const tree = runSync(f.current().lifecycle.snapshot);
     expect(tree.cascadeId).toBe(original.cascadeId); expect(tree.trajectoryId).not.toBe(original.trajectoryId); expect(tree.nextStepIndex).toBe(1);
     const count = f.chatCalls();
     (status.userStatus as JsonObject).userId = "another-offline-user";
@@ -131,7 +131,7 @@ test("threshold compaction, the compression send fallback and the follow-up infe
     expect(requests[0].body).toStrictEqual(requests[1].body);
     expect(requests[0].body.executionId).toBe(undefined); expect(requests[2].body.executionId).toBeTruthy();
     expect(new Set(requests.map((request) => request.body.cascadeId)).size).toBe(1);
-    expect(f.current().lifecycle.snapshot().execution!.used).toBe(3);
+    expect(runSync(f.current().lifecycle.snapshot).execution!.used).toBe(3);
     expect(f.events.indexOf("compact:threshold") < f.events.indexOf("before")).toBeTruthy();
     expect(f.runtime.session.getLastAssistantText()).toBe("summary or answer");
     expect(f.errors).toStrictEqual([]);
@@ -149,10 +149,10 @@ test("overflow auto-compaction uses the same run budget; manual compaction gets 
     const requests = f.requests.filter((request) => request.method === CHAT_METHOD);
     expect(requests.map((request) => request.body.executionId === undefined)).toStrictEqual([false, true, true, false]);
     expect(requests[0].body.executionId).toBe(requests[3].body.executionId);
-    const original = f.current().lifecycle.snapshot().execution!; expect(original.used).toBe(4); expect(original.settled).toBe(true);
+    const original = runSync(f.current().lifecycle.snapshot).execution!; expect(original.used).toBe(4); expect(original.settled).toBe(true);
     await f.runtime.session.prompt("more history");
     await f.runtime.session.compact("manual summary");
-    const manual = f.current().lifecycle.snapshot().execution!;
+    const manual = runSync(f.current().lifecycle.snapshot).execution!;
     expect(manual.used).toBe(2); expect(manual.settled).toBe(true); expect(manual.id).not.toBe(original.id);
     expect(f.events.includes("compact:manual")).toBeTruthy(); expect(f.errors).toStrictEqual([]);
   } finally { await f.close(); }
@@ -170,7 +170,7 @@ test("when a pre-start compaction fallback uses up the budget, the main inferenc
     expect(f.chatCalls()).toBe(2);
     const result = f.runtime.session.messages.at(-1) as AssistantMessage;
     expect(result.stopReason).toBe("error"); expect(result.errorMessage!).toMatch(/all 2 Devin model HTTP requests/);
-    expect(f.current().lifecycle.snapshot().execution!.used).toBe(2);
+    expect(runSync(f.current().lifecycle.snapshot).execution!.used).toBe(2);
   } finally { await f.close(); }
 });
 

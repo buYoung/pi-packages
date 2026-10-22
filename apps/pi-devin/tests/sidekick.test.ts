@@ -4,10 +4,11 @@ import { readFile, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import type { ExtensionAPI, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
+import { Effect } from "effect";
 import { expect, test } from "vitest";
 import type { DevinProvider } from "../src/pi/provider.ts";
-import { createSidekickTool, type SidekickDetails, type SidekickToolOptions } from "../src/pi/sidekick.ts";
-import { SIDEKICK_REPORT_CHAR_LIMIT } from "../src/pi/sidekick-report.ts";
+import { SIDEKICK_REPORT_CHAR_LIMIT } from "../src/pi/sidekick/report.ts";
+import { createSidekickTool, type SidekickDetails, type SidekickToolOptions } from "../src/pi/sidekick/tool.ts";
 
 function fixture(onTools?: () => void) {
   const commands: Record<string, unknown>[] = [];
@@ -33,7 +34,7 @@ function fixture(onTools?: () => void) {
     getModels: () => [model], getFusionChoices: () => ({ sidekicks: [{ id: "side", level: "medium" }] }),
   } as unknown as DevinProvider, {
     agentDir: () => "/unused-agent-dir",
-    runtime: { resolveCommand: () => ({ command: "fake-pi", args: [] }),
+    runtime: { resolveCommand: Effect.succeed({ command: "fake-pi", args: [] }),
       spawn: (() => { spawned++; return process as unknown as ChildProcess; }) as NonNullable<SidekickToolOptions["runtime"]>["spawn"] },
   });
   const ctx = { model, cwd: "/fixture", sessionManager: { getSessionId: () => "fixture", getSessionFile: () => undefined } } as unknown as ExtensionToolContext;

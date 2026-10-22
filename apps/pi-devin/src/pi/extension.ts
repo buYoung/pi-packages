@@ -1,15 +1,17 @@
 import type { Model } from "@earendil-works/pi-ai";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { createDevinProvider, type DevinProvider } from "./provider.ts";
-import { DEVIN_STATE_ENTRY } from "./lifecycle.ts";
+import { Effect } from "effect";
+import { failWith } from "../core/validation.ts";
 import { registerDevinCommand, updateUsageStatus } from "./devin-command.ts";
-import { memoryDevinSettings, type DevinSettings } from "./devin-settings.ts";
 import { registerFusionCommand } from "./fusion-command.ts";
-import { memoryFusionSettings, type FusionSettings } from "./fusion-settings.ts";
-import { createSidekickTool, fusionOf, SIDEKICK_TOOL_NAME, type SidekickToolOptions } from "./sidekick.ts";
+import { DEVIN_STATE_ENTRY } from "./lifecycle.ts";
+import { createDevinProvider, type DevinProvider, type DevinProviderOptions } from "./provider.ts";
+import { memoryDevinSettings, type DevinSettings } from "./settings/devin-settings.ts";
+import { memoryFusionSettings, type FusionSettings } from "./settings/fusion-settings.ts";
+import { SIDEKICK_TOOL_NAME } from "./sidekick/prompts.ts";
+import { createSidekickTool, fusionOf, type SidekickToolOptions } from "./sidekick/tool.ts";
 
-type ProviderOptions = NonNullable<Parameters<typeof createDevinProvider>[0]>;
-export interface DevinExtensionOptions extends Omit<ProviderOptions, "fusion" | "listsAllExactModels" | "recommendedOnly" | "onAccountUsage"> {
+export interface DevinExtensionOptions extends Omit<DevinProviderOptions, "fusion" | "listsAllExactModels" | "recommendedOnly" | "onAccountUsage"> {
   /** Store for the `/devin-fusion` choice. Kept in memory only when omitted. */
   fusionSettings?: FusionSettings;
   /** Store for the `/devin` display settings. Kept in memory only when omitted. */
@@ -20,21 +22,22 @@ export interface DevinExtensionOptions extends Omit<ProviderOptions, "fusion" | 
   sidekick?: Partial<SidekickToolOptions>;
 }
 
+/** Runs a handler's effect inside Pi's synchronous event callback; a failure is reported to Pi as the handler's error. */
+const runHandler = (effect: Effect.Effect<void, unknown>) => Effect.runSync(effect);
+
 export function registerDevinExtension(pi: ExtensionAPI, options: DevinExtensionOptions = {}): DevinProvider {
   const { fusionSettings, devinSettings, isFusionChild, sidekick: sidekickOptions, ...providerOptions } = options;
   const settings = fusionSettings ?? memoryFusionSettings();
   const preferences = isFusionChild ? undefined : devinSettings ?? memoryDevinSettings();
   // Context of the current session, used to redraw the status when the quota changes outside event handlers.
   let statusContext: ExtensionContext | undefined;
-  const refreshStatus = (context: ExtensionContext, pendingMessage?: unknown) => { if (preferences) updateUsageStatus(context, provider, preferences, pendingMessage); };
+  const refreshStatus = (context: ExtensionContext, pendingMessage?: unknown) => preferences ? updateUsageStatus(context, provider, preferences, pendingMessage) : Effect.void;
   // The child Pi runs on the exact UID the lead chose, so it lists every exact UID and ignores the recommended filter.
   const provider = createDevinProvider({
-    ...providerOptions, fusion: isFusionChild ? false : () => settings.read(), listsAllExactModels: isFusionChild === true,
-    recommendedOnly: preferences ? () => preferences.read().recommendedOnly : undefined,
-    onAccountUsage: () => {
-      if (!statusContext) return;
-      try { refreshStatus(statusContext); } catch { /* The session was replaced or reloaded; its next session_start redraws. */ }
-    },
+    ...providerOptions, fusion: isFusionChild ? false : settings.read, listsAllExactModels: isFusionChild === true,
+    recommendedOnly: preferences ? Effect.map(preferences.read, (value) => value.recommendedOnly) : undefined,
+    // The session may be replaced or reloaded meanwhile; its next session_start redraws.
+    onAccountUsage: () => statusContext ? Effect.catchCause(refreshStatus(statusContext), () => Effect.void) : Effect.void,
   });
   pi.registerProvider(provider);
   if (preferences) registerDevinCommand(pi, provider, preferences);
@@ -57,7 +60,7 @@ export function registerDevinExtension(pi: ExtensionAPI, options: DevinExtension
   pi.on("session_start", (_event, context) => {
     if (context.modelRegistry.getRegisteredNativeProvider("devin") !== provider) {
       provider.shutdown();
-      throw new Error("The Devin provider ID collides with another registration. Remove the duplicate extension and reload.");
+      runHandler(failWith("The Devin provider ID collides with another registration. Remove the duplicate extension and reload."));
     }
     provider.attachSession({
       getSessionId: () => context.sessionManager.getSessionId(),
@@ -67,22 +70,22 @@ export function registerDevinExtension(pi: ExtensionAPI, options: DevinExtension
     sidekick?.onSessionStart(context.sessionManager.getSessionId());
     syncSidekick(context.model);
     statusContext = context;
-    refreshStatus(context);
+    runHandler(refreshStatus(context));
   });
   pi.on("message_end", (event, context) => {
-    if (event.message.role === "assistant" && event.message.provider === "devin") refreshStatus(context, event.message);
+    if (event.message.role === "assistant" && event.message.provider === "devin") runHandler(refreshStatus(context, event.message));
   });
   // Subagents and other sessions record quota in the shared store; any model's turn picks it up.
-  pi.on("turn_end", (_event, context) => { refreshStatus(context); });
-  pi.on("before_agent_start", () => { provider.lifecycle.begin("agent"); });
-  pi.on("agent_start", () => { provider.lifecycle.agentStarted(); });
+  pi.on("turn_end", (_event, context) => { runHandler(refreshStatus(context)); });
+  pi.on("before_agent_start", () => { runHandler(provider.lifecycle.begin("agent")); });
+  pi.on("agent_start", () => { runHandler(provider.lifecycle.agentStarted); });
   // Host retry or overflow recovery can continue after agent_end.
-  pi.on("agent_settled", (_event, context) => { provider.lifecycle.finish(); refreshStatus(context); });
-  pi.on("session_before_compact", (event) => { provider.lifecycle.beforeCompaction(event.reason); });
-  pi.on("session_compact", (event) => { provider.lifecycle.afterCompaction(event.reason); });
-  pi.on("session_compact_failed", (event) => { provider.lifecycle.afterCompaction(event.reason); });
-  pi.on("session_before_tree", (event) => { if (event.preparation.userWantsSummary) provider.lifecycle.beforeTree(); });
-  pi.on("session_tree", (_event, context) => { provider.lifecycle.treeChanged(); refreshStatus(context); });
+  pi.on("agent_settled", (_event, context) => { runHandler(Effect.andThen(provider.lifecycle.finish, refreshStatus(context))); });
+  pi.on("session_before_compact", (event) => { runHandler(provider.lifecycle.beforeCompaction(event.reason)); });
+  pi.on("session_compact", (event) => { runHandler(provider.lifecycle.afterCompaction(event.reason)); });
+  pi.on("session_compact_failed", (event) => { runHandler(provider.lifecycle.afterCompaction(event.reason)); });
+  pi.on("session_before_tree", (event) => { if (event.preparation.userWantsSummary) runHandler(provider.lifecycle.beforeTree); });
+  pi.on("session_tree", (_event, context) => { runHandler(Effect.andThen(provider.lifecycle.treeChanged, refreshStatus(context))); });
   pi.on("cache_warming_decision", (_event, context) => context.model?.provider === "devin" ? { action: "stop" } : undefined);
   pi.on("session_shutdown", () => { statusContext = undefined; sidekick?.reset(); provider.shutdown(); });
   return provider;

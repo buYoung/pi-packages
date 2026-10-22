@@ -1,34 +1,28 @@
 import { randomUUID } from "node:crypto";
-import { awaitWithSignal } from "../core/protocol/transport.ts";
+import { Effect, Exit } from "effect";
+import { makeCancellation, type Cancellation } from "../core/cancellation.ts";
+import { Cancelled, ModelBudgetError, type DevinError, type DevinFailure } from "../core/errors.ts";
+import { failWith } from "../core/validation.ts";
+import { AdmissionLine, type AdmissionTicket } from "./lifecycle-admission.ts";
+import { freshState, MAX_STEP_INDEX, restoreState, type DevinSessionState, type ExecutionKind, type ExecutionState, type SessionBinding } from "./lifecycle-state.ts";
 
-export const DEVIN_STATE_ENTRY = "pi-devin.state.v1";
-export type ExecutionKind = "agent" | "pending" | "manual" | "tree" | "direct" | "recovered";
-export interface DevinSessionState {
-  version: 1;
-  sessionId: string;
-  ownerHash?: string;
-  cascadeId: string;
-  trajectoryId: string;
-  nextStepIndex: number;
-  execution?: { id: string; used: number; settled: boolean; kind: ExecutionKind };
-}
-export interface SessionBinding {
-  getSessionId(): string;
-  getBranch(): readonly { type: string; customType?: string; data?: unknown }[];
-  append(data: DevinSessionState): void;
-}
+export { DEVIN_STATE_ENTRY, type DevinSessionState, type ExecutionKind, type SessionBinding } from "./lifecycle-state.ts";
+export { ModelBudgetError } from "../core/errors.ts";
+
 interface Execution {
-  data: NonNullable<DevinSessionState["execution"]>;
-  controller: AbortController;
-  tail: Promise<void>;
-  cleanups: Set<() => void>;
+  data: ExecutionState;
+  /** Ends the run's work with a reason: a finished run, an exhausted budget or an invalidated login. */
+  cancellation: Cancellation;
+  /** Requests of one run are admitted one at a time, in order. */
+  admission: AdmissionLine;
+  cleanups: Set<Effect.Effect<void>>;
   activeRequests: number;
   hasStarted: boolean;
   nextIsRecovery: boolean;
   hasCheckpoint: boolean;
 }
+
 export interface RequestLease {
-  signal: AbortSignal;
   executionId: string;
   cascadeId: string;
   trajectoryId: string;
@@ -36,182 +30,231 @@ export interface RequestLease {
   stepIndex: number;
   isAuxiliary: boolean;
   isRecovery: boolean;
-  consume(): void;
-  addCleanup(cleanup: () => void): void;
-  release(): void;
+  /** Ends when the run is aborted, failing with its reason. */
+  cancellation: Cancellation;
+  /** Counts one model HTTP request against the run's budget. */
+  consume: Effect.Effect<void, DevinFailure>;
+  /** Runs once when the run is aborted or the lease is released. */
+  addCleanup(cleanup: Effect.Effect<void>): Effect.Effect<void>;
+  /** Idempotent. Lets the next request of the run in. */
+  release: Effect.Effect<void>;
 }
-export class ModelBudgetError extends Error {
-  constructor(limit: number) { super(`Used all ${limit} Devin model HTTP requests in the budget.`); this.name = "ModelBudgetError"; }
-}
+
+export interface BudgetUsage { used: number; limit: number; isActive: boolean }
+
+const cancelled = () => new Cancelled({ message: "The previous Devin run ended." });
+const runQuietly = (cleanup: Effect.Effect<void>) => Effect.catchCause(cleanup, () => Effect.void);
 
 /** Value of `PI_DEVIN_MAX_MODEL_CALLS`. Defaults to 8; anything other than an integer from 1 to 100 stops the extension from loading. */
-export function modelCallLimit(value: string | undefined): number | undefined {
-  if (value === undefined || value === "") return undefined;
-  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 100) throw new Error("PI_DEVIN_MAX_MODEL_CALLS must be an integer from 1 to 100.");
-  return Number(value);
-}
-const cancelled = () => new DOMException("The previous Devin run ended.", "AbortError");
-const isUUID = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
-
-function restoreState(binding: SessionBinding): DevinSessionState {
-  const sessionId = binding.getSessionId();
-  const entry = [...binding.getBranch()].reverse().find((entry) => entry.type === "custom" && entry.customType === DEVIN_STATE_ENTRY);
-  if (!entry) return { version: 1, sessionId, cascadeId: randomUUID(), trajectoryId: randomUUID(), nextStepIndex: 0 };
-  const value = entry.data as DevinSessionState | undefined;
-  if (!value || value.version !== 1 || typeof value.sessionId !== "string" || !isUUID(value.cascadeId) || !isUUID(value.trajectoryId)
-    || !Number.isSafeInteger(value.nextStepIndex) || value.nextStepIndex < 0 || value.nextStepIndex > 2_147_483_647
-    || (value.ownerHash !== undefined && !/^[a-f0-9]{64}$/.test(value.ownerHash))
-    || (value.execution !== undefined && (!isUUID(value.execution.id) || !Number.isSafeInteger(value.execution.used)
-      || value.execution.used < 0 || value.execution.used > 100 || typeof value.execution.settled !== "boolean"))) {
-    throw new Error("The Devin session state is corrupt or an unsupported version. Start a new session.");
-  }
-  if (value.sessionId !== sessionId) return { version: 1, sessionId, cascadeId: randomUUID(), trajectoryId: randomUUID(), nextStepIndex: 0 };
-  return structuredClone(value);
+export function modelCallLimit(value: string | undefined): Effect.Effect<number | undefined, DevinError> {
+  if (value === undefined || value === "") return Effect.succeed(undefined);
+  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 100) return failWith("PI_DEVIN_MAX_MODEL_CALLS must be an integer from 1 to 100.");
+  return Effect.succeed(Number(value));
 }
 
 /** One instance owns one Pi runtime. It never builds its own tool or retry loop. */
 export class DevinLifecycle {
   private binding?: SessionBinding;
-  private state: DevinSessionState = { version: 1, sessionId: randomUUID(), cascadeId: randomUUID(), trajectoryId: randomUUID(), nextStepIndex: 0 };
+  private state: DevinSessionState = freshState(randomUUID());
   private execution?: Execution;
   private isClosed = false;
   private isAuxiliary = false;
   readonly maxModelCalls: number;
-  constructor(maxModelCalls = 8) {
-    if (!Number.isSafeInteger(maxModelCalls) || maxModelCalls < 1 || maxModelCalls > 100) throw new Error("The Devin request budget must be between 1 and 100.");
+
+  private constructor(maxModelCalls: number) {
     this.maxModelCalls = maxModelCalls;
   }
-  snapshot(): DevinSessionState { return structuredClone(this.state); }
+
+  static make(maxModelCalls = 8): Effect.Effect<DevinLifecycle, DevinError> {
+    if (!Number.isSafeInteger(maxModelCalls) || maxModelCalls < 1 || maxModelCalls > 100) return failWith("The Devin request budget must be between 1 and 100.");
+    return Effect.sync(() => new DevinLifecycle(maxModelCalls));
+  }
+
+  get snapshot(): Effect.Effect<DevinSessionState> {
+    return Effect.sync(() => structuredClone(this.state));
+  }
+
   /** Model requests of the running or last finished run. used is 0 when this session has no run yet. */
-  budget(): { used: number; limit: number; isActive: boolean } {
-    const execution = this.state.execution;
-    return { used: execution?.used ?? 0, limit: this.maxModelCalls, isActive: execution !== undefined && !execution.settled };
+  get budget(): Effect.Effect<BudgetUsage> {
+    return Effect.sync(() => {
+      const execution = this.state.execution;
+      return { used: execution?.used ?? 0, limit: this.maxModelCalls, isActive: execution !== undefined && !execution.settled };
+    });
   }
-  private checkpoint(): void {
-    if (this.binding && this.binding.getSessionId() !== this.state.sessionId) throw cancelled();
-    this.binding?.append(structuredClone(this.state));
+
+  private checkpoint(): Effect.Effect<void, Cancelled> {
+    return Effect.suspend(() => {
+      if (this.binding && this.binding.getSessionId() !== this.state.sessionId) return Effect.fail(cancelled());
+      this.binding?.append(structuredClone(this.state));
+      return Effect.void;
+    });
   }
-  private activate(data: NonNullable<DevinSessionState["execution"]>, hasCheckpoint = false): Execution {
+
+  private activate(data: ExecutionState, hasCheckpoint = false): Execution {
     this.state.execution = data;
-    return this.execution = { data, controller: new AbortController(), tail: Promise.resolve(), cleanups: new Set(), activeRequests: 0, hasStarted: false, nextIsRecovery: false, hasCheckpoint };
-  }
-  attach(binding: SessionBinding): void {
-    this.abort(cancelled());
-    this.binding = binding;
-    this.state = restoreState(binding);
-    this.execution = undefined; this.isClosed = false; this.isAuxiliary = false;
-    if (this.state.execution && !this.state.execution.settled) {
-      this.activate({ ...this.state.execution, kind: "recovered" }, true);
-    }
-  }
-  begin(kind: ExecutionKind): void {
-    if (this.isClosed) throw cancelled();
-    if (this.execution && !this.execution.data.settled) {
-      if (kind === "agent" && ["pending", "recovered"].includes(this.execution.data.kind)) this.execution.data.kind = "agent";
-      else if (kind === "agent" && ["manual", "tree", "direct"].includes(this.execution.data.kind) && this.execution.activeRequests === 0) this.finish();
-      else return; // Retries and tool follow-up calls do not get a new budget.
-      if (this.execution) return;
-    }
-    this.activate({ id: randomUUID(), used: 0, settled: false, kind });
-  }
-  agentStarted(): void {
-    if (!this.execution) this.begin("agent");
-    this.execution!.nextIsRecovery = this.execution!.hasStarted;
-    this.execution!.hasStarted = true;
-  }
-  beforeCompaction(reason: "manual" | "threshold" | "overflow"): void {
-    this.begin(reason === "manual" ? "manual" : "pending");
-    this.isAuxiliary = true;
-  }
-  afterCompaction(reason: "manual" | "threshold" | "overflow"): void {
-    this.isAuxiliary = false;
-    if (reason === "manual" && this.execution?.data.kind === "manual") this.finish();
-  }
-  beforeTree(): void { this.begin("tree"); this.isAuxiliary = true; }
-  finish(): void {
-    if (!this.execution) return;
-    this.execution.data.settled = true;
-    this.abort(cancelled());
-    if (this.execution.hasCheckpoint) this.checkpoint();
-    this.execution = undefined; this.isAuxiliary = false;
-  }
-  abort(reason: unknown): void {
-    const active = this.execution;
-    if (!active) return;
-    if (!active.controller.signal.aborted) active.controller.abort(reason);
-    for (const cleanup of active.cleanups) { try { cleanup(); } catch { /* A cleanup error must not skip releasing other resources. */ } }
-  }
-  shutdown(): void {
-    if (this.isClosed) return;
-    this.abort(cancelled());
-    // An unfinished budget stays in the checkpoint so a reload cannot reset the limit.
-    this.isClosed = true;
-  }
-  treeChanged(): void {
-    if (!this.binding) return;
-    this.abort(cancelled());
-    this.state = restoreState(this.binding);
-    this.state.trajectoryId = randomUUID(); this.state.nextStepIndex = 0;
-    this.state.execution = undefined; this.execution = undefined; this.isAuxiliary = false;
-    if (this.state.ownerHash) this.checkpoint();
-  }
-  async acquire(ownerHash: string, callerSignal?: AbortSignal): Promise<RequestLease> {
-    if (this.isClosed) throw cancelled();
-    callerSignal?.throwIfAborted();
-    if (!/^[a-f0-9]{64}$/.test(ownerHash)) throw new Error("A verified Devin account scope is required.");
-    if (this.state.ownerHash && this.state.ownerHash !== ownerHash) throw new Error("This Pi session is bound to a different Devin account or endpoint. Start a new session.");
-    this.state.ownerHash = ownerHash;
-    if (!this.execution) this.begin("direct");
-    const active = this.execution!, state = this.state;
-    const signal = AbortSignal.any([active.controller.signal, ...(callerSignal ? [callerSignal] : [])]);
-    const previous = active.tail;
-    let releaseQueue!: () => void;
-    const completed = new Promise<void>((resolve) => { releaseQueue = resolve; });
-    active.tail = previous.then(() => completed);
-    let hasReleased = false, hasAcquired = false;
-    const ownCleanups = new Set<() => void>();
-    const clean = () => { for (const cleanup of ownCleanups) { try { cleanup(); } catch {} } };
-    const assertCurrent = () => {
-      signal.throwIfAborted();
-      if (this.execution !== active || this.state !== state || this.isClosed || (this.binding && this.binding.getSessionId() !== state.sessionId)) throw cancelled();
+    return this.execution = {
+      data, cancellation: makeCancellation(), admission: new AdmissionLine(), cleanups: new Set(),
+      activeRequests: 0, hasStarted: false, nextIsRecovery: false, hasCheckpoint,
     };
-    const release = () => {
-      if (hasReleased) return;
-      hasReleased = true;
-      signal.removeEventListener("abort", clean);
-      for (const cleanup of ownCleanups) { active.cleanups.delete(cleanup); try { cleanup(); } catch {} }
-      if (hasAcquired) active.activeRequests--;
-      releaseQueue();
-    };
-    try {
-      await awaitWithSignal(previous, signal);
-      assertCurrent();
-      if (active.data.used >= this.maxModelCalls) throw new ModelBudgetError(this.maxModelCalls);
-      if (state.nextStepIndex >= 2_147_483_647) throw new Error("The Devin step number limit was reached. Start a new session.");
-      active.activeRequests++; hasAcquired = true;
-      const stepIndex = state.nextStepIndex++;
-      active.hasCheckpoint = true;
-      this.checkpoint();
-      signal.addEventListener("abort", clean, { once: true });
-      const isAuxiliary = this.isAuxiliary;
-      const isRecovery = !isAuxiliary && active.nextIsRecovery;
-      if (!isAuxiliary) active.nextIsRecovery = false;
-      return {
-        signal, executionId: active.data.id, cascadeId: state.cascadeId, trajectoryId: state.trajectoryId,
-        sessionId: state.sessionId, stepIndex,
-        isAuxiliary, isRecovery,
-        consume: () => {
-          assertCurrent();
-          if (active.data.used >= this.maxModelCalls) { const error = new ModelBudgetError(this.maxModelCalls); this.abort(error); throw error; }
-          active.data.used++; this.checkpoint();
-        },
-        addCleanup: (cleanup) => {
-          let hasCleaned = false;
-          const once = () => { if (!hasCleaned) { hasCleaned = true; cleanup(); } };
-          ownCleanups.add(once); active.cleanups.add(once); if (signal.aborted) once();
-        },
-        release,
-      };
-    } catch (error) { release(); throw error; }
+  }
+
+  attach(binding: SessionBinding): Effect.Effect<void, DevinError> {
+    return Effect.gen({ self: this }, function* () {
+      yield* this.abort(cancelled());
+      this.binding = binding;
+      this.state = yield* restoreState(binding);
+      this.execution = undefined; this.isClosed = false; this.isAuxiliary = false;
+      if (this.state.execution && !this.state.execution.settled) this.activate({ ...this.state.execution, kind: "recovered" }, true);
+    });
+  }
+
+  begin(kind: ExecutionKind): Effect.Effect<void, Cancelled> {
+    return Effect.gen({ self: this }, function* () {
+      if (this.isClosed) return yield* Effect.fail(cancelled());
+      const current = this.execution;
+      if (current && !current.data.settled) {
+        if (kind === "agent" && ["pending", "recovered"].includes(current.data.kind)) current.data.kind = "agent";
+        else if (kind === "agent" && ["manual", "tree", "direct"].includes(current.data.kind) && current.activeRequests === 0) yield* this.finish;
+        else return; // Retries and tool follow-up calls do not get a new budget.
+        if (this.execution) return;
+      }
+      this.activate({ id: randomUUID(), used: 0, settled: false, kind });
+    });
+  }
+
+  get agentStarted(): Effect.Effect<void, Cancelled> {
+    return Effect.gen({ self: this }, function* () {
+      if (!this.execution) yield* this.begin("agent");
+      const execution = this.execution!;
+      execution.nextIsRecovery = execution.hasStarted;
+      execution.hasStarted = true;
+    });
+  }
+
+  beforeCompaction(reason: "manual" | "threshold" | "overflow"): Effect.Effect<void, Cancelled> {
+    return Effect.andThen(this.begin(reason === "manual" ? "manual" : "pending"), Effect.sync(() => { this.isAuxiliary = true; }));
+  }
+
+  afterCompaction(reason: "manual" | "threshold" | "overflow"): Effect.Effect<void, Cancelled> {
+    return Effect.suspend(() => {
+      this.isAuxiliary = false;
+      return reason === "manual" && this.execution?.data.kind === "manual" ? this.finish : Effect.void;
+    });
+  }
+
+  get beforeTree(): Effect.Effect<void, Cancelled> {
+    return Effect.andThen(this.begin("tree"), Effect.sync(() => { this.isAuxiliary = true; }));
+  }
+
+  get finish(): Effect.Effect<void, Cancelled> {
+    return Effect.gen({ self: this }, function* () {
+      const execution = this.execution;
+      if (!execution) return;
+      execution.data.settled = true;
+      yield* this.abort(cancelled());
+      if (execution.hasCheckpoint) yield* this.checkpoint();
+      this.execution = undefined; this.isAuxiliary = false;
+    });
+  }
+
+  /** Stops the run's waiting and running requests with the reason. A cleanup failure never skips releasing other resources. */
+  abort(reason: DevinFailure): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      const active = this.execution;
+      if (!active) return Effect.void;
+      active.cancellation.cancelUnsafe(reason);
+      return Effect.forEach([...active.cleanups], runQuietly, { discard: true });
+    });
+  }
+
+  get shutdown(): Effect.Effect<void> {
+    return Effect.suspend(() => {
+      if (this.isClosed) return Effect.void;
+      // An unfinished budget stays in the checkpoint so a reload cannot reset the limit.
+      return Effect.andThen(this.abort(cancelled()), Effect.sync(() => { this.isClosed = true; }));
+    });
+  }
+
+  get treeChanged(): Effect.Effect<void, DevinError | Cancelled> {
+    return Effect.gen({ self: this }, function* () {
+      if (!this.binding) return;
+      yield* this.abort(cancelled());
+      this.state = yield* restoreState(this.binding);
+      this.state.trajectoryId = randomUUID(); this.state.nextStepIndex = 0;
+      this.state.execution = undefined; this.execution = undefined; this.isAuxiliary = false;
+      if (this.state.ownerHash) yield* this.checkpoint();
+    });
+  }
+
+  acquire(ownerHash: string): Effect.Effect<RequestLease, DevinFailure> {
+    return Effect.gen({ self: this }, function* () {
+      if (this.isClosed) return yield* Effect.fail(cancelled());
+      if (!/^[a-f0-9]{64}$/.test(ownerHash)) return yield* failWith("A verified Devin account scope is required.");
+      if (this.state.ownerHash && this.state.ownerHash !== ownerHash) return yield* failWith("This Pi session is bound to a different Devin account or endpoint. Start a new session.");
+      this.state.ownerHash = ownerHash;
+      if (!this.execution) yield* this.begin("direct");
+      const active = this.execution!, state = this.state;
+      const ownCleanups = new Set<Effect.Effect<void>>();
+      let isCounted = false, hasReleased = false;
+      let ticket: AdmissionTicket | undefined;
+      const release = Effect.suspend(() => {
+        if (hasReleased) return Effect.void;
+        hasReleased = true;
+        for (const cleanup of ownCleanups) active.cleanups.delete(cleanup);
+        return Effect.forEach([...ownCleanups], runQuietly, { discard: true }).pipe(Effect.andThen(Effect.suspend(() => {
+          if (isCounted) active.activeRequests--;
+          return ticket ? ticket.leave : Effect.void;
+        })));
+      });
+      const assertCurrent = Effect.suspend(() => {
+        const reason = active.cancellation.reason();
+        if (reason) return Effect.fail(reason);
+        if (this.execution !== active || this.state !== state || this.isClosed || (this.binding && this.binding.getSessionId() !== state.sessionId)) return Effect.fail(cancelled());
+        return Effect.void;
+      });
+      const admitted = Effect.gen({ self: this }, function* () {
+        // Entered inside the effect whose exit releases it, so an interruption cannot leave the line blocked.
+        ticket = active.admission.enter();
+        yield* active.cancellation.guard(ticket.turn);
+        yield* assertCurrent;
+        if (active.data.used >= this.maxModelCalls) return yield* Effect.fail(new ModelBudgetError({ limit: this.maxModelCalls }));
+        if (state.nextStepIndex >= MAX_STEP_INDEX) return yield* failWith("The Devin step number limit was reached. Start a new session.");
+        active.activeRequests++; isCounted = true;
+        const stepIndex = state.nextStepIndex++;
+        active.hasCheckpoint = true;
+        yield* this.checkpoint();
+        const isAuxiliary = this.isAuxiliary;
+        const isRecovery = !isAuxiliary && active.nextIsRecovery;
+        if (!isAuxiliary) active.nextIsRecovery = false;
+        const lease: RequestLease = {
+          executionId: active.data.id, cascadeId: state.cascadeId, trajectoryId: state.trajectoryId,
+          sessionId: state.sessionId, stepIndex, isAuxiliary, isRecovery,
+          cancellation: active.cancellation,
+          consume: Effect.gen({ self: this }, function* () {
+            yield* assertCurrent;
+            if (active.data.used >= this.maxModelCalls) {
+              const error = new ModelBudgetError({ limit: this.maxModelCalls });
+              yield* this.abort(error);
+              return yield* Effect.fail(error);
+            }
+            active.data.used++;
+            yield* this.checkpoint();
+          }),
+          addCleanup: (cleanup) => Effect.suspend(() => {
+            let hasCleaned = false;
+            const once = Effect.suspend(() => {
+              if (hasCleaned) return Effect.void;
+              hasCleaned = true;
+              return cleanup;
+            });
+            ownCleanups.add(once); active.cleanups.add(once);
+            return active.cancellation.isCancelled() ? runQuietly(once) : Effect.void;
+          }),
+          release,
+        };
+        return lease;
+      });
+      return yield* admitted.pipe(Effect.onExit((exit) => Exit.isSuccess(exit) ? Effect.void : release));
+    });
   }
 }

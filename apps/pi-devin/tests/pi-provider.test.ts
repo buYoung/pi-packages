@@ -2,12 +2,11 @@ import { expect, test, vi } from "vitest";
 import { normalizeContext, type AssistantMessageEvent, type Context } from "@earendil-works/pi-ai";
 import { isRetryableAssistantError } from "@earendil-works/pi-ai/utils/retry";
 import { CHAT_METHOD } from "../src/core/protocol/protobuf.ts";
-import { encodeFrame } from "../src/core/protocol/transport.ts";
-import { chatResponseCodec } from "../src/core/protocol/protobuf.ts";
+import { Effect } from "effect";
 import type { JsonObject } from "../src/core/types.ts";
 import { createDevinProvider } from "../src/pi/provider.ts";
-import { memoryAccountUsageStore } from "../src/pi/usage-store.ts";
-import { errorStreamResponse, finalFrames, STATUS_METHOD, statusResponse, streamResponse, unaryResponse } from "./helpers.ts";
+import { memoryAccountUsageStore } from "../src/pi/settings/usage-store.ts";
+import { encodeResponse, errorStreamResponse, finalFrames, frameBytes, runSync, STATUS_METHOD, statusResponse, streamResponse, unaryResponse } from "./helpers.ts";
 import { extendedCacheCatalog, providerCredential, providerFixture, providerHostCredential } from "./provider-fixture.ts";
 
 const context = (): Context => ({ systemPrompt: "Current Pi prompt", messages: [{ role: "user", content: "hello", timestamp: 1 }] });
@@ -98,7 +97,7 @@ test("current system/tool changes and user and tool-result images are kept in th
 test("a failed partial tool and a truncated stream do not become success and content events are closed", async () => {
   for (const response of [
     errorStreamResponse("internal", "failed after partial", [{ deltaText: "PARTIAL", deltaToolCalls: [{ id: "call", name: "current", argumentsJson: '{"x":1}' }] }]),
-    new Response(new Uint8Array(encodeFrame(chatResponseCodec.encode({ deltaText: "truncated" }))), { headers: { "content-type": "application/connect+proto" } }),
+    new Response(new Uint8Array(frameBytes(encodeResponse({ deltaText: "truncated" }))), { headers: { "content-type": "application/connect+proto" } }),
   ]) {
     const fixture = await providerFixture({ chat: () => response });
     try {
@@ -110,16 +109,16 @@ test("a failed partial tool and a truncated stream do not become success and con
 
 test("the fixed 8-call budget is not reset at host retry boundaries and blocks before sending", async () => {
   const fixture = await providerFixture({ chat: () => Response.json({}, { status: 429 }) });
-  fixture.provider.lifecycle.begin("agent"); fixture.provider.lifecycle.agentStarted();
+  runSync(fixture.provider.lifecycle.begin("agent")); runSync(fixture.provider.lifecycle.agentStarted);
   try {
     for (let i = 0; i < 9; i++) {
-      if (i) fixture.provider.lifecycle.agentStarted();
+      if (i) runSync(fixture.provider.lifecycle.agentStarted);
       const { result } = await collect(fixture.provider.streamSimple(fixture.model, normalizeContext(context()), { apiKey: providerCredential.sessionToken, reasoning: "medium" }));
       expect(result.stopReason).toBe("error");
       if (i === 8) expect(result.errorMessage!).toMatch(/all 8 Devin model HTTP requests/);
     }
     expect(fixture.chatCalls()).toBe(8);
-    const state = fixture.provider.lifecycle.snapshot(); expect(state.execution?.used).toBe(8);
+    const state = runSync(fixture.provider.lifecycle.snapshot); expect(state.execution?.used).toBe(8);
     const bodies = fixture.requests.filter((request) => request.method === CHAT_METHOD).map((request) => request.body);
     expect(new Set(bodies.map((body) => body.executionId)).size).toBe(1);
     expect(new Set(bodies.map((body) => body.cascadeId)).size).toBe(1);
@@ -129,7 +128,7 @@ test("the fixed 8-call budget is not reset at host retry boundaries and blocks b
 });
 
 const socketError = (message: string, code: string) => () => Promise.reject(Object.assign(new Error(message), { code }));
-const withoutEndStream = () => new Response(new Uint8Array(encodeFrame(chatResponseCodec.encode({ deltaText: "partial" }))), { headers: { "content-type": "application/connect+proto" } });
+const withoutEndStream = () => new Response(new Uint8Array(frameBytes(encodeResponse({ deltaText: "partial" }))), { headers: { "content-type": "application/connect+proto" } });
 for (const [name, chat, retryable] of [
   ["a refused connection", socketError("connect ECONNREFUSED 35.223.238.178:443", "ECONNREFUSED"), true],
   ["a reset connection", socketError("read ECONNRESET", "ECONNRESET"), true],
@@ -180,7 +179,7 @@ test("the quota is shared between Pi processes for the same credential, newest f
     signal: new AbortController().signal, publish: async (value: { update?: () => void }) => { value.update?.(); return true; } });
   const open = async (credential = providerHostCredential) => {
     let notices = 0;
-    const provider = createDevinProvider({ ...fixture.dependencies, accountUsage: store, now: () => clock.now, onAccountUsage: () => { notices++; } });
+    const provider = createDevinProvider({ ...fixture.dependencies, accountUsage: store, now: () => clock.now, onAccountUsage: () => Effect.sync(() => { notices++; }) });
     providers.push(provider);
     await provider.refreshModels(refresh(credential));
     return { provider, notices: () => notices };

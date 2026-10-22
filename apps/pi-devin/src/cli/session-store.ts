@@ -1,13 +1,18 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { chmod, mkdir, open, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { credentialPath } from "./credentials.ts";
+import { Effect, Exit, FileSystem, Option, Predicate, Scope } from "effect";
+import { DevinError } from "../core/errors.ts";
 import { MAX_STEP_INDEX } from "../core/inference/state.ts";
-import { object, requiredString, type ChatMessage, type JsonObject } from "../core/types.ts";
+import { fromPlatformError } from "../core/platform.ts";
+import type { ChatMessage } from "../core/types.ts";
+import { failWith, object, requiredString } from "../core/validation.ts";
+import { credentialPath, isAlreadyExists, isNotFound, privateDirectory } from "./credentials.ts";
 
 const ADJECTIVES = "amber brisk calm clear cool crisp eager fair fresh gentle golden green happy kind lively lucid mild neat nimble quiet rapid sage silver smooth soft steady sunny swift tidy vivid warm wise".split(" ");
 const NOUNS = "birch brook cedar cloud coral crane dawn elm fern field finch forest frost grove heron hill iris lake leaf maple meadow moon oak olive otter pine pond rain reed river star willow".split(" ");
 const MAX_SESSION_BYTES = 16 * 1024 * 1024;
+const READ_CHUNK_BYTES = 64 * 1024;
+const MESSAGE_SOURCES = new Set(["CHAT_MESSAGE_SOURCE_USER", "CHAT_MESSAGE_SOURCE_SYSTEM", "CHAT_MESSAGE_SOURCE_TOOL"]);
 
 export interface SessionState {
   version: 1;
@@ -31,97 +36,109 @@ export function createSession(model: string, cwd = process.cwd()): SessionState 
   };
 }
 
-function sessionPath(id: string): string {
-  if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(id)) throw new Error("Invalid session ID.");
-  return join(dirname(credentialPath()), "sessions", `${id}.json`);
+function sessionPath(id: string): Effect.Effect<string, DevinError> {
+  if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(id)) return failWith("Invalid session ID.");
+  return Effect.succeed(join(dirname(credentialPath()), "sessions", `${id}.json`));
 }
 
-export async function loadSession(id: string): Promise<SessionState> {
-  const file = await open(sessionPath(id), "r");
-  try {
-    const stat = await file.stat();
-    if (!stat.isFile() || stat.size > MAX_SESSION_BYTES) throw new Error("Invalid session file size or format.");
-    const parts: Buffer[] = [];
+const existsError = (message: string) => new DevinError({ message, code: "EEXIST" });
+
+export function loadSession(id: string): Effect.Effect<SessionState, DevinError, FileSystem.FileSystem> {
+  return Effect.scoped(Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* sessionPath(id);
+    const file = yield* fs.open(path, { flag: "r" }).pipe(Effect.mapError(fromPlatformError));
+    const info = yield* file.stat.pipe(Effect.mapError(fromPlatformError));
+    if (info.type !== "File" || Number(info.size) > MAX_SESSION_BYTES) return yield* failWith("Invalid session file size or format.");
+    const parts: Uint8Array[] = [];
     let bytes = 0;
-    for await (const part of file.createReadStream({ autoClose: false })) {
-      bytes += part.length;
-      if (bytes > MAX_SESSION_BYTES) throw new Error("The session file size limit was exceeded.");
-      parts.push(part);
+    while (true) {
+      const part = yield* file.readAlloc(READ_CHUNK_BYTES).pipe(Effect.mapError(fromPlatformError));
+      if (Option.isNone(part)) break;
+      bytes += part.value.length;
+      if (bytes > MAX_SESSION_BYTES) return yield* failWith("The session file size limit was exceeded.");
+      parts.push(part.value);
     }
-    const value = object(JSON.parse(Buffer.concat(parts).toString("utf8")), "session");
-    if (value.version !== 1 || value.id !== id || !Array.isArray(value.messages)) throw new Error("Invalid session file.");
-    for (const key of ["cascadeId", "trajectoryId", "model", "cwd"]) requiredString(value[key], `session.${key}`);
+    const parsed = yield* Effect.try({ try: () => JSON.parse(Buffer.concat(parts).toString("utf8")) as unknown, catch: (cause) => new DevinError({ message: cause instanceof Error ? cause.message : String(cause) }) });
+    const value = yield* object(parsed, "session");
+    if (value.version !== 1 || value.id !== id || !Array.isArray(value.messages)) return yield* failWith("Invalid session file.");
+    for (const key of ["cascadeId", "trajectoryId", "model", "cwd"]) yield* requiredString(value[key], `session.${key}`);
     if (!Number.isSafeInteger(value.nextStepIndex) || Number(value.nextStepIndex) < 0 || Number(value.nextStepIndex) > MAX_STEP_INDEX) {
-      throw new Error("Invalid session step.");
+      return yield* failWith("Invalid session step.");
     }
-    if (value.messages.length > 5000) throw new Error("The session message limit was exceeded.");
+    if (value.messages.length > 5000) return yield* failWith("The session message limit was exceeded.");
     for (const entry of value.messages) {
-      const message = object(entry, "session message");
-      if (!["CHAT_MESSAGE_SOURCE_USER", "CHAT_MESSAGE_SOURCE_SYSTEM", "CHAT_MESSAGE_SOURCE_TOOL"].includes(String(message.source)) || typeof message.prompt !== "string") {
-        throw new Error("Invalid session message.");
-      }
+      const message = yield* object(entry, "session message");
+      if (!MESSAGE_SOURCES.has(String(message.source)) || !Predicate.isString(message.prompt)) return yield* failWith("Invalid session message.");
     }
     return value as unknown as SessionState;
-  } finally { await file.close(); }
+  }));
 }
 
-export async function saveSession(state: SessionState): Promise<void> {
-  const path = sessionPath(state.id);
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  await chmod(dirname(path), 0o700);
-  const json = JSON.stringify(state) + "\n";
-  if (Buffer.byteLength(json) > MAX_SESSION_BYTES) throw new Error("The session save size limit was exceeded.");
-  const temporary = `${path}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temporary, json, { mode: 0o600, flag: "wx" });
-    await rename(temporary, path);
-  } finally { await rm(temporary, { force: true }); }
-}
-
-export async function lockSession(id: string, isNew: boolean): Promise<() => Promise<void>> {
-  const path = sessionPath(id);
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  await chmod(dirname(path), 0o700);
-  const lockPath = `${path}.lock`;
-  const file = await open(lockPath, "wx", 0o600).catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "EEXIST") throw Object.assign(new Error("The session is in use or a lock file exists."), { code: "EEXIST" });
-    throw error;
+export function saveSession(state: SessionState): Effect.Effect<void, DevinError, FileSystem.FileSystem> {
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* sessionPath(state.id);
+    yield* privateDirectory(dirname(path));
+    const json = JSON.stringify(state) + "\n";
+    if (Buffer.byteLength(json) > MAX_SESSION_BYTES) return yield* failWith("The session save size limit was exceeded.");
+    const temporary = `${path}.${randomUUID()}.tmp`;
+    yield* fs.writeFileString(temporary, json, { mode: 0o600, flag: "wx" }).pipe(
+      Effect.andThen(fs.rename(temporary, path)),
+      Effect.ensuring(Effect.ignore(fs.remove(temporary, { force: true }))),
+      Effect.mapError(fromPlatformError),
+    );
   });
-  const owned = await file.stat();
-  let hasReleased = false;
-  const release = async () => {
-    if (hasReleased) return;
-    hasReleased = true;
-    await file.close();
-    let current;
-    try { current = await stat(lockPath); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
-    if (current.ino !== owned.ino || current.dev !== owned.dev) throw new Error("The lock file owner changed, so it is not deleted automatically.");
-    await rm(lockPath);
-  };
-  try {
-    if (isNew) {
-      try { await stat(path); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return release; throw error; }
-      throw Object.assign(new Error("The session ID already exists."), { code: "EEXIST" });
+}
+
+/** Holds an exclusive lock file for the session and returns its release. Release never deletes a lock another process replaced. */
+export function lockSession(id: string, isNew: boolean): Effect.Effect<Effect.Effect<void, DevinError>, DevinError, FileSystem.FileSystem> {
+  return Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* sessionPath(id);
+    yield* privateDirectory(dirname(path));
+    const lockPath = `${path}.lock`;
+    const handleScope = yield* Scope.make();
+    const file = yield* fs.open(lockPath, { flag: "wx", mode: 0o600 }).pipe(
+      Scope.provide(handleScope),
+      Effect.mapError((error) => isAlreadyExists(error) ? existsError("The session is in use or a lock file exists.") : fromPlatformError(error)),
+    );
+    const owned = yield* file.stat.pipe(Effect.mapError(fromPlatformError));
+    let hasReleased = false;
+    const release: Effect.Effect<void, DevinError> = Effect.suspend(() => {
+      if (hasReleased) return Effect.void;
+      hasReleased = true;
+      return Effect.gen(function* () {
+        yield* Scope.close(handleScope, Exit.void);
+        const current = yield* fs.stat(lockPath).pipe(Effect.map(Option.some), Effect.catch((error) => isNotFound(error) ? Effect.succeed(Option.none()) : Effect.fail(fromPlatformError(error))));
+        if (Option.isNone(current)) return;
+        const isSameFile = Option.getOrUndefined(current.value.ino) === Option.getOrUndefined(owned.ino) && current.value.dev === owned.dev;
+        if (!isSameFile) return yield* failWith("The lock file owner changed, so it is not deleted automatically.");
+        yield* fs.remove(lockPath).pipe(Effect.mapError(fromPlatformError));
+      }).pipe(Effect.provideService(FileSystem.FileSystem, fs));
+    });
+    if (!isNew) return release;
+    const existing = yield* fs.stat(path).pipe(Effect.map(() => true), Effect.catch((error) => isNotFound(error) ? Effect.succeed(false) : Effect.fail(fromPlatformError(error))), Effect.onError(() => Effect.ignore(release)));
+    if (!existing) return release;
+    yield* Effect.ignore(release);
+    return yield* Effect.fail(existsError("The session ID already exists."));
+  });
+}
+
+export function openSession(model: string, resumeId?: string): Effect.Effect<{ state: SessionState; release: Effect.Effect<void, DevinError> }, DevinError, FileSystem.FileSystem> {
+  return Effect.gen(function* () {
+    if (resumeId) {
+      const release = yield* lockSession(resumeId, false);
+      const state = yield* loadSession(resumeId).pipe(Effect.onError(() => Effect.ignore(release)));
+      return { state, release };
     }
-    return release;
-  } catch (error) { await release(); throw error; }
+    for (let attempt = 0; attempt < 64; attempt++) {
+      const state = createSession(model);
+      const locked = yield* lockSession(state.id, true).pipe(Effect.map(Option.some), Effect.catch((error) => error.code === "EEXIST" ? Effect.succeed(Option.none()) : Effect.fail(error)));
+      if (Option.isSome(locked)) return { state, release: locked.value };
+    }
+    return yield* failWith("Could not create an available session name.");
+  });
 }
-
-export async function openSession(model: string, resumeId?: string): Promise<{ state: SessionState; release: () => Promise<void> }> {
-  if (resumeId) {
-    const release = await lockSession(resumeId, false);
-    try { return { state: await loadSession(resumeId), release }; }
-    catch (error) { await release(); throw error; }
-  }
-  for (let attempt = 0; attempt < 64; attempt++) {
-    const state = createSession(model);
-    try { return { state, release: await lockSession(state.id, true) }; }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
-  }
-  throw new Error("Could not create an available session name.");
-}
-
 
 export { takeStep } from "../core/inference/state.ts";

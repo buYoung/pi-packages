@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Effect } from "effect";
 import { expect, test, vi } from "vitest";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { InMemoryCredentialStore, InMemoryModelsStore, type Provider } from "@earendil-works/pi-ai";
@@ -8,7 +9,7 @@ import { createDevinModelSource, DEVIN_API } from "../src/pi/models.ts";
 import { createDevinProvider } from "../src/pi/provider.ts";
 import { parseModelCatalog } from "../src/core/models/catalog.ts";
 import type { JsonObject } from "../src/core/types.ts";
-import { credential, MODELS_METHOD, STATUS_METHOD, statusResponse, unaryResponse } from "./helpers.ts";
+import { credential, MODELS_METHOD, run, runSync, STATUS_METHOD, statusResponse, unaryResponse } from "./helpers.ts";
 import { providerCredential, providerFixture } from "./provider-fixture.ts";
 
 const raw = JSON.parse(await readFile(new URL("./fixtures/model-catalog.json", import.meta.url), "utf8"));
@@ -24,12 +25,12 @@ test("the real coding-agent catalog file is restored after restart and not appli
   const createProvider = () => {
     let restored!: () => void;
     const ready = new Promise<void>((resolve) => { restored = resolve; });
-    const source = createDevinModelSource({
-      credentialFromHost: (value) => value?.type === "oauth" ? { ...credential, sessionToken: value.access } : undefined,
-      fetchCatalog: async () => { calls++; return parseModelCatalog(raw); },
-    });
+    const source = runSync(createDevinModelSource({
+      credentialFromHost: (value) => Effect.succeed(value?.type === "oauth" ? { ...credential, sessionToken: value.access } : undefined),
+      fetchCatalog: () => Effect.suspend(() => { calls++; return parseModelCatalog(raw); }),
+    }));
     const provider: Provider<typeof DEVIN_API> = { id: "devin", name: "Devin", getModels: source.getModels, filterModels: source.filterModels,
-      refreshModels: async (context) => { await source.refreshModels(context); if (!context.allowNetwork) restored(); },
+      refreshModels: async (context) => { await run(source.refreshModels(context), context.signal); if (!context.allowNetwork) restored(); },
       auth: { oauth: { name: "fixture", login: async () => { throw new Error("No login"); }, refresh: async (value) => value, toAuth: async (value) => ({ apiKey: value.access }) } },
       stream: () => { throw new Error("No inference"); }, streamSimple: () => { throw new Error("No inference"); },
     };

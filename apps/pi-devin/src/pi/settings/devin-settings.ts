@@ -1,5 +1,7 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { Effect, Option, Schema } from "effect";
+import type { DevinError } from "../../core/errors.ts";
+import { readJsonFile, writeJsonFile } from "./json-file.ts";
 
 const SCHEMA_VERSION = 1;
 
@@ -14,9 +16,12 @@ export interface DevinPreferences {
 export const DEFAULT_PREFERENCES: DevinPreferences = { recommendedOnly: false, showUsageStatus: false };
 
 export interface DevinSettings {
-  read(): DevinPreferences;
-  write(preferences: DevinPreferences): void;
+  /** Never fails: a missing or unreadable store reads as the defaults. */
+  readonly read: Effect.Effect<DevinPreferences>;
+  write(preferences: DevinPreferences): Effect.Effect<void, DevinError>;
 }
+
+const SettingsFile = Schema.Struct({ schemaVersion: Schema.Literal(SCHEMA_VERSION), recommendedOnly: Schema.Boolean, showUsageStatus: Schema.Boolean });
 
 export function devinSettingsPath(agentDir: string): string {
   return join(agentDir, "pi-devin", "settings.json");
@@ -25,26 +30,19 @@ export function devinSettingsPath(agentDir: string): string {
 /** Default store so SDK callers and tests never write to the real agent directory. */
 export function memoryDevinSettings(initial: Partial<DevinPreferences> = {}): DevinSettings {
   let current: DevinPreferences = { ...DEFAULT_PREFERENCES, ...initial };
-  return { read: () => ({ ...current }), write: (preferences) => { current = { ...preferences }; } };
+  return {
+    read: Effect.sync(() => ({ ...current })),
+    write: (preferences) => Effect.sync(() => { current = { ...preferences }; }),
+  };
 }
 
 /** An unreadable or malformed file reads as the defaults and is not overwritten. Writes are replaced atomically within the same directory. */
 export function fileDevinSettings(path: string): DevinSettings {
   return {
-    read() {
-      try {
-        const value = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-        if (value.schemaVersion === SCHEMA_VERSION && typeof value.recommendedOnly === "boolean" && typeof value.showUsageStatus === "boolean") {
-          return { recommendedOnly: value.recommendedOnly, showUsageStatus: value.showUsageStatus };
-        }
-      } catch { /* A missing or corrupt file falls back to the defaults. */ }
-      return { ...DEFAULT_PREFERENCES };
-    },
-    write(preferences) {
-      mkdirSync(dirname(path), { recursive: true });
-      const temporary = `${path}.${process.pid}.tmp`;
-      writeFileSync(temporary, JSON.stringify({ schemaVersion: SCHEMA_VERSION, ...preferences }, null, 2) + "\n");
-      renameSync(temporary, path);
-    },
+    read: Effect.map(readJsonFile(path, SettingsFile), Option.match({
+      onNone: () => ({ ...DEFAULT_PREFERENCES }),
+      onSome: (value) => ({ recommendedOnly: value.recommendedOnly, showUsageStatus: value.showUsageStatus }),
+    })),
+    write: (preferences) => writeJsonFile(path, { schemaVersion: SCHEMA_VERSION, ...preferences }),
   };
 }

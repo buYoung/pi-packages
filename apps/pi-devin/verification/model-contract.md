@@ -35,16 +35,13 @@ Custom metadata was confirmed to survive in the in-memory store of public Pi `Mo
 ## 04 wiring example
 
 ```ts
-const source = createDevinModelSource({
-  credentialFromHost: (value) => value?.type === "oauth" ? credentialFromOAuth(value) : undefined,
-  fetchCatalog: async (credential, signal) => {
-    const client = new DevinClient(credential);
-    try { return await client.catalog(signal); }
-    finally { client.transport.close(); }
-  },
-});
-// Connect the provider's getModels/filterModels/refreshModels to the matching source methods.
-const selected = source.resolve(piModel.id, effectiveThinking, effectiveCredential);
+const source = Effect.runSync(createDevinModelSource({
+  credentialFromHost: (value) => value?.type === "oauth" ? credentialFromOAuth(value) : Effect.succeed(undefined),
+  // The client closes with the scope.
+  fetchCatalog: (credential) => Effect.scoped(Effect.flatMap(makeDevinClient(credential), (client) => client.catalog)),
+}));
+// Connect the provider's getModels/filterModels to the source and run refreshModels with the host's signal.
+const selected = yield* source.resolve(piModel.id, effectiveThinking, effectiveCredential);
 // Apply selected.uid and the limits of selected.model to the final request.
 ```
 

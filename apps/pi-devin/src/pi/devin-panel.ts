@@ -1,5 +1,7 @@
 import { matchesKey, truncateToWidth } from "@earendil-works/pi-tui";
-import type { DevinPreferences } from "./devin-settings.ts";
+import { Cause, Effect, Exit } from "effect";
+import type { DevinError } from "../core/errors.ts";
+import type { DevinPreferences } from "./settings/devin-settings.ts";
 import type { PickerTheme } from "./fusion-picker.ts";
 import type { UsageLine } from "./usage.ts";
 
@@ -14,7 +16,7 @@ export interface DevinPanelOptions {
   report: () => UsageLine[];
   preferences: DevinPreferences;
   /** Saves and applies on every toggle. On failure, shows a notice and reverts to the previous value. */
-  onChange: (next: DevinPreferences) => Promise<void>;
+  onChange: (next: DevinPreferences) => Effect.Effect<void, DevinError>;
   requestRender: () => void;
   done: () => void;
 }
@@ -48,14 +50,14 @@ export class DevinPanel {
     const key = PREFERENCE_ITEMS[this.cursor].key, previous = this.preferences;
     this.preferences = { ...previous, [key]: !previous[key] };
     this.isSaving = true; this.notice = undefined; this.changed();
-    try {
-      await this.options.onChange(this.preferences);
-    } catch (error) {
+    const exit = await Effect.runPromiseExit(this.options.onChange(this.preferences));
+    if (Exit.isFailure(exit)) {
       this.preferences = previous;
+      // A thrown host error is reported with its own message, like a failed save.
+      const error = Cause.squash(exit.cause);
       this.notice = `Could not save: ${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      this.isSaving = false; this.changed();
     }
+    this.isSaving = false; this.changed();
   }
 
   render(width: number): string[] {

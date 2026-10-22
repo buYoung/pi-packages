@@ -6,9 +6,11 @@ import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
   InMemoryCredentialStore, InMemoryModelsStore, type Api, type Credential as HostCredential, type Model, type Provider, type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { createDevinAccountAuth, OAUTH_ONLY_MESSAGE } from "../src/pi/auth.ts";
+import { Effect } from "effect";
+import { createDevinAccountAuth } from "../src/pi/auth/account-auth.ts";
+import { OAUTH_ONLY_MESSAGE } from "../src/pi/auth/credential.ts";
 import { createDevinProvider } from "../src/pi/provider.ts";
-import { DevinClient } from "../src/core/client.ts";
+import { makeDevinClient } from "../src/core/client.ts";
 import { createFingerprintProvider } from "../src/core/protocol/fingerprint.ts";
 import { CHAT_METHOD } from "../src/core/protocol/protobuf.ts";
 import type { JsonObject } from "../src/core/types.ts";
@@ -96,8 +98,8 @@ test("coding-agent public ModelRuntime real file storage is bounded and Pi logou
   let queries = 0;
   const auth = createDevinAccountAuth({
     loginOptions: { fetch: async (url) => unaryResponse(new URL(String(url)).pathname.slice(1), { sessionToken: "file-backed-fake-token" }) },
-    createClient: (credential) => new DevinClient(credential, {
-      fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: () => identity }),
+    createClient: (credential) => makeDevinClient(credential, {
+      fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: Effect.succeed(identity) }),
       fetch: async () => { queries++; return unaryResponse(STATUS_METHOD, statusResponse()); },
     }),
   });

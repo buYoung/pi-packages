@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { RefreshModelsContext } from "@earendil-works/pi-ai";
+import { Effect } from "effect";
 import { createDevinProvider } from "../src/pi/provider.ts";
 import { createFingerprintProvider } from "../src/core/protocol/fingerprint.ts";
 import { CHAT_METHOD } from "../src/core/protocol/protobuf.ts";
@@ -41,7 +42,7 @@ export async function providerFixture(options: {
   };
   const dependencies = { fetch: fetchImpl, maxModelCalls: options.maxModelCalls,
     loginOptions: { apiServerURL: providerCredential.apiServerURL, webappURL: "https://example.invalid" },
-    fingerprint: (credential: Credential) => createFingerprintProvider(credential.sessionToken, { collectIdentity: () => { fingerprintCollections++; return identity; } }),
+    fingerprint: (credential: Credential) => createFingerprintProvider(credential.sessionToken, { collectIdentity: Effect.sync(() => { fingerprintCollections++; return identity; }) }),
   };
   const provider = createDevinProvider(dependencies);
   if (requests.length || fingerprintCollections) throw new Error("Factory must not perform I/O");

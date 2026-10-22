@@ -1,10 +1,16 @@
 import { expect, test, vi, type TestContext } from "vitest";
 import { createModels, InMemoryCredentialStore, type AuthInteraction, type Provider } from "@earendil-works/pi-ai";
-import { createDevinAccountAuth, credentialFromOAuth, SESSION_CHECK_INTERVAL_MS } from "../src/pi/auth.ts";
-import { DevinClient } from "../src/core/client.ts";
+import { Effect, type Scope } from "effect";
+import { createDevinAccountAuth } from "../src/pi/auth/account-auth.ts";
+import { credentialFromOAuth, SESSION_CHECK_INTERVAL_MS } from "../src/pi/auth/credential.ts";
+import { makeDevinClient, type DevinClient } from "../src/core/client.ts";
+import { RPCError, type DevinError } from "../src/core/errors.ts";
 import { createFingerprintProvider } from "../src/core/protocol/fingerprint.ts";
-import { RPCError } from "../src/core/protocol/transport.ts";
-import { identity, requestBody, STATUS_METHOD, statusResponse, unaryResponse } from "./helpers.ts";
+import { identity, requestBody, runSync, STATUS_METHOD, statusResponse, unaryResponse } from "./helpers.ts";
+
+/** Counts each time a client created for a check is closed with its scope. */
+const countingCloses = (client: Effect.Effect<DevinClient, DevinError, Scope.Scope>, onClose: () => void) =>
+  Effect.tap(client, () => Effect.addFinalizer(() => Effect.sync(onClose)));
 
 function host(auth: ReturnType<typeof createDevinAccountAuth>) {
   const storage = new InMemoryCredentialStore();
@@ -46,9 +52,8 @@ function accountFixture() {
       expect(requestBody(method, init!).authorizationCode).toBe("manual-fake-code");
       return unaryResponse(method, { apiKey: sessionToken });
     } },
-    createClient: (credential) => {
-      const client = new DevinClient(credential, { profile: "login",
-        fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: () => identity }),
+    createClient: (credential) => countingCloses(makeDevinClient(credential, { profile: "login",
+        fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: Effect.succeed(identity) }),
         fetch: async (url, init) => {
           sends++;
           expect(new URL(String(url)).pathname).toBe("/" + STATUS_METHOD);
@@ -57,11 +62,7 @@ function accountFixture() {
           expect((body.metadata as { apiKey: string }).apiKey).toBe(sessionToken);
           return status === 200 ? unaryResponse(STATUS_METHOD, statusResponse()) : Response.json({}, { status });
         },
-      });
-      const close = client.transport.close.bind(client.transport);
-      client.transport.close = () => { closed++; close(); };
-      return client;
-    },
+      }), () => { closed++; }),
   });
   return { auth, host: host(auth), setStatus: (next: number) => { status = next; }, counts: () => ({ sends, closed, exchanges }) };
 }
@@ -114,7 +115,7 @@ test("a 401 session is not replayed automatically and an explicit re-login creat
   expect(renewed.type).toBe("oauth");
   if (renewed.type !== "oauth") expect.unreachable();
   // A late failure from an older login generation does not invalidate the new login.
-  f.auth.invalidate(credentialFromOAuth(renewed), new RPCError("unauthenticated", "old failure"), previousGeneration);
+  runSync(f.auth.invalidate(runSync(credentialFromOAuth(renewed)), RPCError.make("unauthenticated", "old failure"), previousGeneration));
   await f.host.models.getAuth("devin");
   expect(f.counts()).toStrictEqual({ sends: 1, closed: 1, exchanges: 2 });
   clock.passCheckInterval();
@@ -127,11 +128,11 @@ for (const status of [200, 503]) test(`with an account observer, sign-in checks 
   let sends = 0;
   const auth = createDevinAccountAuth({
     loginOptions: { fetch: async (url) => unaryResponse(new URL(String(url)).pathname.slice(1), { apiKey: "fake-checked-session" }) },
-    createClient: (credential) => new DevinClient(credential, { profile: "login",
-      fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: () => identity }),
+    createClient: (credential) => makeDevinClient(credential, { profile: "login",
+      fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: Effect.succeed(identity) }),
       fetch: async () => { sends++; return status === 200 ? unaryResponse(STATUS_METHOD, statusResponse()) : Response.json({}, { status }); },
     }),
-    onValidated: (_credential, ownerHash) => { validated.push(ownerHash); },
+    onValidated: (_credential, ownerHash) => Effect.sync(() => { validated.push(ownerHash); }),
   });
   const f = host(auth);
   const credential = await f.models.login("devin", "oauth", manualInteraction());
@@ -154,8 +155,8 @@ for (const status of [403, 429]) test(`${status} is not remembered as OAuth toke
 
 function unreachableCheckFixture(firstFailure: () => Promise<Response>) {
   let calls = 0;
-  const auth = createDevinAccountAuth({ createClient: (credential) => new DevinClient(credential, {
-    fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: () => identity }),
+  const auth = createDevinAccountAuth({ createClient: (credential) => makeDevinClient(credential, {
+    fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: Effect.succeed(identity) }),
     fetch: async () => (++calls === 1 ? firstFailure() : unaryResponse(STATUS_METHOD, statusResponse())),
   }) });
   const f = host(auth);
@@ -222,19 +223,14 @@ test("the host 15000ms refresh signal ends the final status request and a local 
     expect(milliseconds).toBe(15_000); deadline = new AbortController(); return deadline.signal;
   });
   context.onTestFinished(() => timeoutSpy.mockRestore());
-  const auth = createDevinAccountAuth({ createClient: (credential) => {
-    const client = new DevinClient(credential, {
-      fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: () => identity }),
+  const auth = createDevinAccountAuth({ createClient: (credential) => countingCloses(makeDevinClient(credential, {
+      fingerprint: createFingerprintProvider(credential.sessionToken, { collectIdentity: Effect.succeed(identity) }),
       fetch: async (_url, init) => {
         calls++; finalSignal = init!.signal!;
         if (calls === 1) { deadline.abort(new DOMException("host timeout", "TimeoutError")); return new Promise(() => {}); }
         return unaryResponse(STATUS_METHOD, statusResponse());
       },
-    });
-    const close = client.transport.close.bind(client.transport);
-    client.transport.close = () => { closed++; close(); };
-    return client;
-  } });
+    }), () => { closed++; }) });
   const f = host(auth);
   const stored = { type: "oauth" as const, access: "fake-timeout-token", refresh: "", expires: 0,
     devin: { version: 1, apiServerURL: "https://example.invalid", createdAt: "2026-01-01T00:00:00.000Z" } };
