@@ -1,6 +1,6 @@
 import type { getBridgeModels } from "../features/models/policy.js";
 import type { LongContextSettings } from "../features/models/types.js";
-import type { ExtensionAPI, ExtensionContext, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type { Effect } from "effect";
 
 export type ClaudePlan = "pro" | "max";
@@ -34,8 +34,9 @@ export interface ProviderConfigurationServices {
 	pendingNotices: string[];
 	piMode: ExtensionContext["mode"] | null;
 	piUI: ExtensionUIContext | null;
-	/** `pi.getAllTools()` of the session this instance registered in. */
-	listPiTools: ExtensionAPI["getAllTools"] | null;
+	/** The `_meta` pi's extensions report for each tool, by tool name, in the session this
+	 *  instance registered in (adapters/pi/tool-meta.ts). */
+	listPiToolMeta: (() => ReadonlyMap<string, Record<string, unknown>>) | null;
 	providerSettings: NonNullable<Config["provider"]>;
 	readonly showStartupNoticeOnce: () => Effect.Effect<void, unknown>;
 }

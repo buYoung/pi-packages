@@ -24,7 +24,7 @@ export function createProviderConfiguration(): ProviderConfigurationServices {
 
 	let piMode: ExtensionContext["mode"] | null = null;
 
-	let listPiTools: ProviderConfigurationServices["listPiTools"] = null;
+	let listPiToolMeta: ProviderConfigurationServices["listPiToolMeta"] = null;
 
 	// Plan defaults that silently limit the user (no Opus 4.6 1M on Max) are announced
 	// once, when plan detection cannot tell the plan (plan-detection.ts). Deferred to a bridge query rather
@@ -58,8 +58,8 @@ export function createProviderConfiguration(): ProviderConfigurationServices {
 		set piMode(value: typeof piMode) { piMode = value; },
 		get piUI() { return piUI; },
 		set piUI(value: typeof piUI) { piUI = value; },
-		get listPiTools() { return listPiTools; },
-		set listPiTools(value: typeof listPiTools) { listPiTools = value; },
+		get listPiToolMeta() { return listPiToolMeta; },
+		set listPiToolMeta(value: typeof listPiToolMeta) { listPiToolMeta = value; },
 		get providerSettings() { return providerSettings; },
 		set providerSettings(value: typeof providerSettings) { providerSettings = value; },
 		showStartupNoticeOnce: () => fromSync(showStartupNoticeOnce),

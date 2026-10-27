@@ -107,16 +107,14 @@ export function createToolBridge({ diagnostics, sessions, configuration }: ToolB
 	// Handlers close over the captured `queryCtx`, ensuring they operate on the
 	// correct query's state while multiple queries run concurrently.
 	//
-	// Each tool also carries the `_meta` pi reports for it (`meta` of `pi.getAllTools()`,
-	// an MCP server's own `_meta`), unchanged. Pi versions without it report none.
+	// Each tool also carries the `_meta` pi's extensions report for it (an MCP
+	// server's own `_meta`, see adapters/pi/tool-meta.ts), unchanged. Tools nobody
+	// reports one for get none.
 	function buildMcpServers(tools: Tool[], queryCtx: QueryContext): Record<string, ReturnType<typeof createToolServer>> | undefined {
 		if (!tools.length) return undefined;
-		const metas = new Map<string, Record<string, unknown>>();
+		let metas: ReadonlyMap<string, Record<string, unknown>> = new Map();
 		try {
-			for (const tool of configuration.listPiTools?.() ?? []) {
-				const meta = (tool as { meta?: unknown }).meta;
-				if (typeof meta === "object" && meta !== null && !Array.isArray(meta)) metas.set(tool.name, meta as Record<string, unknown>);
-			}
+			metas = configuration.listPiToolMeta?.() ?? metas;
 		} catch (error) {
 			diagnostics.debug("WARNING: could not list pi's tools for their _meta:", error);
 		}
