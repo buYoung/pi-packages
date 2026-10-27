@@ -7,6 +7,7 @@
 ### 달라진 것
 
 - 브리지가 Claude Code 2.1.311(Agent SDK `^0.3.311`)을 사용합니다.
+- Pi가 도구의 `_meta`를 알려 주는 버전(`pi.getAllTools()`의 `meta`)이면, 브리지가 Pi MCP 도구마다 서버가 선언한 `_meta`를 바꾸지 않고 Claude Code에 전달합니다. 서버가 `anthropic/maxResultSizeChars`를 선언하면 브리지의 500,000 대신 서버의 값을 씁니다.
 
 ### 해결된 것
 

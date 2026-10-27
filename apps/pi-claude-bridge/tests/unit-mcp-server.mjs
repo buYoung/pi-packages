@@ -9,6 +9,8 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { createToolServer } from "../src/adapters/claude/mcp-server.js";
+import { QueryContext } from "../src/features/query/state.js";
+import { createToolBridge } from "../src/features/tool-bridge/service.js";
 
 const NESTED_TOOL_SCHEMA = {
 	type: "object",
@@ -137,6 +139,45 @@ describe("MCP tool schema advertisement", () => {
 			{ "anthropic/maxResultSizeChars": 500_000 },
 			{ "anthropic/maxResultSizeChars": 500_000 },
 		]);
+	});
+});
+
+describe("tool _meta from pi", () => {
+	const TOOLS = ["read", "mcp__codemap__grep", "mcp__docs__search"].map((name) => ({
+		name,
+		description: name,
+		parameters: { type: "object", properties: {} },
+	}));
+
+	/** `_meta` by tool name as Claude Code lists it, when `pi.getAllTools()` is `listPiTools`. */
+	async function listedMeta(listPiTools) {
+		const bridge = createToolBridge({ diagnostics: { DEBUG: false, debug: () => {} }, configuration: { listPiTools }, sessions: {} });
+		const { request } = await connectClient(Object.values(bridge.buildMcpServers(TOOLS, new QueryContext()))[0]);
+		const tools = (await request("tools/list", {})).result.tools;
+		return Object.fromEntries(tools.map((tool) => [tool.name, tool._meta]));
+	}
+
+	it("passes each tool's _meta on as pi reports it, over the default limit", async () => {
+		const meta = await listedMeta(() => [
+			{ name: "read" },
+			{ name: "mcp__codemap__grep", meta: { "anthropic/maxResultSizeChars": 100_000 } },
+			{ name: "mcp__docs__search", meta: { "x/key": { nested: [1] }, "pi/maxOutputBytes": 50_000 } },
+		]);
+		expect(meta).toStrictEqual({
+			read: { "anthropic/maxResultSizeChars": 500_000 },
+			mcp__codemap__grep: { "anthropic/maxResultSizeChars": 100_000 },
+			mcp__docs__search: { "anthropic/maxResultSizeChars": 500_000, "x/key": { nested: [1] }, "pi/maxOutputBytes": 50_000 },
+		});
+	});
+
+	// Pi versions without `meta` in getAllTools(), no pi, and a pi whose tools cannot be listed.
+	it.each([
+		["without meta", () => TOOLS],
+		["absent", undefined],
+		["failing", () => { throw new Error("stale"); }],
+	])("keeps the default limit when pi's tool list is %s", async (_case, listPiTools) => {
+		const limit = { "anthropic/maxResultSizeChars": 500_000 };
+		expect(await listedMeta(listPiTools)).toStrictEqual({ read: limit, mcp__codemap__grep: limit, mcp__docs__search: limit });
 	});
 });
 

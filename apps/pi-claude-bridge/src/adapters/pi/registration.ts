@@ -34,6 +34,7 @@ export function registerBridge(pi: ExtensionAPI, { streamSimple, diagnostics, co
 	const config = loadConfig(process.cwd());
 	diagnostics.debug("loadConfig:", JSON.stringify(config));
 	configuration.providerSettings = config.provider ?? {};
+	configuration.listPiTools = () => pi.getAllTools();
 	// We need these settings to know if we're eligible for 1M context on certain models
 	// Validate at the boundary: a non-array here would throw inside every
 	// claudeCodeModelId call and brick the extension at activation.
