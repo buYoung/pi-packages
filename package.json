@@ -18,7 +18,7 @@
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@inquirer/prompts": "8.7.5",
-    "release-it": "21.1.1",
+    "release-it": "21.1.2",
     "semver": "7.8.5",
     "turbo": "2.11.10"
   }

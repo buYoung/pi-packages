@@ -47,8 +47,8 @@
     "cli": "node cli.ts"
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.7",
-    "effect": "4.0.7",
+    "@effect/platform-node": "4.1.1",
+    "effect": "4.1.1",
     "protobufjs": "8.8.1"
   },
   "peerDependencies": {
