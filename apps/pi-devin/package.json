@@ -41,7 +41,7 @@
     "themes": []
   },
   "scripts": {
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsc --noEmit",
     "verify:offline": "vitest run",
     "test:unit": "vitest run",
     "cli": "node cli.ts"
@@ -63,7 +63,7 @@
     "@earendil-works/pi-tui": "catalog:devin",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",
-    "@typescript/native-preview": "catalog:",
+    "typescript": "catalog:",
     "vitest": "catalog:"
   }
 }

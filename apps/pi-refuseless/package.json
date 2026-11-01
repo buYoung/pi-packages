@@ -33,7 +33,7 @@
   },
   "scripts": {
     "lint": "biome check .",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "pnpm run test:unit",
     "test:unit": "vitest run",
     "cli": "node scripts/cli.ts"
@@ -58,7 +58,7 @@
     "@earendil-works/pi-tui": "catalog:",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",
-    "@typescript/native-preview": "catalog:",
+    "typescript": "catalog:",
     "vitest": "catalog:"
   }
 }

@@ -34,7 +34,7 @@
   "scripts": {
     "check": "pnpm run lint && pnpm run typecheck",
     "lint": "biome check .",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsc --noEmit",
     "format": "biome format --write .",
     "test": "pnpm run test:unit",
     "test:unit": "vitest run",
@@ -63,9 +63,9 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/proper-lockfile": "catalog:",
-    "@typescript/native-preview": "catalog:",
     "tsx": "catalog:",
     "typebox": "catalog:",
+    "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "dependencies": {
