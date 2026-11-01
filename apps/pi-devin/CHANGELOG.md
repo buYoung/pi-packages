@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Subagents started in the background (for example pi-subagents async runs) no longer fail at random with `Model "devin/…" not found` when the Devin model list is restored from the saved cache.
+
 ## [0.1.7] - 2026-10-29
 
 ### Improved
