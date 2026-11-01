@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-01
+
 ### 해결된 것
 
 - 백그라운드에서 시작한 하위 실행(예: pi-subagents의 async 실행)이 저장된 캐시에서 Devin 모델 목록을 복원할 때 `Model "devin/…" not found`로 무작위로 실패하던 문제를 고쳤습니다.
