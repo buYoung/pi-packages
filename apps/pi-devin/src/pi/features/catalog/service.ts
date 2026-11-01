@@ -1,5 +1,5 @@
 import type { Credential as HostCredential, ModelsPublication, RefreshModelsContext } from "@earendil-works/pi-ai";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Scheduler } from "effect";
 import { abortWith } from "../../../core/cancellation.ts";
 import { toDevinFailure } from "../../../core/errors.ts";
 import { modelIDForUID, projectModelVariants, resolveBackendSelection, type VariantProjection } from "../../../core/models/variants.ts";
@@ -70,11 +70,16 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
     return yield* remote.fetch(credential).pipe(Effect.tapError((error) => guard.reportFailure(credential, error, generation)));
   });
 
-  const refresh = (context: RefreshModelsContext) => Effect.gen(function* () {
+  /**
+   * Publishes the stored catalog, or the change of credential scope, and returns the credential when the refresh may go on.
+   * Pi supersedes a provider's refresh as soon as another one starts, and a process that waits on a superseded refresh
+   * looks up models before the newer one finishes. This phase therefore reaches `publish` without yielding to the event loop.
+   */
+  const restore = (context: RefreshModelsContext) => Effect.gen(function* () {
     const credential = yield* effectiveCredential(context.credential, context.baseUrl);
     if (!credential) {
       yield* publish(context, { update: clear });
-      return;
+      return undefined;
     }
     const expectedScope = catalogScope(credential);
     // A bad cache is never used as run data, whatever is wrong with it. The current good state is kept.
@@ -92,15 +97,21 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
           checkedAtMs = restoredAtMs; endpointOverride = context.baseUrl; credentialScope = expectedScope;
         },
       });
-      if (!accepted) return;
+      if (!accepted) return undefined;
     } else if (scope !== expectedScope || endpointOverride !== context.baseUrl || credentialScope !== expectedScope) {
       const accepted = yield* publish(context, { update: () => {
         if (scope !== expectedScope || endpointOverride !== context.baseUrl) clear();
         endpointOverride = context.baseUrl; credentialScope = expectedScope;
       } });
-      if (!accepted) return;
+      if (!accepted) return undefined;
     }
-    if (!context.allowNetwork) return;
+    return credential;
+  }).pipe(Effect.provideService(Scheduler.PreventSchedulerYield, true));
+
+  const refresh = (context: RefreshModelsContext) => Effect.gen(function* () {
+    const credential = yield* restore(context);
+    if (!credential || !context.allowNetwork) return;
+    const expectedScope = catalogScope(credential);
     const ageMs = now() - checkedAtMs;
     if (!context.force && scope === expectedScope && projection && checkedAtMs > 0 && ageMs >= 0 && ageMs < FRESHNESS_MS) return;
     const catalog = yield* fetchCatalog(credential);

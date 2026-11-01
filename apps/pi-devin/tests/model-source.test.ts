@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { Effect } from "effect";
+import { Effect, Scheduler } from "effect";
 import { expect, test } from "vitest";
 import { createModels, getSupportedThinkingLevels, InMemoryCredentialStore, InMemoryModelsStore, type Credential as HostCredential, type ModelsPublication, type ModelsStoreEntry, type Provider, type RefreshModelsContext } from "@earendil-works/pi-ai";
 import { DEVIN_API, FUSION_MODEL_ID } from "../src/pi/features/catalog/constants.ts";
@@ -230,6 +230,24 @@ test("late responses after cancel and rejected publishes do not change the last 
   isDeferred = false;
   await refresh(source, p.context({ force: true, publish: async () => false }));
   expect(runSync(source.models)).toBe(before);
+});
+
+test("restoring the stored catalog publishes before the refresh yields to the event loop", async () => {
+  const options = { credentialFromHost, fetchCatalog: () => parseModelCatalog(raw) }, p = publications();
+  await refresh(createSource(options), p.context());
+  // Pi supersedes a refresh as soon as another one starts. A restore that waited for the event loop would be rejected,
+  // and a process waiting on that superseded refresh would see no Devin models. A small yield budget stands in for
+  // the real catalog, whose restore exceeds Effect's default budget.
+  let isStarting = true, publishedWhileStarting: boolean | undefined;
+  const restored = createSource(options);
+  const pending = run(restored.refresh(p.context({ allowNetwork: false, stored: p.stored(), publish: async (publication) => {
+    publishedWhileStarting ??= isStarting;
+    publication.update?.(); return true;
+  } })).pipe(Effect.provideService(Scheduler.MaxOpsBeforeYield, 200)));
+  isStarting = false;
+  await pending;
+  expect(publishedWhileStarting).toBe(true);
+  expect(runSync(restored.models).length).toBe(66);
 });
 
 test("public Models publish/persist and cache restore keep the extension metadata", async () => {
