@@ -20,7 +20,7 @@ assert.equal(Object.keys(consumerManifest.devDependencies ?? {}).length, 0);
 const packages = Object.entries(lock.packages).filter(([name]) => name && name !== "node_modules/@buyong/pi-devin");
 for (const [name, info] of packages) {
   assert.equal(Boolean(info.dev || info.peer), false, "dev/peer dependency: " + name);
-  assert.equal(/(?:^|\/)node_modules\/(?:@earendil-works\/|typebox(?:\/|$)|@repo\/|@typescript\/native-preview)/.test(name), false, "host/dev-only copy: " + name);
+  assert.equal(/(?:^|\/)node_modules\/(?:@earendil-works\/|typebox(?:\/|$)|@repo\/|@typescript\/|typescript(?:\/|$))/.test(name), false, "host/dev-only copy: " + name);
 }
 const destination = join(artifact, "node_modules");
 await mkdir(destination); // Existing trees are not overwritten.
