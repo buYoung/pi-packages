@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improved
+
+- The changelog is no longer included in the package; it remains on GitHub.
+
 ## [0.1.3] - 2026-10-29
 
 ### Improved

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improved
+
+- Modules that only declare types or are used only by the development CLI are no longer included in the package.
+
 ## [0.1.12] - 2026-11-02
 
 ### Improved

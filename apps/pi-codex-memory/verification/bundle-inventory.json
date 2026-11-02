@@ -14,8 +14,6 @@
         "themes": []
     },
     "requiredFiles": [
-        "node_modules/@buyong/pi-codex-memory/docs/verification.md",
-        "node_modules/@buyong/pi-codex-memory/docs/verification.ko.md",
         "node_modules/@buyong/pi-codex-memory/dist/failure.js",
         "node_modules/@buyong/pi-codex-memory/dist/repositories.js",
         "node_modules/@buyong/pi-codex-memory/dist/repository-access.js",

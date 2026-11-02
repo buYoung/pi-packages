@@ -25,7 +25,6 @@
     },
     "type": "module",
     "main": "dist/index.js",
-    "types": "dist/index.d.ts",
     "exports": {
         ".": "./dist/index.js"
     },
@@ -63,13 +62,10 @@
     },
     "files": [
         "dist/**/*.js",
-        "dist/**/*.d.ts",
-        "dist/**/*.js.map",
+        "!dist/typebox.js",
+        "NOTICE",
         "README.md",
         "README.ko.md",
-        "LICENSE",
-        "NOTICE",
-        "docs/usage.md",
-        "docs/usage.ko.md"
+        "LICENSE"
     ]
 }

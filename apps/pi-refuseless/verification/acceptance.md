@@ -13,7 +13,7 @@ On 2026-10-28 this record was updated for the credits display, `/pi-refuseless` 
 | Package | `@buyong/pi-refuseless` 0.1.0 |
 | Source | `apps/pi-refuseless` on branch `feat/pi-refuseless-credits`, based on `c0201d6`, uncommitted working tree of 2026-10-28 |
 | Archive | `buyong-pi-refuseless-0.1.0.tgz` from `npm pack --ignore-scripts`, SHA-256 `6e7b0e47fa6d8d021386da7547f13ffd0384d634051023c1adcf2e8287dbe33b` |
-| Archive files | `package.json`, `src/index.ts`, `src/api.ts`, `src/command.ts`, `src/credits.ts`, `src/credits-status.ts`, `src/models.ts`, `src/settings.ts`, `src/thinking.ts`, `README.md`, `README.ko.md`, `CHANGELOG.md`, `CHANGELOG.ko.md`, `LICENSE` |
+| Archive files | `package.json`, `src/index.ts`, `src/api.ts`, `src/command.ts`, `src/credits.ts`, `src/credits-status.ts`, `src/models.ts`, `src/settings.ts`, `src/thinking.ts`, `README.md`, `README.ko.md`, `LICENSE` |
 | Extension entry | `pi.extensions: ["./src/index.ts"]`; `skills`, `prompts` and `themes` are `[]` |
 | Command | `/pi-refuseless`; no tools or flags |
 | Host peers | `@earendil-works/pi-ai: *`, `@earendil-works/pi-coding-agent: *`, `@earendil-works/pi-tui: *`; no runtime `dependencies` |

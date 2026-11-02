@@ -24,7 +24,6 @@
     },
     "type": "module",
     "main": "dist/index.js",
-    "types": "dist/index.d.ts",
     "exports": {
         ".": "./dist/index.js"
     },
@@ -61,13 +60,11 @@
     },
     "files": [
         "dist/**/*.js",
-        "dist/**/*.d.ts",
-        "dist/**/*.js.map",
-        "README.md",
-        "README.ko.md",
-        "LICENSE",
         "skills/**/*.md",
         "skills/**/LICENSE.txt",
-        "skills/**/NOTICE"
+        "skills/**/NOTICE",
+        "README.md",
+        "README.ko.md",
+        "LICENSE"
     ]
 }

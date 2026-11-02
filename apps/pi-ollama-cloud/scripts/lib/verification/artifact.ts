@@ -23,7 +23,10 @@ interface Manifest {
 }
 const manifestAt = (root: string) => JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as Manifest;
 export function runtimeFiles(root = packageRoot): string[] {
-  const files = manifestAt(root).files.filter((file) => !file.endsWith("/"));
+  const entries = manifestAt(root).files;
+  // `!` entries leave out modules that only the CLI or type checking uses.
+  const excluded = new Set(entries.filter((file) => file.startsWith("!")).map((file) => file.slice(1)));
+  const files = entries.filter((file) => !file.endsWith("/") && !file.startsWith("!"));
   function walk(directory: string) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
@@ -32,7 +35,7 @@ export function runtimeFiles(root = packageRoot): string[] {
     }
   }
   walk(join(root, "src"));
-  return [...new Set(["package.json", ...files])].sort();
+  return [...new Set(["package.json", ...files])].filter((file) => !excluded.has(file)).sort();
 }
 export function assertRuntimeBoundary(root = packageRoot): void {
   const manifest = manifestAt(root);

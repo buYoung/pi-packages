@@ -21,7 +21,6 @@
         "registry": "https://registry.npmjs.org/"
     },
     "main": "dist/index.js",
-    "types": "dist/index.d.ts",
     "exports": {
         ".": "./dist/index.js"
     },
@@ -65,15 +64,10 @@
     },
     "files": [
         "dist/**/*.js",
-        "dist/**/*.d.ts",
-        "dist/**/*.js.map",
         "assets/prompts/*.md",
+        "NOTICE",
         "README.md",
         "README.ko.md",
-        "CHANGELOG.md",
-        "CHANGELOG.ko.md",
-        "LICENSE",
-        "NOTICE",
-        "docs/*.md"
+        "LICENSE"
     ]
 }

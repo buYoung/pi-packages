@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Improved
+
+- Modules that only declare types or are used only by the development CLI, and the changelog, are no longer included in the package.
+
 ## [0.15.3] - 2026-10-29
 
 ### Improved

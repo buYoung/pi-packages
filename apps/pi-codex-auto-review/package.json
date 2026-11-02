@@ -24,7 +24,6 @@
     },
     "type": "module",
     "main": "dist/index.js",
-    "types": "dist/index.d.ts",
     "exports": {
         ".": "./dist/index.js",
         "./startup": "./dist/startup.js"
@@ -68,17 +67,9 @@
     },
     "files": [
         "dist/**/*.js",
-        "dist/**/*.d.ts",
-        "dist/**/*.js.map",
+        "NOTICE",
         "README.md",
         "README.ko.md",
-        "LICENSE",
-        "NOTICE",
-        "docs/usage.md",
-        "docs/usage.ko.md",
-        "docs/security/dependencies.md",
-        "docs/security/dependencies.ko.md",
-        "docs/testing/auto-review-protection.md",
-        "docs/testing/auto-review-protection.ko.md"
+        "LICENSE"
     ]
 }

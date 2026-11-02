@@ -12,8 +12,10 @@
   ],
   "files": [
     "src/",
-    "CHANGELOG.md",
-    "CHANGELOG.ko.md",
+    "!src/cache/types.ts",
+    "!src/auth/resolver.ts",
+    "!src/auth/pi-resolver.ts",
+    "!src/pi/chat.ts",
     "README.md",
     "README.ko.md",
     "LICENSE"

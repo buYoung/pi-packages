@@ -88,7 +88,7 @@ describe("shared runtime consumers", () => {
     const manifest: unknown = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
     expect(manifest).toMatchObject({
       pi: { extensions: ["./src/index.ts"] },
-      files: ["src/", "CHANGELOG.md", "CHANGELOG.ko.md", "README.md", "README.ko.md", "LICENSE"],
+      files: ["src/", "!src/cache/types.ts", "!src/auth/resolver.ts", "!src/auth/pi-resolver.ts", "!src/pi/chat.ts", "README.md", "README.ko.md", "LICENSE"],
     });
     expect(readdirSync(packageRoot).filter((name) => name.endsWith(".ts"))).toEqual([]);
   });

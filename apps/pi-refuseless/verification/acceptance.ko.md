@@ -13,7 +13,7 @@
 | 패키지 | `@buyong/pi-refuseless` 0.1.0 |
 | 소스 | `feat/pi-refuseless-credits` 브랜치의 `apps/pi-refuseless`. `c0201d6` 기준, 2026-10-28의 커밋하지 않은 작업 트리 |
 | 압축 파일 | `npm pack --ignore-scripts`로 만든 `buyong-pi-refuseless-0.1.0.tgz`, SHA-256 `6e7b0e47fa6d8d021386da7547f13ffd0384d634051023c1adcf2e8287dbe33b` |
-| 압축 파일에 든 파일 | `package.json`, `src/index.ts`, `src/api.ts`, `src/command.ts`, `src/credits.ts`, `src/credits-status.ts`, `src/models.ts`, `src/settings.ts`, `src/thinking.ts`, `README.md`, `README.ko.md`, `CHANGELOG.md`, `CHANGELOG.ko.md`, `LICENSE` |
+| 압축 파일에 든 파일 | `package.json`, `src/index.ts`, `src/api.ts`, `src/command.ts`, `src/credits.ts`, `src/credits-status.ts`, `src/models.ts`, `src/settings.ts`, `src/thinking.ts`, `README.md`, `README.ko.md`, `LICENSE` |
 | 확장 진입점 | `pi.extensions: ["./src/index.ts"]`. `skills`, `prompts`, `themes`는 `[]` |
 | 명령 | `/pi-refuseless`. 도구와 플래그는 없음 |
 | 호스트 peer 의존성 | `@earendil-works/pi-ai: *`, `@earendil-works/pi-coding-agent: *`, `@earendil-works/pi-tui: *`. 런타임 `dependencies` 없음 |

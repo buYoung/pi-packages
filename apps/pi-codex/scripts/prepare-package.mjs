@@ -81,14 +81,22 @@ function stageWorkspacePackage(directory, target, scratch) {
         ["-xzf", join(destination, archive), "-C", target, "--strip-components=1"],
         { stdio: ["ignore", "pipe", "pipe"] },
     );
+    // The aggregate README covers the components, and nothing in the bundle imports types.
+    for (const path of readdirSync(target, { recursive: true }))
+        if (/^README[^/\\]*\.md$|\.d\.[cm]?ts$/i.test(path))
+            rmSync(join(target, path));
 }
 
-// A registry package already has its published manifest; copy npm's file set.
+// Type declarations, source maps, documentation and tests are never loaded at run time.
+const isRuntimeFile = (path) =>
+    !/\.d\.[cm]?ts$|\.map$|\.md$|^tests?\//i.test(path);
+
+// A registry package already has its published manifest; copy npm's runtime file set.
 function stageRegistryPackage(directory, target) {
     const [packed] = JSON.parse(
         run("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], directory),
     );
-    for (const { path } of packed.files) {
+    for (const { path } of packed.files.filter(({ path }) => isRuntimeFile(path))) {
         mkdirSync(dirname(join(target, path)), { recursive: true });
         copyFileSync(join(directory, path), join(target, path));
     }
