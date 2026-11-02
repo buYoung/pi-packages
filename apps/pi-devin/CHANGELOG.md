@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Pi starts again after installing or updating this package. 0.1.9 still failed with `Cannot find module '…/effect/dist/process/CommandLine.js'` when other packages had installed `effect` 4.0.7, because Pi installs packages without solving peer dependencies. `effect` and its Node platform packages now stay on 4.0.7 together with the other packages, and `@effect/platform-node-shared` is pinned to that version.
+
 ## [0.1.9] - 2026-11-02
 
 ### Fixed
