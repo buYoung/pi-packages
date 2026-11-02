@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-02
+
 ### Improved
 
 - The package now contains only the files Pi loads and is about half its previous size. Type declarations and source maps are no longer included, and the documentation and the Korean changelog are no longer included; they remain on GitHub.

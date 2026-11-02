@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-02
+
 ### Improved
 
 - Source maps are no longer included in the package. Type declarations are still included for TypeScript users.

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-02
+
 ### Improved
 
 - The Korean changelog is no longer included in the package; it remains on GitHub.

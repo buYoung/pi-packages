@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-02
+
 ### New
 
 - Pi 1.5.0 and later show what changed in this package after you update it.
