@@ -26,6 +26,17 @@
   },
   "files": [
     "src",
+    "!src/adapters/claude/types.ts",
+    "!src/adapters/pi/types.ts",
+    "!src/app/types.ts",
+    "!src/configuration/types.ts",
+    "!src/diagnostics/types.ts",
+    "!src/features/models/types.ts",
+    "!src/features/prompt/types.ts",
+    "!src/features/query/types.ts",
+    "!src/features/session/types.ts",
+    "!src/features/summary/types.ts",
+    "!src/features/tool-bridge/types.ts",
     "README.md",
     "README.ko.md",
     "LICENSE"

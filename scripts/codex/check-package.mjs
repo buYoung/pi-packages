@@ -34,11 +34,9 @@ const requiredFiles = {
         "dist/policy/starlark/validation.js",
         "LICENSE",
         "NOTICE",
-        "docs/usage.md",
     ],
     "@buyong/pi-codex-computer-use": [
         "dist/index.js",
-        "dist/index.d.ts",
         "dist/connection.js",
         "dist/runtime.js",
         "dist/tools.js",
@@ -56,12 +54,9 @@ const requiredFiles = {
         "README.ko.md",
         "LICENSE",
         "NOTICE",
-        "docs/usage.md",
-        "docs/usage.ko.md",
     ],
     "@buyong/pi-codex-fast-mode": [
         "dist/index.js",
-        "dist/index.d.ts",
         "dist/config.js",
         "dist/fast-controller.js",
         "dist/fast-ui.js",
@@ -71,7 +66,6 @@ const requiredFiles = {
     ],
     "@buyong/pi-codex-image-gen": [
         "dist/index.js",
-        "dist/index.d.ts",
         "dist/tool.js",
         "dist/backend.js",
         "dist/auth.js",
@@ -89,14 +83,13 @@ const requiredFiles = {
         "skills/imagegen/references/sample-prompts.md",
     ],
     "@buyong/pi-codex-memory": [
-        "dist/index.js", "dist/index.d.ts", "dist/config.js", "dist/store.js",
+        "dist/index.js", "dist/config.js", "dist/store.js",
         "dist/safety.js", "dist/sources.js", "dist/pipeline.js", "dist/retrieval.js",
         "dist/runtime.js", "dist/commands.js", "dist/failure.js", "dist/repositories.js",
         "dist/repository-access.js", "dist/repository-commands.js", "dist/settings-commands.js", "dist/menus.js", "dist/coordinator.js", "dist/saved-memories.js",
         "assets/prompts/extract.md",
         "assets/prompts/consolidate.md", "assets/prompts/read.md", "README.md", "README.ko.md",
-        "LICENSE", "NOTICE", "docs/verification.md", "docs/verification.ko.md",
-        "CHANGELOG.md", "CHANGELOG.ko.md",
+        "LICENSE", "NOTICE",
     ],
     "@buyong/redact": [
         "dist/index.js",
@@ -154,6 +147,17 @@ async function verifyPackage(packageDirectory) {
         ),
         "The package must not contain native binaries, development dependencies, or OpenAI runtime files",
     );
+    // Only runtime files ship. The @buyong/redact library alone keeps its type declarations for importers;
+    // the aggregate bundle also drops the components' READMEs.
+    assert.ok(
+        ![...files].some(
+            (path) =>
+                /\.map$|(^|\/)(docs\/|CHANGELOG)/.test(path) ||
+                (/\.d\.[cm]?ts$/.test(path) && manifest.name !== "@buyong/redact") ||
+                /^node_modules\/(@[^/]+\/)?[^/]+\/README[^/]*\.md$/i.test(path),
+        ),
+        `${manifest.name}: the package must not contain source maps, docs, changelogs, plugin type declarations, or bundled READMEs`,
+    );
     if (isAggregate) {
         const names = [
             "@buyong/pi-codex-auto-review",
@@ -177,7 +181,9 @@ async function verifyPackage(packageDirectory) {
         ]);
         for (const name of [...names, "@buyong/redact"]) {
             assert.ok(packageInfo.bundled.includes(name));
-            for (const path of requiredFiles[name])
+            for (const path of requiredFiles[name].filter(
+                (path) => !/^README|\.d\.ts$/.test(path),
+            ))
                 assert.ok(
                     files.has(`node_modules/${name}/${path}`),
                     `${manifest.name}: missing dependency file: ${name}/${path}`,
@@ -251,8 +257,8 @@ async function verifyPackage(packageDirectory) {
             "The package must not bundle its runtime dependency",
         );
     } else {
-        // The new package has an exact allow-list: all compiled JS/declarations/maps plus its
-        // own docs. Repository briefs, runtime copies and build configuration cannot sneak in.
+        // The new package has an exact allow-list: compiled JS, the library's declarations, and its
+        // own metadata files. Repository briefs, runtime copies and build configuration cannot sneak in.
         const docs = new Set(
             expected.filter((path) => !path.startsWith("dist/")),
         );
@@ -261,7 +267,7 @@ async function verifyPackage(packageDirectory) {
                 (path) =>
                     path === "package.json" ||
                     docs.has(path) ||
-                    /^dist\/.+\.(js|d\.ts|js\.map)$/.test(path),
+                    /^dist\/.+\.(js|d\.ts)$/.test(path),
             ),
             `${manifest.name}: unexpected archive file`,
         );

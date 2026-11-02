@@ -42,11 +42,7 @@
         "README.md",
         "README.ko.md",
         "LICENSE",
-        "NOTICE",
-        "docs/verification.md",
-        "docs/verification.ko.md",
-        "CHANGELOG.md",
-        "CHANGELOG.ko.md"
+        "NOTICE"
     ],
     "forbiddenFiles": ["state.sqlite", "auth.json"]
 }

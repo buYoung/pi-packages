@@ -25,10 +25,17 @@ const builtins = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]
 const entries = (manifest.pi?.extensions ?? []).map((path) => path.replace(/^\.\//, ""));
 
 // npm always puts package.json in the archive regardless of `files`.
-const inFiles = (path) => path === "package.json" || (manifest.files ?? []).some((entry) => path === entry || path.startsWith(entry.replace(/\/?$/, "/")));
+// `files` entries may start with `./`; `!` entries exclude files the shipped entry point never loads.
+const fileEntries = (manifest.files ?? []).map((entry) => entry.replace(/^(!?)\.\//, "$1"));
+const matchesEntry = (path, entry) => path === entry || path.startsWith(entry.replace(/\/?$/, "/"));
+const inFiles = (path) => path === "package.json" || (
+  fileEntries.some((entry) => !entry.startsWith("!") && matchesEntry(path, entry)) &&
+  !fileEntries.some((entry) => entry.startsWith("!") && matchesEntry(path, entry.slice(1))));
 const isDevOnly = (path) => devOnly.some((entry) => entry.endsWith("/") ? path.startsWith(entry) : path === entry);
 const packageName = (specifier) => specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)["']([^"']+)["']/g;
+// Pi strips `import type` and `export type` statements, so their modules are never loaded.
+const TYPE_ONLY = /^\s*(?:import|export)\s+type\s[^;]*?\bfrom\s*["'][^"']+["'];?/gm;
 const RESOURCE = /new URL\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url\s*\)/g;
 
 const reached = new Map(), resources = new Set(), packages = new Map(), problems = [];
@@ -38,7 +45,7 @@ while (queue.length) {
   if (reached.has(path)) continue;
   const absolute = join(root, path);
   if (!existsSync(absolute)) { problems.push({ kind: "missing", path }); continue; }
-  const source = readFileSync(absolute, "utf8");
+  const source = readFileSync(absolute, "utf8").replace(TYPE_ONLY, "");
   reached.set(path, 0);
   for (const [, specifier] of source.matchAll(SPECIFIER)) {
     reached.set(path, reached.get(path) + 1);

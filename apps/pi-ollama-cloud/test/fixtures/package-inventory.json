@@ -19,8 +19,6 @@
     "hardDisabledCommands": ["ollama"]
   },
   "requiredFiles": [
-    "CHANGELOG.ko.md",
-    "CHANGELOG.md",
     "LICENSE",
     "README.ko.md",
     "README.md",
@@ -34,8 +32,6 @@
     "src/accounts/state.ts",
     "src/accounts/types.ts",
     "src/auth/context.ts",
-    "src/auth/pi-resolver.ts",
-    "src/auth/resolver.ts",
     "src/cache/bounded-storage.ts",
     "src/cache/budget.ts",
     "src/cache/constants.ts",
@@ -46,7 +42,6 @@
     "src/cache/merge.ts",
     "src/cache/publication.ts",
     "src/cache/storage.ts",
-    "src/cache/types.ts",
     "src/generated/catalog.generated.ts",
     "src/generated/limits.generated.ts",
     "src/index.ts",
@@ -62,7 +57,6 @@
     "src/models/types.ts",
     "src/pi/account-requests.ts",
     "src/pi/account-stream.ts",
-    "src/pi/chat.ts",
     "src/pi/command-output.ts",
     "src/pi/config.ts",
     "src/pi/lifecycle.ts",

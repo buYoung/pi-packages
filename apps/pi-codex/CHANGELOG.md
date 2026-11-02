@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improved
+
+- The package is about 60% smaller. The bundled components and their dependencies now contain only the files Pi loads, without type declarations, source maps, READMEs, or documentation.
+
 ## [0.6.0] - 2026-10-29
 
 ### New

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improved
+
+- The package now contains only the files Pi loads and is about half its previous size. Type declarations and source maps are no longer included, and the documentation and changelog are no longer included; they remain on GitHub.
+
 ## [0.1.1] - 2026-10-29
 
 ### Fixed

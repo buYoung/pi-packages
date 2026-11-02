@@ -5,6 +5,7 @@
 ### Improved
 
 - The bridge now uses Claude Code 2.1.316 (Agent SDK `^0.3.316`).
+- Modules that only declare types are no longer included in the package.
 
 ## 0.14.1 — 2026-10-29
 
