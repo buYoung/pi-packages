@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-02
+
+### Improved
+
+- `/codex-imagen`, the `image_gen` call and result rows, and their error messages are now in English.
+
 ## [0.3.2] - 2026-11-02
 
 ### New

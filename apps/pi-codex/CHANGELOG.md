@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-02
+
+### Improved
+
+- `/codex-imagen`, the `image_gen` call and result rows, and their error messages are now in English (included `@buyong/pi-codex-image-gen` 0.3.3).
+
 ## [0.6.1] - 2026-11-02
 
 ### New
