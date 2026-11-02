@@ -51,7 +51,9 @@ export function resolvePiCredentialEffect(
       fromSync(() => {
         options.signal?.throwIfAborted();
         // Host errors may contain a configured command. Do not expose it or a key.
-        throw new Error("Ollama Cloud 인증 해석 실패. auth.json의 키·환경 변수·명령 참조를 확인하세요.");
+        throw new Error(
+          "Could not resolve Ollama Cloud credentials. Check the key, environment variable, or command reference in auth.json.",
+        );
       }),
     ),
   );

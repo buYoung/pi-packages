@@ -8,19 +8,19 @@ import { assertAllowedModel, assertLiveEnvironment, MODEL_ID } from "./policy.js
 import { EnvironmentError, VerificationError, type CheckContext, type CheckResult } from "./types.js";
 
 export const APP_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const HELP = `사용법: pnpm --filter @buyong/pi-claude-bridge verify <검사...> [--live] [--report 경로]
-       pnpm --filter @buyong/pi-claude-bridge verify --all [--live] [--report 경로]
-       pnpm --filter @buyong/pi-claude-bridge verify --cache [--live] [--report 경로]
+const HELP = `Usage: pnpm --filter @buyong/pi-claude-bridge verify <check...> [--live] [--report path]
+       pnpm --filter @buyong/pi-claude-bridge verify --all [--live] [--report path]
+       pnpm --filter @buyong/pi-claude-bridge verify --cache [--live] [--report path]
        pnpm --filter @buyong/pi-claude-bridge verify --list
 
---model claude-haiku-5-5  검증 모델. claude-bridge/ 접두사도 허용합니다.
---live                  구독 로그인으로 실제 모델을 호출합니다.
---report 경로           버전, 소스 해시, 검사 결과와 요청 수를 JSON으로 저장합니다.
---cache                 선택 사항인 캐시 측정 검사(cache 그룹)만 실행합니다. --all에는 포함되지 않습니다.
+--model claude-haiku-5-5  Verification model. The claude-bridge/ prefix is also accepted.
+--live                  Calls the real model with the subscription login.
+--report path           Saves the version, source hashes, check results, and request count as JSON.
+--cache                 Runs only the optional cache measurement checks (cache group). --all does not include them.
 
-기본은 오프라인입니다. spawn은 네트워크 없는 실행 파일로 SDK 인자만 확인합니다.
-live 검사는 --live가 없으면 skipped입니다. 전부 skipped여도 종료 0이며 pass로 세지 않습니다.
-종료 코드: 0=실패 없음, 1=검사 실패, 2=사용법 또는 실행 환경 오류.
+The default is offline. spawn checks only the SDK arguments with an executable that has no network access.
+live checks are skipped without --live. If every check is skipped, the exit code is 0 and none count as pass.
+Exit codes: 0=no failures, 1=check failed, 2=usage or environment error.
 `;
 
 export function parseCLI(argv: string[]) {

@@ -23,14 +23,12 @@ export function completeOllamaChatEffect(
   return Effect.gen(function* () {
     const { apiKey, env } = yield* fromPromise(() => resolveApiKey(signal));
     if (!apiKey) {
-      throw new Error(
-        "채팅에 필요한 API 키가 없습니다. Pi의 /login에서 Ollama Cloud 키를 등록하거나 OLLAMA_API_KEY를 설정하세요.",
-      );
+      throw new Error("Chat requires an API key. Add an Ollama Cloud key with Pi's /login or set OLLAMA_API_KEY.");
     }
     const details = yield* fetchModelDetailsEffect(modelId, signal);
     const [modelConfig] = assembleModels({ [modelId]: details });
     if (!modelConfig) {
-      throw new Error(`${modelId}는 이 확장이 요구하는 도구 호출을 지원하지 않습니다. 다른 모델을 선택하세요.`);
+      throw new Error(`${modelId} does not support the tool calling this extension requires. Choose another model.`);
     }
     signal.throwIfAborted();
     return yield* Effect.acquireUseRelease(
@@ -55,7 +53,7 @@ export function completeOllamaChatEffect(
           yield* fromPromise(() => runtime.setRuntimeApiKey("ollama-cloud", apiKey, { signal }));
           const model = runtime.getModel("ollama-cloud", modelId);
           if (!model || model.id !== modelId) {
-            throw new Error(`요청한 모델 ID를 Pi에 등록하지 못했습니다: ${modelId}`);
+            throw new Error(`Could not register the requested model ID with Pi: ${modelId}`);
           }
           return yield* Effect.acquireUseRelease(
             Effect.sync(() => {
@@ -82,7 +80,9 @@ export function completeOllamaChatEffect(
                           !("model" in payload) ||
                           payload.model !== modelId
                         ) {
-                          throw new Error("전송할 모델 ID가 입력한 값과 달라 요청을 중단했습니다.");
+                          throw new Error(
+                            "Stopped the request because the model ID to send differs from the entered value.",
+                          );
                         }
                       },
                     },
@@ -91,18 +91,17 @@ export function completeOllamaChatEffect(
                 signal.throwIfAborted();
                 if (controller.signal.aborted) {
                   throw new Error(
-                    "채팅이 120초 안에 끝나지 않아 중단했습니다. 잠시 후 다시 시도하거나 다른 모델을 선택하세요.",
+                    "Chat timed out after 120 seconds and was stopped. Try again later or choose another model.",
                   );
                 }
                 if (result.stopReason === "error" || result.stopReason === "aborted") {
-                  throw new Error(`Ollama 채팅 실패: ${result.errorMessage ?? result.stopReason}`);
+                  throw new Error(`Ollama chat failed: ${result.errorMessage ?? result.stopReason}`);
                 }
                 const answer = result.content
                   .flatMap((block) => (block.type === "text" ? [block.text] : []))
                   .join("")
                   .trim();
-                if (!answer)
-                  throw new Error("모델이 텍스트 답변을 반환하지 않았습니다. 다른 모델을 선택하거나 다시 시도하세요.");
+                if (!answer) throw new Error("The model returned no text answer. Choose another model or try again.");
                 return { answer, truncated: result.stopReason === "length" };
               }),
             ({ controller, timer }) =>

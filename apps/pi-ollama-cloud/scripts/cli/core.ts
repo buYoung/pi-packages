@@ -14,7 +14,7 @@ export const coreFeature: VerificationFeature = {
   shared: ["src/models/metadata.ts", "src/pi/chat.ts", "src/pi/lifecycle.ts", "src/pi/web-tools.ts"],
   consumers: ["src/index.ts", "src/models/catalog.ts", "src/pi/web-tools.ts", "scripts/cli.ts"],
   async verify({ check }) {
-    await check("공용 모델 조립과 무인증 목록 조회", async () => {
+    await check("Shared model assembly and unauthenticated list lookup", async () => {
       assert.equal(assembleModels({ fixture: { capabilities: ["tools"] } })[0].contextWindow, 128000);
       await withMockFetch(
         async (_url, init) => {
@@ -24,7 +24,7 @@ export const coreFeature: VerificationFeature = {
         async () => assert.deepEqual(await fetchModelIds(), ["fixture"]),
       );
     });
-    await check("실제 Pi 전송의 모델 ID·질문·토큰 상한과 임시 폴더 정리", async () => {
+    await check("Model ID, prompt, and token limit in the real Pi request, and temporary folder cleanup", async () => {
       const before = readdirSync(tmpdir()).filter((name) => name.startsWith("pi-ollama-cli-"));
       let chatCalls = 0;
       await withMockFetch(
@@ -63,7 +63,7 @@ export const coreFeature: VerificationFeature = {
         before,
       );
     });
-    await check("기존 메뉴·선택·직접 입력·종료와 SIGINT 정리", async () => {
+    await check("Existing menu, selection, direct entry, exit, and SIGINT cleanup", async () => {
       const actions = ["models", "chat", "fixture", "manual", "exit"];
       const chats: string[] = [];
       const initialListeners = process.listenerCount("SIGINT");
@@ -94,7 +94,7 @@ export const coreFeature: VerificationFeature = {
         process.exitCode = previousExitCode;
       }
       await runCLI(["--help"], dependencies);
-      await assert.rejects(runCLI([], { ...dependencies, isTTY: false }), /대화형 터미널/);
+      await assert.rejects(runCLI([], { ...dependencies, isTTY: false }), /interactive terminal/);
     });
   },
 };

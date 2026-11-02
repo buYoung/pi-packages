@@ -38,7 +38,7 @@ export const renderFeature: VerificationFeature = {
         assert.ok(lines.every((line) => visibleWidth(line) <= width));
         return lines.join("\n");
       };
-      await check("접기↔펼치기 반복 및 성공→오류 전환에서 setText 예외 없음", async () => {
+      await check("No setText exception on collapse/expand toggles or success-to-error switches", async () => {
         for (let i = 0; i < 3; i++) {
           display(longText, false, 60);
           assert.match(display(longText, true, 60), /fixture-0/);
@@ -49,7 +49,7 @@ export const renderFeature: VerificationFeature = {
         context.isError = false;
         display("", false, 20);
       });
-      await check("동일 폭의 새 결과와 테마·폭 변경에 preview 갱신", async () => {
+      await check("Preview updates for a new result at the same width and for theme or width changes", async () => {
         display("old-result", false, 60);
         assert.match(display("new-result", false, 60), /new-result/);
         const changedTheme = { fg: (_color: string, text: string) => `changed:${text}` } as unknown as Theme;

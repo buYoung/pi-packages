@@ -55,16 +55,16 @@ export async function verifyFeature(
     !args.includes("--offline") ||
     args.some((arg, i) => arg !== "--offline" && arg !== "--report" && i !== reportIndex + 1)
   ) {
-    throw new Error("사용법: --offline [--report <path>]. 이 실행기는 실API를 호출하지 않습니다.");
+    throw new Error("Usage: --offline [--report <path>]. This runner does not call the real API.");
   }
-  if (reportIndex >= 0 && !args[reportIndex + 1]) throw new Error("--report 경로가 필요합니다.");
+  if (reportIndex >= 0 && !args[reportIndex + 1]) throw new Error("--report requires a path.");
   const checks: Check[] = [];
   const command = `pnpm --filter @buyong/pi-ollama-cloud exec tsx ${feature.cli} --offline`;
   let hasFailed = false;
   let failure: unknown;
   try {
     await feature.verify({
-      async check(name, run, inputs = "임시 데이터와 모의 전송") {
+      async check(name, run, inputs = "Temporary data and mocked transport") {
         const check: Check = { phase: "cli", command, inputs, expected: name, observed: "", result: "fail" };
         checks.push(check);
         try {
@@ -72,9 +72,9 @@ export async function verifyFeature(
           await run();
           signal?.throwIfAborted();
           check.result = "pass";
-          check.observed = "검증 조건 충족";
+          check.observed = "Verification conditions met";
         } catch (error) {
-          check.observed = "검증 조건 불일치";
+          check.observed = "Verification conditions not met";
           console.error(`FAIL: ${name}`);
           throw error;
         }
@@ -93,9 +93,9 @@ export async function verifyFeature(
     checks.push({
       phase: "cli",
       command,
-      inputs: "검증 소스 그래프",
-      expected: "모든 소스 해시 수집",
-      observed: "파일 누락 또는 읽기 실패",
+      inputs: "Verification source graph",
+      expected: "All source hashes collected",
+      observed: "Missing file or read failure",
       result: "fail",
     });
   }
@@ -111,7 +111,10 @@ export async function verifyFeature(
     moduleReferences: { cli: feature.cli, shared: feature.shared, consumers: feature.consumers },
     checks,
     apiCallCounts: { chat: 0, web_search: 0, web_fetch: 0, usage: 0, limitsProbe: 0 },
-    limits: ["모의 검증이며 실서비스 성공을 의미하지 않음", "소비자 검증은 연결 후 별도로 기록"],
+    limits: [
+      "Mocked verification; does not mean the live service succeeds",
+      "Consumer verification is recorded separately after connection",
+    ],
   };
   if (reportIndex >= 0) {
     const reportPath = resolve(args[reportIndex + 1]);
@@ -119,7 +122,7 @@ export async function verifyFeature(
     writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   }
   if (hasFailed) throw failure;
-  console.log(`${feature.id}: ${checks.length}개 검증 통과, 실API 호출 0`);
+  console.log(`${feature.id}: ${checks.length} checks passed, 0 real API calls`);
 }
 export function runFeature(moduleURL: string, feature: VerificationFeature): void {
   runDirect(moduleURL, () => verifyFeature(feature));

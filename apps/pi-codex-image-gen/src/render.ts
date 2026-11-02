@@ -39,6 +39,10 @@ function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+function imageCount(count: number): string {
+    return count === 1 ? "1 image" : `${count} images`;
+}
+
 /** Arguments may still be streaming, so every field is checked before use. */
 function describeRequest(args: unknown): string {
     const request = (args ?? {}) as Record<string, unknown>;
@@ -51,12 +55,12 @@ function describeRequest(args: unknown): string {
             : 0;
     const operation =
         pathCount > 0
-            ? `편집 · 참조 이미지 ${pathCount}개`
+            ? `Edit · ${imageCount(pathCount)} from paths`
             : historyCount > 0
-              ? `편집 · 최근 대화 이미지 ${historyCount}개`
-              : "생성";
+              ? `Edit · last ${imageCount(historyCount)} in conversation`
+              : "Generate";
     return request.transparent_background === true
-        ? `${operation} · 투명 배경`
+        ? `${operation} · transparent background`
         : operation;
 }
 
@@ -105,10 +109,10 @@ function resultHeading(details: unknown, content: readonly unknown[]): string {
         operation?: unknown;
         background?: unknown;
     };
-    const parts = [operation === "edit" ? "편집 완료" : "생성 완료"];
+    const parts = [operation === "edit" ? "Edited" : "Generated"];
     const size = imageSize(content);
     if (size !== undefined) parts.push(size);
-    if (background === "transparent") parts.push("투명 배경");
+    if (background === "transparent") parts.push("transparent background");
     return parts.join(" · ");
 }
 
@@ -136,11 +140,7 @@ export const renderImageGenResult: RenderResult = (
         .trim();
     if (context.isError) return new Text(theme.fg("error", text), 0, 0);
     if (options.isPartial)
-        return new Text(
-            `\n${theme.fg("muted", "이미지를 생성하는 중…")}`,
-            0,
-            0,
-        );
+        return new Text(`\n${theme.fg("muted", "Generating image…")}`, 0, 0);
 
     const state = context.state as ResultRenderState;
     const savedPath = (result.details as { savedPath?: unknown } | undefined)
@@ -154,8 +154,8 @@ export const renderImageGenResult: RenderResult = (
         context.showImages &&
         result.content.some((block) => block.type === "image");
     const hint = [
-        ...(isImageShown ? ["이미지 클릭: 확대·축소"] : []),
-        ...(canOpen ? ["경로 클릭: 기본 앱으로 열기"] : []),
+        ...(isImageShown ? ["Click image to zoom"] : []),
+        ...(canOpen ? ["Click path to open in default app"] : []),
     ].join(" · ");
 
     const setOpenStatus = (text: string, isError: boolean) => {
@@ -170,7 +170,7 @@ export const renderImageGenResult: RenderResult = (
                 truncateToWidth(theme.fg("success", heading), width),
                 path === undefined
                     ? truncateToWidth(
-                          theme.fg("warning", "파일로 저장하지 못했습니다."),
+                          theme.fg("warning", "Could not save to a file."),
                           width,
                       )
                     : pathLabel(path, theme, width),
@@ -201,12 +201,12 @@ export const renderImageGenResult: RenderResult = (
             ) {
                 return undefined;
             }
-            setOpenStatus("기본 앱 실행을 요청하는 중…", false);
+            setOpenStatus("Requesting the default app…", false);
             openWithDefaultApp(path).then(
-                () => setOpenStatus("기본 앱 실행을 요청했습니다.", false),
+                () => setOpenStatus("Requested the default app.", false),
                 (error: unknown) =>
                     setOpenStatus(
-                        `열지 못했습니다: ${errorMessage(error)}`,
+                        `Could not open: ${errorMessage(error)}`,
                         true,
                     ),
             );

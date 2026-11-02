@@ -15,7 +15,7 @@ export async function showModelMetadata(signal: AbortSignal): Promise<void> {
   const { models: raw, failed } = await refreshOllamaCloudModels(ids, signal);
   const metadata = Object.entries(raw).map(([id, data]) => resolveModelMetadata(id, data));
   console.log(
-    `전체 ${ids.length}개 / 채팅 후보 ${metadata.filter((m) => m.isChatCandidate).length}개 / 조회 실패 ${failed}개`,
+    `Total ${ids.length} / chat candidates ${metadata.filter((m) => m.isChatCandidate).length} / lookup failures ${failed}`,
   );
   for (const model of metadata) {
     console.log(
@@ -45,7 +45,7 @@ export const modelsFeature: VerificationFeature = {
     );
     assert.ok(isRecord(fixture) && isRecord(fixture.models));
     const raw = fixture.models;
-    await check("전체 모델 목록과 tools 채팅 후보를 구분하고 필드별 출처를 표시", async () => {
+    await check("Separate all models from tools chat candidates and show each field's source", async () => {
       const all = Object.entries(raw).map(([id, data]) => resolveModelMetadata(id, data));
       assert.equal(all.length, 6);
       assert.equal(all.find((m) => m.requestedId === "clef:27b")?.isChatCandidate, false);
@@ -61,7 +61,7 @@ export const modelsFeature: VerificationFeature = {
       }
       assert.equal(resolveModelMetadata("glm-5.3-flash", raw["glm-5.3-flash"]).maxTokens, 524288);
     });
-    await check("알 수 없는 thinking·잘못된 형식·기존 입력·off 예외의 안전한 처리", async () => {
+    await check("Safe handling of unknown thinking, malformed values, legacy input, and off exceptions", async () => {
       const future = resolveModelMetadata("future", {
         capabilities: ["tools", "thinking"],
         thinking: { values: ["future-effort"], default: "future-effort" },
@@ -88,7 +88,7 @@ export const modelsFeature: VerificationFeature = {
       assert.equal(glm.thinking.map?.off, null);
       assert.equal(glm.thinking.nativeDefault, "max");
     });
-    await check("실제 Pi 최종 payload의 요청 ID·caller effort·compat·토큰 상한", async () => {
+    await check("Request ID, caller effort, compat, and token limit in the final Pi payload", async () => {
       const temp = mkdtempSync(join(tmpdir(), "ollama-model-metadata-"));
       try {
         const runtime = await ModelRuntime.create({

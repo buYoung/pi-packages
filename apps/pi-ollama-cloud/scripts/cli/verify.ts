@@ -28,7 +28,7 @@ export const packageFeature: VerificationFeature = {
     delete process.env.OLLAMA_API_KEY;
     delete process.env.OLLAMA_API_BASE;
     try {
-      await check("static registry의 10개 독립 기능과 고유 ID", async () => {
+      await check("10 independent features with unique IDs in the static registry", async () => {
         assert.equal(DIAGNOSTICS.length, 10);
         assert.equal(new Set(DIAGNOSTICS.map((item) => item.id)).size, 10);
         for (const item of DIAGNOSTICS) assert.equal(item.id, item.feature().id);
@@ -36,7 +36,7 @@ export const packageFeature: VerificationFeature = {
       for (const item of DIAGNOSTICS) {
         await item.feature().verify({ check: (name, run, inputs) => check(`${item.id}: ${name}`, run, inputs) });
       }
-      await check("최소 live 호출에 사용할 공용 채팅 경로의 상한과 자동 retry 없음", async () => {
+      await check("Shared chat path limits for the minimal live call, with no automatic retry", async () => {
         assert.equal(CHAT_TIMEOUT_MS, 120000);
         assert.equal(MAX_RESPONSE_TOKENS, 4096);
         let calls = 0;
@@ -57,7 +57,7 @@ export const packageFeature: VerificationFeature = {
         );
         assert.equal(calls, 1);
       });
-      await check("runtime 의존 경계와 고정 파일 inventory", async () => {
+      await check("Runtime dependency boundary and fixed file inventory", async () => {
         assertRuntimeBoundary();
         const inventory = JSON.parse(
           readFileSync(join(packageRoot, "test/fixtures/package-inventory.json"), "utf8"),
@@ -65,12 +65,12 @@ export const packageFeature: VerificationFeature = {
         assert.deepEqual(runtimeFiles(), [...inventory.requiredFiles].sort());
       });
       const artifact = packArtifact(temp);
-      await check("실제 pnpm archive의 전체 필수 파일·동일 bytes·생산 의존성만 로딩", async () => {
+      await check("Real pnpm archive: all required files, identical bytes, production deps only", async () => {
         assert.ok(artifact.files.includes("src/generated/catalog.generated.ts"));
         assert.ok(artifact.dependencies.some((dependency) => dependency.name === "proper-lockfile"));
       });
       for (const profile of ["enabled", "soft-disabled", "hard-disabled"] as const) {
-        await check(`source/artifact 일치: ${profile} inventory·명령·reload·실제 도구·payload`, async () => {
+        await check(`source/artifact match: ${profile} inventory, commands, reload, real tools, payload`, async () => {
           const source = verifyPackageConsumer(packageRoot, join(temp, `source-${profile}`), profile);
           const packed = verifyPackageConsumer(artifact.root, join(temp, `packed-${profile}`), profile);
           assert.deepEqual(packed, source);

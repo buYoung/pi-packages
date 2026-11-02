@@ -25,7 +25,7 @@ export async function runDiagnostic(feature: VerificationFeature, signal: AbortS
       });
       child.once("error", reject);
       child.once("close", (code) =>
-        code === 0 ? resolve() : reject(new Error(`검증 종료 코드: ${code ?? "signal"}`)),
+        code === 0 ? resolve() : reject(new Error(`Verification exit code: ${code ?? "signal"}`)),
       );
     });
   } finally {

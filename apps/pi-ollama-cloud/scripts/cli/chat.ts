@@ -1,8 +1,8 @@
 import { CHAT_PROMPT, completeOllamaChat } from "../../src/pi/chat.ts";
 
 export async function runChat(modelId: string, signal: AbortSignal): Promise<void> {
-  console.log(`\n모델: ${modelId}\n질문: ${CHAT_PROMPT}\n응답 대기 중...`);
+  console.log(`\nModel: ${modelId}\nPrompt: ${CHAT_PROMPT}\nWaiting for a response...`);
   const result = await completeOllamaChat(modelId, signal);
-  console.log(`응답:\n${result.answer}\n`);
-  if (result.truncated) console.warn("출력 토큰 한도에 도달해 응답이 잘렸을 수 있습니다.");
+  console.log(`Response:\n${result.answer}\n`);
+  if (result.truncated) console.warn("The response reached the output token limit and may be truncated.");
 }
