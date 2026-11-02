@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Updating from 0.1.7 or 0.1.8 no longer leaves Pi unable to start with `Cannot find module '…/effect/dist/process/CommandLine.js'`. Those versions left a newer `@effect/platform-node-shared` in Pi's package folder, which 0.1.10 still picked up. The package now ships `@effect/platform-node` and `@effect/platform-node-shared` inside itself, so they always use this package's own `effect`, whatever other packages or earlier versions installed.
+
 ## [0.1.10] - 2026-11-02
 
 ### Fixed

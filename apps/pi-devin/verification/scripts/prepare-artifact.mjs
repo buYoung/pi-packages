@@ -23,7 +23,8 @@ for (const [name, info] of packages) {
   assert.equal(/(?:^|\/)node_modules\/(?:@earendil-works\/|typebox(?:\/|$)|@repo\/|@typescript\/|typescript(?:\/|$))/.test(name), false, "host/dev-only copy: " + name);
 }
 const destination = join(artifact, "node_modules");
-await mkdir(destination); // Existing trees are not overwritten.
+// The archive already holds its bundled dependencies there; they are kept, and nothing existing is overwritten.
+await mkdir(destination, { recursive: true });
 for (const name of await readdir(join(consumer, "node_modules"))) {
   if (name === "@buyong" || name === ".package-lock.json") continue;
   const source = join(consumer, "node_modules", name);

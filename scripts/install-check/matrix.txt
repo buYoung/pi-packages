@@ -1,0 +1,24 @@
+# Published packages, each alone
+A01-bridge|npm:@buyong/pi-claude-bridge
+A02-codex|npm:@buyong/pi-codex
+A03-devin|npm:@buyong/pi-devin
+A04-mcp-adapter|npm:@buyong/pi-mcp-adapter
+A05-ollama-cloud|npm:@buyong/pi-ollama-cloud
+A06-redact|npm:@buyong/pi-redact
+A07-refuseless|npm:@buyong/pi-refuseless
+# Published packages together, in both orders, and with common third-party packages
+B01-ours-devin-last|npm:@buyong/pi-claude-bridge npm:@buyong/pi-codex npm:@buyong/pi-mcp-adapter npm:@buyong/pi-ollama-cloud npm:@buyong/pi-redact npm:@buyong/pi-refuseless npm:@buyong/pi-devin
+B02-ours-devin-first|npm:@buyong/pi-devin npm:@buyong/pi-refuseless npm:@buyong/pi-redact npm:@buyong/pi-ollama-cloud npm:@buyong/pi-mcp-adapter npm:@buyong/pi-codex npm:@buyong/pi-claude-bridge
+B03-with-third-party|npm:pi-subagents npm:pi-notify npm:@juicesharp/rpiv-ask-user-question npm:pi-powerline-footer npm:pi-web-access npm:@tmustier/pi-usage-extension npm:context-mode npm:@buyong/pi-ollama-cloud npm:@buyong/pi-codex npm:@buyong/pi-claude-bridge npm:@buyong/pi-mcp-adapter npm:@buyong/pi-refuseless npm:@buyong/pi-devin
+# Older releases mixed in, and updates from them
+C01-old-others-new-devin|npm:@buyong/pi-claude-bridge@0.14.0 npm:@buyong/pi-codex@0.5.0 npm:@buyong/pi-mcp-adapter@0.1.2 npm:@buyong/pi-ollama-cloud@0.15.2 npm:@buyong/pi-redact@0.2.0 npm:@buyong/pi-refuseless@0.1.0 npm:@buyong/pi-devin
+C02-old-all-then-update|npm:@buyong/pi-claude-bridge@0.14.0 npm:@buyong/pi-codex@0.5.0 npm:@buyong/pi-mcp-adapter@0.1.2 npm:@buyong/pi-ollama-cloud@0.15.2 npm:@buyong/pi-redact@0.2.0 npm:@buyong/pi-refuseless@0.1.0 npm:@buyong/pi-devin@0.1.7 UNPIN UPDATE
+C03-devin-0.1.8-then-update|npm:@buyong/pi-claude-bridge npm:@buyong/pi-codex npm:@buyong/pi-mcp-adapter npm:@buyong/pi-ollama-cloud npm:@buyong/pi-redact npm:@buyong/pi-refuseless npm:@buyong/pi-devin@0.1.8 UNPIN UPDATE
+C04-devin-0.1.9-then-update|npm:@buyong/pi-claude-bridge npm:@buyong/pi-codex npm:@buyong/pi-mcp-adapter npm:@buyong/pi-ollama-cloud npm:@buyong/pi-redact npm:@buyong/pi-refuseless npm:@buyong/pi-devin@0.1.9 UNPIN UPDATE
+# The packed pi-devin (pass the tarball folder as the third argument)
+P01-packed-devin-fresh|npm:@buyong/pi-claude-bridge npm:@buyong/pi-codex npm:@buyong/pi-mcp-adapter npm:@buyong/pi-ollama-cloud npm:@buyong/pi-redact npm:@buyong/pi-refuseless PACKED:pi-devin
+P02-packed-devin-old-others|npm:@buyong/pi-claude-bridge@0.14.0 npm:@buyong/pi-codex@0.5.0 npm:@buyong/pi-mcp-adapter@0.1.2 npm:@buyong/pi-ollama-cloud@0.15.2 npm:@buyong/pi-redact@0.2.0 npm:@buyong/pi-refuseless@0.1.0 PACKED:pi-devin
+P03-packed-devin-over-0.1.7|npm:@buyong/pi-claude-bridge@0.14.0 npm:@buyong/pi-codex@0.5.0 npm:@buyong/pi-mcp-adapter@0.1.2 npm:@buyong/pi-ollama-cloud@0.15.2 npm:@buyong/pi-redact@0.2.0 npm:@buyong/pi-refuseless@0.1.0 npm:@buyong/pi-devin@0.1.7 PACKED:pi-devin
+P04-packed-devin-over-0.1.8|npm:@buyong/pi-claude-bridge npm:@buyong/pi-codex npm:@buyong/pi-mcp-adapter npm:@buyong/pi-ollama-cloud npm:@buyong/pi-redact npm:@buyong/pi-refuseless npm:@buyong/pi-devin@0.1.8 PACKED:pi-devin
+P05-packed-devin-over-0.1.10|npm:@buyong/pi-claude-bridge npm:@buyong/pi-codex npm:@buyong/pi-mcp-adapter npm:@buyong/pi-ollama-cloud npm:@buyong/pi-redact npm:@buyong/pi-refuseless npm:@buyong/pi-devin@0.1.10 PACKED:pi-devin
+P06-packed-devin-with-third-party|npm:pi-subagents npm:pi-notify npm:@juicesharp/rpiv-ask-user-question npm:pi-powerline-footer npm:pi-web-access npm:@tmustier/pi-usage-extension npm:context-mode npm:@buyong/pi-ollama-cloud npm:@buyong/pi-codex npm:@buyong/pi-claude-bridge npm:@buyong/pi-mcp-adapter npm:@buyong/pi-refuseless PACKED:pi-devin
