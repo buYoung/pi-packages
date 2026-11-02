@@ -30,3 +30,4 @@ This monorepo develops independently installable Pi extensions and supporting li
 ## 추가 지침
 
 - 신규 코드를 작성하거나 책임·의존성 경계, 파일·폴더 구조, 타입·공용화 또는 상태·자원 소유권을 설계·변경·검토할 때는 [코드 분리와 폴더 구조 규칙](docs/code-organization.ko.md)을 읽고 적용한다. 단순 버그 수정에 무관한 구조 개편을 추가하지 않는다.
+- Pi 패키지 코드의 문자열(사용자 메시지, UI 문구, 오류, CLI 출력)과 주석은 영어로만 쓴다. 한국어를 처리하기 위한 데이터와 테스트 입력은 예외다.
