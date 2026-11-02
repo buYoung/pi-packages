@@ -1,8 +1,10 @@
 // Audits an installed Pi npm root.
 // 1. RANGE: every installed package's dependencies and required peers resolve to a satisfying version
 //    (host-provided peers are checked against the installed Pi host).
-// 2. IMPORT: every import in @buyong/* runtime files resolves to an existing file; host imports must be
-//    one of Pi's extension aliases; named value imports must exist on the resolved module.
+// 2. IMPORT: every import in @buyong/* runtime files, and in the packages they bundle, resolves to an existing file;
+//    host imports must be one of Pi's extension aliases; named value imports must exist on the resolved module.
+//    A bundle ships only the runtime files it loads, so its packages may omit declared dependencies they never load;
+//    those are notes, and the import check proves nothing missing is loaded.
 // usage: node check-installed.mjs <npm root> <pi host dir>   (run inside the container by scenario.sh)
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
@@ -87,6 +89,9 @@ function resolvePackage(from, name) {
 }
 
 const problems = [], notes = [];
+// Packages shipped inside an @buyong package (bundleDependencies and what they carry).
+const ourDirs = packages.filter((p) => p.pkg.name.startsWith("@buyong/")).map((p) => p.dir);
+const isBundled = (dir) => ourDirs.some((our) => dir.startsWith(join(our, "node_modules") + "/")) && !packages.find((p) => p.dir === dir)?.pkg.name.startsWith("@buyong/");
 // 1. RANGE
 for (const { dir, pkg } of packages) {
   const optionalPeers = new Set(Object.entries(pkg.peerDependenciesMeta ?? {}).filter(([, m]) => m.optional).map(([n]) => n));
@@ -103,6 +108,7 @@ for (const { dir, pkg } of packages) {
     if (!resolved) {
       if (kind === "peer" && optionalPeers.has(name)) return;
       if (optionalDeps.has(name)) return;
+      if (kind !== "peer" && isBundled(dir)) { notes.push(`BUNDLE-OMITS ${pkg.name}@${pkg.version} ${kind} ${name}@${range}`); return; }
       (kind === "peer" ? notes : problems).push(`${kind === "peer" ? "PEER-NOT-INSTALLED" : "MISSING"} ${pkg.name}@${pkg.version} ${kind} ${name}@${range}`);
       return;
     }
@@ -123,7 +129,7 @@ const collect = (dir) => {
     else if (/\.(m?js|cjs|ts|mts)$/.test(name) && !/\.d\.(m?ts|cts)$/.test(name) && !/\.(test|spec)\./.test(name)) files.push(full);
   }
 };
-const ours = packages.filter((p) => p.pkg.name.startsWith("@buyong/"));
+const ours = packages.filter((p) => p.pkg.name.startsWith("@buyong/") || isBundled(p.dir));
 for (const { dir, pkg } of ours) {
   // Only shipped runtime files; the CLI and dev-only sources of pi-devin are excluded from the archive already.
   collect(dir);
@@ -162,7 +168,14 @@ for (const file of files) {
     // Code strings run inside the Codex Desktop runtime, not resolved from npm.
     if (spec === "@oai/sky" && where.includes("pi-codex-computer-use/dist/install.js")) return;
     const r = resolveSpec(file, spec);
-    if (r.kind === "missing") { if (!isType) problems.push(`IMPORT ${spec} from ${where}: ${r.why}`); return; }
+    if (r.kind === "missing") {
+      // A peer the importing package does not depend on (ws's bufferutil) is loaded inside try/catch when present.
+      const owner = JSON.parse(readFileSync(findPackageJson(file), "utf8"));
+      const base = spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0];
+      if (owner.peerDependencies?.[base] && !owner.dependencies?.[base]) { notes.push(`OPTIONAL-PEER-NOT-INSTALLED ${owner.name} loads ${base}`); return; }
+      if (!isType) problems.push(`IMPORT ${spec} from ${where}: ${r.why}`);
+      return;
+    }
     if (r.kind !== "file" || isType || !clause || spec.startsWith(".")) return;
     const names = [];
     const braces = clause.match(/\{([\s\S]*)\}/);
