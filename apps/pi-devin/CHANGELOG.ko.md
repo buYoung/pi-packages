@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 해결된 것
+
+- 이 패키지를 설치하거나 업데이트한 뒤 Pi가 다시 정상적으로 시작합니다. 다른 패키지가 `effect` 4.0.7을 설치해 둔 환경에서는 0.1.9도 `Cannot find module '…/effect/dist/process/CommandLine.js'` 오류로 실패했습니다. Pi가 peer 의존성을 풀지 않고 패키지를 설치하기 때문입니다. 이제 `effect`와 Node 플랫폼 패키지를 다른 패키지와 같은 4.0.7로 두고, `@effect/platform-node-shared`도 이 버전으로 고정합니다.
+
 ## [0.1.9] - 2026-11-02
 
 ### 해결된 것
