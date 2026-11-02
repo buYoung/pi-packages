@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improved
+
+- The package is about five times smaller (1.6 MB to 0.34 MB compressed). The bundled Node platform packages now carry only the JavaScript files this package loads, without type declarations, source maps, documentation, or the unused `undici` HTTP client.
+
 ## [0.1.11] - 2026-11-02
 
 ### Fixed
