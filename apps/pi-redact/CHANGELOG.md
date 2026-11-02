@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### New
+
+- Pi 1.5.0 and later show what changed in this package after you update it.
+
 ### Improved
 
 - The package now contains only the files Pi loads and is about half its previous size. Type declarations and source maps are no longer included.

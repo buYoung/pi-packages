@@ -19,6 +19,7 @@
     "hardDisabledCommands": ["ollama"]
   },
   "requiredFiles": [
+    "CHANGELOG.md",
     "LICENSE",
     "README.ko.md",
     "README.md",

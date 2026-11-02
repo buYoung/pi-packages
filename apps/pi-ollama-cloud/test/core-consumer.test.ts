@@ -96,6 +96,7 @@ describe("shared runtime consumers", () => {
         "!src/pi/chat.ts",
         "README.md",
         "README.ko.md",
+        "CHANGELOG.md",
         "LICENSE",
       ],
     });

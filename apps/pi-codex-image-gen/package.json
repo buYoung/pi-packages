@@ -65,6 +65,7 @@
         "skills/**/NOTICE",
         "README.md",
         "README.ko.md",
+        "CHANGELOG.md",
         "LICENSE"
     ]
 }

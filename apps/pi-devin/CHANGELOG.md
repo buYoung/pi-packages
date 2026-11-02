@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### New
+
+- Pi 1.5.0 and later show what changed in this package after you update it.
+
 ### Improved
 
 - Modules that only declare types or are used only by the development CLI are no longer included in the package.
