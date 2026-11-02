@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Pi no longer fails to start with `Cannot find module '…/effect/dist/process/CommandLine.js'` after installing or updating this package. `effect` and `@effect/platform-node` are updated to 4.1.2, so npm no longer installs a newer `@effect/platform-node-shared` that the bundled `effect` cannot load.
+
 ## [0.1.8] - 2026-11-01
 
 ### Fixed

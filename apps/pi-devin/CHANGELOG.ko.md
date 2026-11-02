@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 해결된 것
+
+- 이 패키지를 설치하거나 업데이트한 뒤 Pi가 `Cannot find module '…/effect/dist/process/CommandLine.js'` 오류로 시작하지 못하던 문제를 고쳤습니다. `effect`와 `@effect/platform-node`를 4.1.2로 올려, npm이 함께 설치된 `effect`가 불러올 수 없는 더 새 `@effect/platform-node-shared`를 설치하지 않습니다.
+
 ## [0.1.8] - 2026-11-01
 
 ### 해결된 것
