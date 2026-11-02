@@ -2,6 +2,10 @@
 
 ## UNRELEASED
 
+### New
+
+- Pi 1.5.0 and later show what changed in this package after you update it.
+
 ### Improved
 
 - The bridge now uses Claude Code 2.1.316 (Agent SDK `^0.3.316`).

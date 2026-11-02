@@ -25,6 +25,7 @@
     "src/thinking.ts",
     "README.md",
     "README.ko.md",
+    "CHANGELOG.md",
     "LICENSE"
   ]
 }

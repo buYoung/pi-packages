@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### New
+
+- Pi 1.5.0 and later show what changed in this package after you update it.
+
 ### Improved
 
 - The package is about 60% smaller. The bundled components and their dependencies now contain only the files Pi loads, without type declarations, source maps, READMEs, or documentation.

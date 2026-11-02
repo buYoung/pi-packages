@@ -15,7 +15,7 @@ const packageDirectories = {
     "@buyong/redact": "packages/redact",
 };
 const requiredFiles = {
-    "@buyong/pi-codex": ["README.md", "README.ko.md", "LICENSE"],
+    "@buyong/pi-codex": ["README.md", "README.ko.md", "CHANGELOG.md", "LICENSE"],
     "@buyong/pi-codex-auto-review": [
         "dist/index.js",
         "dist/startup.js",
@@ -32,6 +32,7 @@ const requiredFiles = {
         "dist/policy/starlark/builtins.js",
         "dist/policy/starlark/values.js",
         "dist/policy/starlark/validation.js",
+        "CHANGELOG.md",
         "LICENSE",
         "NOTICE",
     ],
@@ -52,6 +53,7 @@ const requiredFiles = {
         "dist/platform.js",
         "README.md",
         "README.ko.md",
+        "CHANGELOG.md",
         "LICENSE",
         "NOTICE",
     ],
@@ -62,6 +64,7 @@ const requiredFiles = {
         "dist/fast-ui.js",
         "README.md",
         "README.ko.md",
+        "CHANGELOG.md",
         "LICENSE",
     ],
     "@buyong/pi-codex-image-gen": [
@@ -75,6 +78,7 @@ const requiredFiles = {
         "dist/commands.js",
         "README.md",
         "README.ko.md",
+        "CHANGELOG.md",
         "LICENSE",
         "skills/imagegen/SKILL.md",
         "skills/imagegen/LICENSE.txt",
@@ -88,7 +92,7 @@ const requiredFiles = {
         "dist/runtime.js", "dist/commands.js", "dist/failure.js", "dist/repositories.js",
         "dist/repository-access.js", "dist/repository-commands.js", "dist/settings-commands.js", "dist/menus.js", "dist/coordinator.js", "dist/saved-memories.js",
         "assets/prompts/extract.md",
-        "assets/prompts/consolidate.md", "assets/prompts/read.md", "README.md", "README.ko.md",
+        "assets/prompts/consolidate.md", "assets/prompts/read.md", "README.md", "README.ko.md", "CHANGELOG.md",
         "LICENSE", "NOTICE",
     ],
     "@buyong/redact": [
@@ -147,16 +151,18 @@ async function verifyPackage(packageDirectory) {
         ),
         "The package must not contain native binaries, development dependencies, or OpenAI runtime files",
     );
-    // Only runtime files ship. The @buyong/redact library alone keeps its type declarations for importers;
-    // the aggregate bundle also drops the components' READMEs.
+    // Only runtime files ship, plus the English CHANGELOG.md Pi shows after an extension update. The
+    // @buyong/redact library alone keeps its type declarations for importers; the aggregate bundle also
+    // drops the components' READMEs and changelogs.
     assert.ok(
         ![...files].some(
             (path) =>
-                /\.map$|(^|\/)(docs\/|CHANGELOG)/.test(path) ||
+                /\.map$|(^|\/)docs\//.test(path) ||
+                (/CHANGELOG/.test(path) && (path !== "CHANGELOG.md" || manifest.name === "@buyong/redact")) ||
                 (/\.d\.[cm]?ts$/.test(path) && manifest.name !== "@buyong/redact") ||
                 /^node_modules\/(@[^/]+\/)?[^/]+\/README[^/]*\.md$/i.test(path),
         ),
-        `${manifest.name}: the package must not contain source maps, docs, changelogs, plugin type declarations, or bundled READMEs`,
+        `${manifest.name}: the package must not contain source maps, docs, translated or bundled changelogs, plugin type declarations, or bundled READMEs`,
     );
     if (isAggregate) {
         const names = [
@@ -182,7 +188,7 @@ async function verifyPackage(packageDirectory) {
         for (const name of [...names, "@buyong/redact"]) {
             assert.ok(packageInfo.bundled.includes(name));
             for (const path of requiredFiles[name].filter(
-                (path) => !/^README|\.d\.ts$/.test(path),
+                (path) => !/^(README|CHANGELOG)|\.d\.ts$/.test(path),
             ))
                 assert.ok(
                     files.has(`node_modules/${name}/${path}`),

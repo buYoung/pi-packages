@@ -247,7 +247,13 @@ try {
     hasCanceled = true;
     const definition = session.getToolDefinition("ollama_web_fetch");
     assert.ok(definition?.renderResult && big);
+    // Pi 1.5.0 adds keybinding formatters to the render context; spreading them keeps 1.4.0 accepting the literal.
+    const keybindings = {
+      keyText: (key: string) => key,
+      keyHint: (key: string, description: string) => `${key} ${description}`,
+    };
     const context: Parameters<NonNullable<ToolDefinition["renderResult"]>>[3] = {
+      ...keybindings,
       args: { url: "https://example.test/big" },
       toolCallId: "fixture-render",
       cwd,

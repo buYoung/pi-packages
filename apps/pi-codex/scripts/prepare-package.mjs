@@ -81,9 +81,9 @@ function stageWorkspacePackage(directory, target, scratch) {
         ["-xzf", join(destination, archive), "-C", target, "--strip-components=1"],
         { stdio: ["ignore", "pipe", "pipe"] },
     );
-    // The aggregate README covers the components, and nothing in the bundle imports types.
+    // The aggregate README and changelog cover the components, and nothing in the bundle imports types.
     for (const path of readdirSync(target, { recursive: true }))
-        if (/^README[^/\\]*\.md$|\.d\.[cm]?ts$/i.test(path))
+        if (/^(README|CHANGELOG)[^/\\]*\.md$|\.d\.[cm]?ts$/i.test(path))
             rmSync(join(target, path));
 }
 
