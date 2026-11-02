@@ -14,7 +14,7 @@ export const webFeature: VerificationFeature = {
   consumers: ["src/pi/web-tools.ts", "web-tools.ts"],
   async verify({ check }) {
     for (const failure of [500, 401, 403, 429, "transport", "shape", "abort"] as const) {
-      await check(`404 → 강제 ${failure} → 일반 재시도 → 캐시 적중`, async () => {
+      await check(`404 → forced ${failure} → normal retry → cache hit`, async () => {
         const temp = mkdtempSync(join(tmpdir(), "ollama-fetch-recovery-"));
         const path = join(temp, "cache.json");
         const cache = createCache({ path });
@@ -53,7 +53,7 @@ export const webFeature: VerificationFeature = {
         }
       });
     }
-    await check("성공 본문도 강제 재조회 실패 뒤 fresh hit로 반환하지 않음", async () => {
+    await check("A successful body is not returned as a fresh hit after a forced refetch fails", async () => {
       const temp = mkdtempSync(join(tmpdir(), "ollama-fetch-success-"));
       const cache = createCache({ path: join(temp, "cache.json") });
       let calls = 0;

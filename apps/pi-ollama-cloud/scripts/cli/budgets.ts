@@ -45,7 +45,7 @@ export const budgetsFeature: VerificationFeature = {
   async verify({ check }) {
     const temp = mkdtempSync(join(tmpdir(), "ollama-budgets-"));
     try {
-      await check("메모리 8MiB·디스크 8MiB·항목 256KiB와 전체 항목 eviction", async () => {
+      await check("8 MiB memory, 8 MiB disk, 256 KiB entry limits and whole-entry eviction", async () => {
         assert.equal(MAX_MEMORY_CACHE_BYTES, 8 * 1024 * 1024);
         assert.equal(MAX_CACHE_BYTES, 8 * 1024 * 1024);
         assert.equal(MAX_PERSISTED_ENTRY_BYTES, 256 * 1024);
@@ -63,7 +63,7 @@ export const budgetsFeature: VerificationFeature = {
         assert.equal(store.loadCache().pages.memoryOnly?.content, entry.content);
         assert.equal(createCache({ path }).loadCache().pages.memoryOnly, undefined);
       });
-      await check("정확한 JSON 바이트 경계와 과대 파일의 parse 전 거부", async () => {
+      await check("Exact JSON byte boundaries and rejection of oversized files before parsing", async () => {
         const entry = { ts: Date.now(), title: "한글🙂", content: '\b\t\n\f\r"\\'.repeat(10) };
         const bytes = Buffer.byteLength(JSON.stringify({ searches: {}, pages: { fixture: entry } }));
         for (const limit of [bytes - 1, bytes, bytes + 1]) {
@@ -79,7 +79,7 @@ export const budgetsFeature: VerificationFeature = {
         assert.deepEqual(store.loadCache(), { searches: {}, pages: {} });
         assert.equal(store.getDiagnostics?.().lastRead, "oversized");
       });
-      await check("UTF-8·줄 수·JSON escaping 상한 안에서 fetch full과 search expand 원문 이어 읽기", async () => {
+      await check("fetch full and search expand continue within UTF-8, line, and JSON escaping limits", async () => {
         for (const [index, body] of [
           "a".repeat(150000),
           "한글🙂\n".repeat(20000),
@@ -125,7 +125,7 @@ export const budgetsFeature: VerificationFeature = {
           assert.equal(searchCalls, 1);
         }
       });
-      await check("긴 제목·URL·query·링크·오류·details도 최종 반환 예산에 포함", async () => {
+      await check("Long titles, URLs, queries, links, errors, and details count toward the return budget", async () => {
         const title = "제목".repeat(30000);
         const url = `https://example.test/${"x".repeat(8000)}`;
         const query = "query".repeat(20000);
@@ -168,7 +168,7 @@ export const budgetsFeature: VerificationFeature = {
           },
         );
       });
-      await check("메모리 eviction 뒤 offset 재접근의 추가 API 호출 안내", async () => {
+      await check("Notice of an additional API call when revisiting an offset after memory eviction", async () => {
         const store = createCache({ path: join(temp, "eviction.json"), maxMemoryBytes: 1024 });
         let calls = 0;
         await withMockFetch(

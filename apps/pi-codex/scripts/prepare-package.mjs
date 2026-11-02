@@ -42,7 +42,7 @@ function resolveDependency(name, directory) {
         if (existsSync(join(candidate, "package.json")))
             return realpathSync(candidate);
         if (parent === dirname(parent))
-            throw new Error(`실행 의존성을 찾을 수 없습니다: ${name}`);
+            throw new Error(`Runtime dependency not found: ${name}`);
     }
 }
 
@@ -74,7 +74,7 @@ function stageWorkspacePackage(directory, target, scratch) {
     const [archive] = readdirSync(destination).filter((file) =>
         file.endsWith(".tgz"),
     );
-    assert.ok(archive, `압축 패키지를 만들지 못했습니다: ${directory}`);
+    assert.ok(archive, `Could not create a package archive: ${directory}`);
     mkdirSync(target, { recursive: true });
     execFileSync(
         "tar",
@@ -115,13 +115,13 @@ function stageDependency(name, range, parentDirectory) {
     assert.equal(dependency.name, name);
     assert.ok(
         satisfies(dependency.version, range),
-        `${name}@${dependency.version}은 ${range}에 맞지 않습니다. pnpm install을 실행하세요.`,
+        `${name}@${dependency.version} does not satisfy ${range}. Run pnpm install.`,
     );
     if (dependencies.has(name)) {
         assert.equal(
             dependencies.get(name),
             dependency.version,
-            `통합 패키지에 서로 다른 ${name} 버전을 포함할 수 없습니다.`,
+            `The bundle cannot include different versions of ${name}.`,
         );
         return;
     }
@@ -144,7 +144,7 @@ try {
         force: true,
     });
     renameSync(staging, join(packageDirectory, "node_modules"));
-    console.error(`통합 패키지 준비 완료: 실행 의존성 ${dependencies.size}개`);
+    console.error(`Bundle prepared: ${dependencies.size} runtime dependencies`);
 } finally {
     rmSync(staging, { recursive: true, force: true });
     rmSync(scratch, { recursive: true, force: true });

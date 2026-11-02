@@ -9,7 +9,7 @@
     "tagName": "pi-ollama-cloud-v${version}",
     "tagMatch": "pi-ollama-cloud-v[0-9]*",
     "commitsPath": ".",
-    "commitMessage": "chore(Ollama Cloud ${version} 배포): ${branchName}\n\n1. 패키지 버전을 올리고 미배포 변경 이력을 ${version} 절로 확정"
+    "commitMessage": "chore(ollama-cloud): ${branchName}\n\n1. Bump the package version to ${version} and finalize pending changelog entries"
   },
   "npm": {
     "publish": false,

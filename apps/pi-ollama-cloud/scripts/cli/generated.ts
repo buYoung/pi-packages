@@ -34,7 +34,7 @@ export const generatedFeature: VerificationFeature = {
     const snapshot = join(temp, CATALOG_SNAPSHOT_FILE);
     writeFileSync(snapshot, "// previous complete snapshot\n");
     try {
-      await check("부분/전체 상세 실패·빈 목록·schema 오류는 이전 snapshot을 보존", async () => {
+      await check("Detail failures, empty lists, and schema errors keep the previous snapshot", async () => {
         const cases: Partial<GenerationSources>[] = [
           {
             detail: async (id) => {
@@ -72,7 +72,7 @@ export const generatedFeature: VerificationFeature = {
           assert.equal(hash(snapshot), before);
         }
       });
-      await check("단일 후보 목록·03 해석·별칭 미추정·안정 직렬화·dry-run", async () => {
+      await check("Single-candidate list, 03 resolution, no alias guessing, stable output, dry-run", async () => {
         const source = createGenerationSources();
         const controller = new AbortController();
         let lists = 0;
@@ -126,7 +126,7 @@ export const generatedFeature: VerificationFeature = {
         });
         assert.equal(readFileSync(snapshot, "utf8"), committed.source);
       });
-      await check("표준/Off-Peak·출력 없는 행을 구분하고 모르는 단가를 0으로 생성하지 않음", async () => {
+      await check("Separate standard, Off-Peak, and output-less rows; never write unknown prices as 0", async () => {
         const extra =
           '<tr><td><a href="/library/fixture-a">fixture-a (Off-Peak)</a></td><td>$0.5</td><td>$0.25</td><td>$1</td></tr><tr><td><a href="/library/decision">decision</a></td><td>$0.2</td><td>-</td><td>-</td></tr>';
         const parsed = parsePricingRows(fixturePricing.replace("</tbody>", `${extra}</tbody>`));
@@ -135,7 +135,7 @@ export const generatedFeature: VerificationFeature = {
         assert.deepEqual(parsed.unpricedRows, ["decision"]);
         assert.equal(parsed.offPeakRows.length, 1);
       });
-      await check("쓰기·최종 rename 실패와 commit 전 취소에도 정상 snapshot 해시 유지", async () => {
+      await check("Good snapshot hash survives write/rename failures and cancellation before commit", async () => {
         const before = hash(snapshot);
         for (const operation of ["write", "rename"] as const) {
           await assert.rejects(
@@ -178,7 +178,7 @@ export const generatedFeature: VerificationFeature = {
           false,
         );
       });
-      await check("모의 한도 실패는 기존 측정값 보존·전체 실패/빈 목록은 파일 미교체", async () => {
+      await check("Mock limit failures keep measurements; full failure or empty list keeps the file", async () => {
         const path = join(temp, "limits.generated.ts");
         writeFileSync(path, "// previous limits\n");
         const before = hash(path);
@@ -198,7 +198,7 @@ export const generatedFeature: VerificationFeature = {
         assert.deepEqual(result.info.preservedIds, ["fixture-b"]);
         assert.deepEqual(result.info.unknownIds, ["unknown"]);
       });
-      await check("공용 probe의 최종 model·인증·취소 전달과 정확값/하한 구분 — 전부 모의 전송", async () => {
+      await check("Shared probe forwards model, auth, cancellation; exact vs lower bound (all mocked)", async () => {
         const controller = new AbortController();
         let calls = 0;
         await withMockFetch(

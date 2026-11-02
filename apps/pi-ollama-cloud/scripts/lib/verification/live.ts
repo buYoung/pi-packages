@@ -30,7 +30,7 @@ function category(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (/401|403|API key|credential/i.test(message)) return "authentication";
   if (/429|rate limit/i.test(message)) return "rate-limit";
-  if (/timeout|120초|aborted|cancel/i.test(message)) return "timeout-or-cancellation";
+  if (/timeout|timed out|aborted|cancel/i.test(message)) return "timeout-or-cancellation";
   if (/shape|schema|payload|answer|budget/i.test(message)) return "contract";
   return "request-or-environment";
 }

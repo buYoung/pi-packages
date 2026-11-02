@@ -14,7 +14,7 @@ export const usageFeature: VerificationFeature = {
   shared: ["src/usage/status.ts", "src/usage/status-controller.ts"],
   consumers: ["src/pi/lifecycle.ts"],
   async verify({ check }) {
-    await check("공용 controller의 timer·중복·정지/재시작·non-TUI와 최종 fetch signal", async () => {
+    await check("Shared controller timer, deduplication, stop/restart, non-TUI, and final fetch signal", async () => {
       const requests: { signal: AbortSignal; finish: () => void }[] = [];
       let onStart = () => {};
       let onStatus = (_text: string | undefined) => {};
@@ -86,7 +86,7 @@ export const usageFeature: VerificationFeature = {
         controller.stop();
       }
     });
-    await check("정지 시 진행 요청의 signal 취소와 늦은 결과 폐기", async () => {
+    await check("Stopping cancels the in-flight request signal and discards late results", async () => {
       const guard = createUsageStatusRefreshGuard();
       let observedSignal: AbortSignal | undefined;
       let finish: (text: string) => void = () => {
@@ -112,7 +112,7 @@ export const usageFeature: VerificationFeature = {
       }
       assert.deepEqual(statuses, []);
     });
-    await check("새 세대는 실행하고 동시 트리거는 중복 요청하지 않음", async () => {
+    await check("A new generation runs and concurrent triggers do not send duplicate requests", async () => {
       const guard = createUsageStatusRefreshGuard();
       let calls = 0;
       let finish: (text: string) => void = () => {

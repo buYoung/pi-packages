@@ -58,7 +58,7 @@ export const sharingFeature: VerificationFeature = {
   async verify({ check }) {
     const temp = mkdtempSync(join(tmpdir(), "ollama-sharing-check-"));
     try {
-      await check("두 프로세스의 순차·동시 저장 병합과 07의 예산·권한", async () => {
+      await check("Merge sequential/concurrent saves of two processes with 07 budgets and permissions", async () => {
         for (const isConcurrent of [false, true]) {
           const path = join(temp, `workers-${isConcurrent}.json`);
           await writeFromTwoProcesses(path, isConcurrent);
@@ -67,7 +67,7 @@ export const sharingFeature: VerificationFeature = {
           assert.equal(statSync(path).mode & 0o777, 0o600);
         }
       });
-      await check("최신 timestamp 우선·삭제 후 stale snapshot 부활 방지·읽기 갱신", async () => {
+      await check("Latest timestamp wins, no stale snapshot revival after deletion, and read refresh", async () => {
         const path = join(temp, "merge.json");
         const first = createCache({ path });
         const second = createCache({ path });
@@ -95,7 +95,7 @@ export const sharingFeature: VerificationFeature = {
         first.saveCache();
         assert.equal(second.loadCache().pages.same.content, "recovered");
       });
-      await check("메모리 전용 항목은 자체 저장 후 유지하되 외부 파일 세대 변경 시 무효화", async () => {
+      await check("Memory-only entries survive own saves but not an external file generation change", async () => {
         const path = join(temp, "memory-only.json");
         const first = createCache({ path, maxPersistedEntryBytes: 128 });
         first.loadCache().pages.large = { ts: Date.now(), title: "fixture", content: "x".repeat(1000) };
@@ -107,7 +107,7 @@ export const sharingFeature: VerificationFeature = {
         assert.equal(first.loadCache().pages.large, undefined);
         assert.equal(first.loadCache().pages.peer.content, "peer");
       });
-      await check("잠금 만료 복구·동기 제한 시간·비동기 대기 중 취소", async () => {
+      await check("Expired lock recovery, synchronous timeout, and cancellation during an async wait", async () => {
         const path = join(temp, "lock.json");
         mkdirSync(`${path}.lock`);
         const old = new Date(Date.now() - CACHE_LOCK_STALE_MS - 5000);
@@ -146,7 +146,7 @@ export const sharingFeature: VerificationFeature = {
           release();
         }
       });
-      await check("동일 요청 공유와 한 대기자만 취소", async () => {
+      await check("Identical requests are shared and only one waiter is canceled", async () => {
         const coordinator = createRequestCoordinator<number>();
         const gate = deferred<number>();
         const first = new AbortController();
@@ -170,7 +170,7 @@ export const sharingFeature: VerificationFeature = {
         assert.equal(await b, 42);
         assert.deepEqual(coordinator.getDiagnostics(), { inFlight: 0, resources: 0 });
       });
-      await check("전체 취소는 underlying 중단·즉시 제거·늦은 완료 게시 차단", async () => {
+      await check("Cancel-all aborts the request, removes it at once, and blocks late publication", async () => {
         const coordinator = createRequestCoordinator<number>();
         const gate = deferred<number>();
         const a = new AbortController();
@@ -196,7 +196,7 @@ export const sharingFeature: VerificationFeature = {
         await Promise.resolve();
         assert.equal(context?.canPublish(), false);
       });
-      await check("refresh 의미 분리와 최신 요청만 게시·인증 분리·오류 후 재시도", async () => {
+      await check("Separate refresh semantics, latest-only publication, separate auth, retry on error", async () => {
         const coordinator = createRequestCoordinator<string>();
         const ordinary = deferred<string>();
         const forced = deferred<string>();

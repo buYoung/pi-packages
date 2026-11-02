@@ -28,7 +28,7 @@ export const authFeature: VerificationFeature = {
       return path;
     }
     try {
-      await check("리터럴·$ENV·${ENV}·명령 참조를 Pi가 해석하고 저장 키 우선순위를 유지", async () => {
+      await check("Pi resolves literal, $ENV, ${ENV}, and command refs and keeps stored key precedence", async () => {
         for (const [raw, expected] of [
           ["fixture-literal", "fixture-literal"],
           ["$TEST_OLLAMA_KEY", "fixture-env"],
@@ -44,7 +44,7 @@ export const authFeature: VerificationFeature = {
           assert.deepEqual(readFileSync(path), before);
         }
       });
-      await check("누락 값·명령 실패의 fallback과 credentials.env 보존", async () => {
+      await check("Fallback for missing values and command failures, and credentials.env preservation", async () => {
         assert.equal((await resolvePiCredential(fixture())).source, "OLLAMA_API_KEY");
         assert.equal((await resolvePiCredential(fixture("$MISSING_OLLAMA_FIXTURE_ENV"))).apiKey, "fixture-fallback");
         assert.equal((await resolvePiCredential(fixture("!exit 1"))).apiKey, "fixture-fallback");
@@ -52,7 +52,7 @@ export const authFeature: VerificationFeature = {
         assert.equal(result.apiKey, "fixture-scoped");
         assert.equal(result.env?.TEST_OLLAMA_KEY, "fixture-scoped");
       });
-      await check("취소된 요청은 인증 평가 전에 중단", async () => {
+      await check("Canceled requests stop before credential evaluation", async () => {
         const controller = new AbortController();
         try {
           controller.abort();
@@ -63,7 +63,7 @@ export const authFeature: VerificationFeature = {
           controller.abort();
         }
       });
-      await check("Pi 최종 채팅 전송에 원문 참조 대신 해석된 키 사용", async () => {
+      await check("The final Pi chat request uses the resolved key instead of the raw reference", async () => {
         const path = fixture("$TEST_OLLAMA_KEY");
         let calls = 0;
         await withMockFetch(

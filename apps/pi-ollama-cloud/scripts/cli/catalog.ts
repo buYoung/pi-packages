@@ -136,10 +136,10 @@ export const catalogFeature: VerificationFeature = {
       },
     });
     try {
-      await check("구버전 snapshot의 동적 context/input과 최신 로컬 정책 적용", async () => {
+      await check("Dynamic context/input from legacy snapshots with the latest local policy applied", async () => {
         await assertRestoredCatalogPolicy(service.refresh);
       });
-      await check("cold/warm/force와 정확한 4시간 성공 TTL", async () => {
+      await check("cold/warm/force and the exact 4-hour success TTL", async () => {
         await service.refresh(context());
         assert.equal(listCalls, 1);
         assert.equal(detailCalls, 2);
@@ -152,7 +152,7 @@ export const catalogFeature: VerificationFeature = {
         await service.refresh(context());
         assert.equal(listCalls, 3);
       });
-      await check("부분 실패는 정상 checkedAt을 유지하고 15분 후 재시도", async () => {
+      await check("Partial failure keeps the last good checkedAt and retries after 15 minutes", async () => {
         const lastGoodAt = stored?.checkedAt;
         timeMs += MODEL_SUCCESS_TTL_MS + 1;
         mode = "partial";
@@ -168,7 +168,7 @@ export const catalogFeature: VerificationFeature = {
         await service.refresh(context());
         assert.equal(listCalls, before + 1);
       });
-      await check("전체 실패·빈 목록도 별도 실패 간격을 적용하며 force로 우회", async () => {
+      await check("Full failure and empty lists use a separate failure interval that force bypasses", async () => {
         mode = "failure";
         await assert.rejects(service.refresh(context(true)), /Failed to fetch model details/);
         const before = listCalls;
@@ -180,7 +180,7 @@ export const catalogFeature: VerificationFeature = {
         mode = "success";
         await service.refresh(context(true));
       });
-      await check("저장 실패와 superseded publish는 마지막 정상 snapshot을 훼손하지 않음", async () => {
+      await check("Save failures and superseded publishes do not damage the last good snapshot", async () => {
         const original = structuredClone(stored);
         publicationMode = "throw";
         assert.ok((await service.refresh(context(true))).length > 0);
@@ -191,7 +191,7 @@ export const catalogFeature: VerificationFeature = {
         assert.deepEqual(stored, original);
         publicationMode = "accept";
       });
-      await check("취소는 실패 cooldown을 만들지 않고 즉시 다음 요청을 허용", async () => {
+      await check("Cancellation creates no failure cooldown and allows the next request immediately", async () => {
         timeMs += MODEL_SUCCESS_TTL_MS + 1;
         mode = "abort";
         const cancellation = new AbortController();

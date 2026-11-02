@@ -9,7 +9,7 @@
     "tagName": "pi-claude-bridge-v${version}",
     "tagMatch": "pi-claude-bridge-v[0-9]*",
     "commitsPath": ".",
-    "commitMessage": "chore(bridge ${version} 배포): ${branchName}\n\n1. bridge 패키지 버전과 변경 이력 갱신"
+    "commitMessage": "chore(claude-bridge): ${branchName}\n\n1. Bump the package version to ${version} and finalize pending changelog entries"
   },
   "npm": {
     "publish": false,

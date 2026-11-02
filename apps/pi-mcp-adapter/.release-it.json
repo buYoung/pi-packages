@@ -9,7 +9,7 @@
     "tagName": "pi-mcp-adapter-v${version}",
     "tagMatch": "pi-mcp-adapter-v[0-9]*",
     "commitsPath": ".",
-    "commitMessage": "chore(MCP Adapter ${version} 배포): ${branchName}\n\n1. 패키지 버전을 올리고 미배포 변경 이력을 ${version} 절로 확정"
+    "commitMessage": "chore(mcp-adapter): ${branchName}\n\n1. Bump the package version to ${version} and finalize pending changelog entries"
   },
   "npm": {
     "publish": false,
