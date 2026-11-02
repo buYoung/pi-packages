@@ -186,7 +186,9 @@
     "src/pi/features/sidekick/types.ts",
     "src/pi/features/usage/changes.ts",
     "src/pi/features/usage/report.ts",
-    "src/pi/features/usage/types.ts"
+    "src/pi/features/usage/types.ts",
+    "node_modules/@effect/platform-node/package.json",
+    "node_modules/@effect/platform-node-shared/package.json"
   ],
   "forbiddenFiles": [
     "auth.json",
@@ -200,7 +202,14 @@
     "src/cli/",
     "tests/",
     "verification/",
-    "node_modules/",
+    "node_modules/.bin/",
+    "node_modules/.pnpm/",
+    "node_modules/@earendil-works/",
+    "node_modules/effect/",
+    "node_modules/protobufjs/",
+    "node_modules/typebox/",
+    "node_modules/typescript/",
+    "node_modules/vitest/",
     "AGENTS.md",
     "tsconfig.json",
     ".gitignore"

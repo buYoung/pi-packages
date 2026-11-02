@@ -45,9 +45,9 @@ check_env node verification/scripts/validate-package.mjs "$package_dir" \
   --report "$check_dir/package-check.json"
 ```
 
-Expected: exit code 0, all offline cases passing, and `status: "pass"` in `package-check.json`. The inventory independently declares the single entry point `index.ts`, one tool `devin_sidekick` and two commands `devin` and `devin-fusion`, empty flag/skill/prompt/theme registrations, 166 required files, and the dev-only paths that must be absent from the archive (`devOnlyPaths`, including the source-only CLI `cli.ts` and `src/cli/`). Check the import closure of the shipped entry point with `node verification/scripts/import-closure.mjs . --expect verification/inventory.json`.
+Expected: exit code 0, all offline cases passing, and `status: "pass"` in `package-check.json`. The inventory independently declares the single entry point `index.ts`, one tool `devin_sidekick` and two commands `devin` and `devin-fusion`, empty flag/skill/prompt/theme registrations, 168 required files including the bundled `@effect/platform-node` and `@effect/platform-node-shared`, and the dev-only paths that must be absent from the archive (`devOnlyPaths`, including the source-only CLI `cli.ts`, `src/cli/` and unbundled `node_modules/` entries). Check the import closure of the shipped entry point with `node verification/scripts/import-closure.mjs . --expect verification/inventory.json`.
 
-`--pack` builds the real archive with `npm pack --ignore-scripts` and extracts it. Use `artifact.archive` and `artifact.packageDir` from the report. The `skipped` status the tool shows for `semantic import and bundle inspection` and `extracted artifact runtime and behavior` must be covered separately by the checks below. Resource checks alone do not prove the provider works. Behavior checks for features that do not exist are `not_applicable`.
+`--pack` builds the real archive the way the release workflow does, with `pnpm pack --config.node-linker=hoisted` so the bundled `@effect/platform-node` packages are stored as real files, and extracts it. Use `artifact.archive` and `artifact.packageDir` from the report. The `skipped` status the tool shows for `semantic import and bundle inspection` and `extracted artifact runtime and behavior` must be covered separately by the checks below. Resource checks alone do not prove the provider works. Behavior checks for features that do not exist are `not_applicable`.
 
 ## 3. Preparing production dependencies only
 
@@ -64,7 +64,7 @@ check_env npm install --prefix "$consumer_dir" --omit=dev --ignore-scripts \
 check_env node verification/scripts/prepare-artifact.mjs "$consumer_dir" "$artifact_dir"
 ```
 
-`prepare-artifact.mjs` checks the fresh consumer's lock and copies only production dependencies into the real extracted artifact. It does not overwrite an existing `node_modules`. It copies no Pi host or dev-only packages and does not change the archive's runtime files. `@types/node` may be installed as a production dependency of protobufjs.
+`prepare-artifact.mjs` checks the fresh consumer's lock and copies only production dependencies into the real extracted artifact. It keeps the archive's bundled `node_modules/@effect/` packages and does not overwrite anything there. It copies no Pi host or dev-only packages and does not change the archive's runtime files. `@types/node` may be installed as a production dependency of protobufjs.
 
 There is no need to run `npm install` in the extracted root to resolve the dev `catalog:`/`workspace:` specifiers. Keep a regular user's tarball consumer install separate from preparing the extracted artifact for verification.
 

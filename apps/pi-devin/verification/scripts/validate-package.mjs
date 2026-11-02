@@ -2,8 +2,9 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, globSync } from "node:fs";
 import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { createWorkspace, importPublic, isolatedEnv, locatePiRoot, readJson } from "./lib/runtime.mjs";
 import { validateTheme } from "./lib/theme.mjs";
 
@@ -266,14 +267,19 @@ async function packPackage(options, expected) {
   const workspace = await createWorkspace("pi-package-pack-");
   const packDir = join(workspace.root, "archive");
   await mkdir(packDir);
-  const child = spawnSync("npm", ["pack", "--ignore-scripts", "--json", "--pack-destination", packDir, "--cache", join(workspace.root, "npm-cache")], {
+  // The release workflow packs bundled dependencies with pnpm's hoisted layout; npm pack would follow pnpm's
+  // symlinks out of the package and store `../` paths.
+  const child = spawnSync("pnpm", ["pack", "--config.node-linker=hoisted", "--json", "--pack-destination", packDir], {
     cwd: options.packageDir, env: isolatedEnv(), encoding: "utf8", timeout: options.timeoutMs, maxBuffer: 4 * 1024 * 1024,
   });
-  check("npm pack", child.status === 0, child.error?.message ?? (child.status !== 0 ? child.stderr : undefined));
+  check("pnpm pack", child.status === 0, child.error?.message ?? (child.status !== 0 ? child.stderr : undefined));
   if (child.status !== 0) return undefined;
-  const output = JSON.parse(child.stdout);
-  if (output.length !== 1) throw new Error("Expected one npm package; run this command from the actual package directory, not a multi-package workspace root.");
-  const info = output[0];
+  // pnpm prints the prepack and postpack script output around the JSON report.
+  const report = child.stdout.match(/^[[{][\s\S]*?^[\]}]/m);
+  if (!report) throw new Error("pnpm pack printed no JSON report.");
+  const output = JSON.parse(report[0]);
+  if (Array.isArray(output)) throw new Error("Expected one package; run this command from the actual package directory, not a multi-package workspace root.");
+  const info = { ...output, filename: basename(output.filename) };
   const packedFiles = info.files.map((file) => file.path);
   const required = new Set([...(expected.requiredFiles ?? []), ...Object.values(expected.resources ?? {}).flat()]);
   for (const file of required) check(`packed file: ${file}`, packedFiles.includes(file.replace(/^\.\//, "")));
@@ -292,7 +298,12 @@ async function packPackage(options, expected) {
     for (const file of required) {
       const source = resolve(options.packageDir, file);
       const target = resolve(packageDir, file);
-      if (existsSync(source) && existsSync(target) && (await lstat(source)).isFile()) {
+      if (file === "package.json" && existsSync(target)) {
+        // pnpm writes resolved versions for the dev-only `catalog:` and `workspace:` specifiers and drops the pack
+        // lifecycle scripts; everything else must match.
+        const published = ({ devDependencies, scripts: { prepack, postpack, ...scripts } = {}, ...rest }) => ({ ...rest, scripts });
+        check("packed contents unchanged: package.json (except devDependencies and pack scripts)", isDeepStrictEqual(published(await readJson(source)), published(await readJson(target))));
+      } else if (existsSync(source) && existsSync(target) && (await lstat(source)).isFile()) {
         check(`packed contents unchanged: ${file}`, (await readFile(source)).equals(await readFile(target)));
       }
     }

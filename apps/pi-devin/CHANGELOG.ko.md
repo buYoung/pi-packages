@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 해결된 것
+
+- 0.1.7이나 0.1.8에서 업데이트한 뒤 Pi가 `Cannot find module '…/effect/dist/process/CommandLine.js'` 오류로 시작하지 못하던 문제를 고쳤습니다. 이 버전들이 Pi 패키지 폴더에 더 새 `@effect/platform-node-shared`를 남겼고, 0.1.10도 이를 그대로 썼습니다. 이제 `@effect/platform-node`와 `@effect/platform-node-shared`를 패키지 안에 함께 담아 배포하므로, 다른 패키지나 이전 버전이 무엇을 설치했든 항상 이 패키지의 `effect`를 씁니다.
+
 ## [0.1.10] - 2026-11-02
 
 ### 해결된 것
