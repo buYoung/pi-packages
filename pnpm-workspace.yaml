@@ -5,9 +5,9 @@ packages:
 # One version of the Pi host packages and the toolchain for every workspace package.
 catalog:
   "@biomejs/biome": 2.6.3
-  "@earendil-works/pi-ai": 1.4.0
-  "@earendil-works/pi-coding-agent": 1.4.0
-  "@earendil-works/pi-tui": 1.4.0
+  "@earendil-works/pi-ai": 1.5.0
+  "@earendil-works/pi-coding-agent": 1.5.0
+  "@earendil-works/pi-tui": 1.5.0
   "@types/node": 26.6.5
   "@types/proper-lockfile": 4.1.4
   tsx: 4.23.15
@@ -18,17 +18,17 @@ catalog:
 # Package-specific Pi SDK baselines; do not upgrade unrelated apps for one consumer.
 catalogs:
   memory:
-    "@earendil-works/pi-ai": 1.4.0
-    "@earendil-works/pi-coding-agent": 1.4.0
-    "@earendil-works/pi-tui": 1.4.0
+    "@earendil-works/pi-ai": 1.5.0
+    "@earendil-works/pi-coding-agent": 1.5.0
+    "@earendil-works/pi-tui": 1.5.0
   devin:
-    "@earendil-works/pi-ai": 1.4.0
-    "@earendil-works/pi-coding-agent": 1.4.0
-    "@earendil-works/pi-tui": 1.4.0
+    "@earendil-works/pi-ai": 1.5.0
+    "@earendil-works/pi-coding-agent": 1.5.0
+    "@earendil-works/pi-tui": 1.5.0
   mcp-adapter:
-    "@earendil-works/pi-ai": 1.4.0
-    "@earendil-works/pi-coding-agent": 1.4.0
-    "@earendil-works/pi-tui": 1.4.0
+    "@earendil-works/pi-ai": 1.5.0
+    "@earendil-works/pi-coding-agent": 1.5.0
+    "@earendil-works/pi-tui": 1.5.0
 
 # Transitive dependencies of the Pi host packages; type checking does not need their install scripts.
 ignoredBuiltDependencies:
