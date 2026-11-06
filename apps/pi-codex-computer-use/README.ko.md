@@ -80,17 +80,17 @@ Use mcp__cua_repl__js to run await cua.getState(). Summarize the available apps 
 
 ## 소스 빌드와 로드
 
-[pi-packages](https://github.com/buYoung/pi-packages) 저장소 루트에서 실행합니다. typecheck·lint·build 단계는 Codex Desktop 없이 실행할 수 있지만, 확장을 실행하는 마지막 명령에는 [요구 사항](#요구-사항)의 Desktop 준비가 필요합니다.
+[pi-packages](https://github.com/buYoung/pi-packages) 저장소 루트에서 실행합니다. typecheck·lint·test 단계는 Codex Desktop 없이 실행할 수 있지만, 확장을 실행하는 마지막 명령에는 [요구 사항](#요구-사항)의 Desktop 준비가 필요합니다.
 
 ```sh
 pnpm install
 pnpm --filter @buyong/pi-codex-computer-use typecheck
 pnpm --filter @buyong/pi-codex-computer-use lint
-pnpm --filter @buyong/pi-codex-computer-use build
+pnpm --filter @buyong/pi-codex-computer-use test
 pnpm --filter @buyong/pi-codex-computer-use exec pi -ne -e ./dist/index.js
 ```
 
-`-ne`는 자동 확장 탐색을 끄고 `-e`는 이번 실행에만 확장을 로드합니다. typecheck·lint·build 단계는 정상 종료해야 합니다. 소스를 바꾼 뒤 다시 빌드하고 Pi를 다시 로드하거나 시작한 다음 `/computer-use status`를 다시 실행하세요. 서버 실행이나 명시적인 런타임 오류가 표시되어야 하며, 도구가 숨겨졌는데 하단이 `running`으로 남아서는 안 됩니다.
+`-ne`는 자동 확장 탐색을 끄고 `-e`는 이번 실행에만 확장을 로드합니다. typecheck·lint·test 단계는 정상 종료해야 합니다. `test`는 확장을 빌드하고 임시 fixture로 런타임 탐색을 검사하며, 실제 앱·브라우저 연결까지 검증하지는 않습니다. 소스를 바꾼 뒤 다시 빌드하고 Pi를 다시 로드하거나 시작한 다음 `/computer-use status`를 다시 실행하세요. 서버 실행이나 명시적인 런타임 오류가 표시되어야 하며, 도구가 숨겨졌는데 하단이 `running`으로 남아서는 안 됩니다.
 
 패키지 릴리스는 [저장소 배포 절차](https://github.com/buYoung/pi-packages/blob/main/README.ko.md#공통-ci와-패키지별-배포)를 따릅니다.
 

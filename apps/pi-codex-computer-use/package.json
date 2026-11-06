@@ -36,6 +36,7 @@
     "scripts": {
         "build": "tsc",
         "typecheck": "tsc --noEmit",
+        "test": "pnpm build && node --test tests/*.test.mjs",
         "lint": "biome check .",
         "prepack": "tsc && node ../../scripts/codex/check-package.mjs ."
     },

@@ -184,9 +184,11 @@ async function readServerConfig(
     const servers = asRecord(asRecord(parsed)?.mcpServers);
     const server = asRecord(servers?.[CUA_REPL_SERVER_NAME]);
     if (!server || !isString(server.command)) return undefined;
-    const args = withoutBrowserAccessImport(
+    const launch = withoutBrowserAccessWrapper(
+        server.command,
         Array.isArray(server.args) ? server.args.filter(isString) : [],
     );
+    const args = withoutBrowserAccessImport(launch.args);
     const env = Object.fromEntries(
         Object.entries(asRecord(server.env) ?? {}).filter(
             (entry): entry is [string, string] => isString(entry[1]),
@@ -205,7 +207,7 @@ async function readServerConfig(
             ? server.startup_timeout_sec
             : DEFAULT_STARTUP_TIMEOUT_SEC;
     return {
-        command: server.command,
+        command: launch.command,
         args,
         enabled: server.enabled === true,
         env,
@@ -213,6 +215,26 @@ async function readServerConfig(
         outputTokenLimit,
         startupTimeoutSec,
     };
+}
+
+/** Keeps Desktop's executor bootstrap out of standalone Pi launches, just like its legacy preload. */
+function withoutBrowserAccessWrapper(
+    command: string,
+    args: string[],
+): { command: string; args: string[] } {
+    const script =
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: This is shell syntax, not a JavaScript template.
+        'export BROWSER_USE_ACCESS_EXECUTOR_ID="${BROWSER_USE_ACCESS_EXECUTOR_ID-}"; exec "$@"';
+    const executable = args[3];
+    if (
+        command === "/bin/sh" &&
+        args[0] === "-c" &&
+        args[1] === script &&
+        args[2] === "cua-repl" &&
+        executable
+    )
+        return { command: executable, args: args.slice(4) };
+    return { command, args };
 }
 
 /**

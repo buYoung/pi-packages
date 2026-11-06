@@ -80,17 +80,17 @@ For a missing runtime, unavailable browser, rejected approval surface, or delaye
 
 ## Build and load from source
 
-Run from the [pi-packages](https://github.com/buYoung/pi-packages) repository root. The typecheck, lint, and build steps work without Codex Desktop; the last command, which runs the extension, needs the Desktop setup in [Requirements](#requirements).
+Run from the [pi-packages](https://github.com/buYoung/pi-packages) repository root. The typecheck, lint, and test steps work without Codex Desktop; the last command, which runs the extension, needs the Desktop setup in [Requirements](#requirements).
 
 ```sh
 pnpm install
 pnpm --filter @buyong/pi-codex-computer-use typecheck
 pnpm --filter @buyong/pi-codex-computer-use lint
-pnpm --filter @buyong/pi-codex-computer-use build
+pnpm --filter @buyong/pi-codex-computer-use test
 pnpm --filter @buyong/pi-codex-computer-use exec pi -ne -e ./dist/index.js
 ```
 
-`-ne` disables automatic extension discovery and `-e` loads this extension for one invocation. The typecheck, lint, and build steps should exit successfully. After source changes, rebuild and reload/restart Pi, then run `/computer-use status` again: expect a running server or an explicit runtime error, not hidden tools with a stale `running` footer.
+`-ne` disables automatic extension discovery and `-e` loads this extension for one invocation. The typecheck, lint, and test steps should exit successfully. `test` builds the extension and checks runtime discovery against temporary fixtures; it does not prove live app/browser connectivity. After source changes, rebuild and reload/restart Pi, then run `/computer-use status` again: expect a running server or an explicit runtime error, not hidden tools with a stale `running` footer.
 
 For package releases, use the [repository release process](https://github.com/buYoung/pi-packages#shared-ci-and-per-package-releases).
 
