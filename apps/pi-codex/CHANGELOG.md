@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Computer Use reconnects to Codex Desktop's native service on current Desktop builds (included `@buyong/pi-codex-computer-use` 0.3.2).
+
 ## [0.6.2] - 2026-11-02
 
 ### Improved
