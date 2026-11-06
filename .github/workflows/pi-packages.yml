@@ -104,6 +104,17 @@ jobs:
           package-manager-cache: false
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
+      # Pi downloads the latest fd when none is on PATH. fd 10.5.1 changed Windows --full-path globs,
+      # which breaks Pi's own separator rewrite, so Windows uses fd 10.5.0 from PATH.
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'fd'
+          Invoke-WebRequest https://github.com/sharkdp/fd/releases/download/v10.5.0/fd-v10.5.0-x86_64-pc-windows-msvc.zip -OutFile "$dir.zip"
+          Expand-Archive "$dir.zip" -DestinationPath $dir
+          Split-Path (Get-ChildItem $dir -Recurse -Filter fd.exe).FullName | Add-Content $env:GITHUB_PATH
+      - if: runner.os == 'Windows'
+        run: fd --version
       - run: pnpm --filter "@buyong/pi-codex-auto-review..." run build
       - run: pnpm --filter @buyong/pi-codex-auto-review run lint
       - run: pnpm --filter @buyong/pi-codex-auto-review typecheck
