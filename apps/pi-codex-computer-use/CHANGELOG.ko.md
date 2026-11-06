@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### 해결된 것
+
+- 최신 Codex Desktop 빌드에서도 Computer Use가 네이티브 서비스에 다시 연결됩니다. 서비스는 Desktop이 서명한 프로세스가 포함된 체인에서만 연결을 받아들이므로, 브리지가 Desktop이 서명한 node 아래에서 런타임을 시작합니다. 이 수정이 없으면 앱 호출이 `Sky Computer Use native pipe startup failed`로 실패했습니다.
+- Codex Desktop의 브라우저 접근 셸 래퍼 대신 그 안의 런타임 실행 파일을 실행합니다.
+
 ## [0.3.1] - 2026-11-02
 
 ### 새로워진 것

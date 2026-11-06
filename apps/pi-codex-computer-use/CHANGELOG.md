@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Computer Use connects to the native service again on current Codex Desktop builds. The service accepts a connection only from a process chain that contains a Desktop-signed process, so the bridge now starts the runtime below Desktop's own signed node. Without this, app calls failed with `Sky Computer Use native pipe startup failed`.
+- The bridge runs the runtime executable inside Codex Desktop's browser-access shell wrapper instead of starting the shell itself.
+
 ## [0.3.1] - 2026-11-02
 
 ### New
