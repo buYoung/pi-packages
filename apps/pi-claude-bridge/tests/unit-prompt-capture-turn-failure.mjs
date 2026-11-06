@@ -21,7 +21,7 @@ delete process.env.CLAUDE_BRIDGE_DEBUG;
 process.on("exit", () => rmSync(tmpRoot, { recursive: true, force: true }));
 
 const { default: activate, testBridge } = await import("../tools/verify/fixture-entry.js");
-const { PI_PREAMBLE } = await import("../src/features/prompt/capture.js");
+const { PI_PREAMBLES: [PI_PREAMBLE] } = await import("../src/features/prompt/capture.js");
 
 let providerConfig;
 activate({

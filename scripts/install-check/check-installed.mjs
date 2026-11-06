@@ -89,9 +89,12 @@ function resolvePackage(from, name) {
 }
 
 const problems = [], notes = [];
-// Packages shipped inside an @buyong package (bundleDependencies and what they carry).
+// Packages shipped inside an @buyong package (bundleDependencies and what they carry), as npm's lockfile records them.
+// npm also nests ordinary dependencies there when their version conflicts with the one at the top; those are not bundled.
+const lockfile = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
+const inBundle = new Set(Object.entries(lockfile.packages).filter(([, entry]) => entry.inBundle).map(([path]) => join(root, path)));
 const ourDirs = packages.filter((p) => p.pkg.name.startsWith("@buyong/")).map((p) => p.dir);
-const isBundled = (dir) => ourDirs.some((our) => dir.startsWith(join(our, "node_modules") + "/")) && !packages.find((p) => p.dir === dir)?.pkg.name.startsWith("@buyong/");
+const isBundled = (dir) => inBundle.has(dir) && ourDirs.some((our) => dir.startsWith(join(our, "node_modules") + "/")) && !packages.find((p) => p.dir === dir)?.pkg.name.startsWith("@buyong/");
 // 1. RANGE
 for (const { dir, pkg } of packages) {
   const optionalPeers = new Set(Object.entries(pkg.peerDependenciesMeta ?? {}).filter(([, m]) => m.optional).map(([n]) => n));

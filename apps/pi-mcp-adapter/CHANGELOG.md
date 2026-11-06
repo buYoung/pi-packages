@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-07
+
+### Improved
+
+- Update `@earendil-works/pi-mcp` to 1.5.0 and the Effect runtime dependency to 4.1.2.
+
+### Fixed
+
+- Signing in to an MCP server opens only `http:` and `https:` authorization URLs. Before, a server's OAuth metadata could make sign-in launch a `file:` or custom-protocol URL.
+
 ## [0.1.4] - 2026-11-02
 
 ### Improved

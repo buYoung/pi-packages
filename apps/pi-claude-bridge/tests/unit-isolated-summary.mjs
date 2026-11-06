@@ -31,7 +31,7 @@ describe("isolated summary usage", () => {
 		expect(result.content).toStrictEqual([{ type: "text", text: "Summary" }]);
 		expect(result.usage).toStrictEqual({
 			input: 10, output: 7, cacheRead: 5, cacheWrite: 3, reasoning: 4, totalTokens: 25,
-			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, totalFromProvider: false },
 		});
 	});
 

@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - run: pnpm install --filter pi-packages --frozen-lockfile --ignore-scripts
       - name: Select affected apps or the tagged release
         id: targets
@@ -56,7 +56,7 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       # prepack builds the selected package; only its dependencies need an earlier build.
       # The Codex bundle's prepack already builds its complete dependency tree.
@@ -102,7 +102,7 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       # Pi downloads the latest fd when none is on PATH. fd 10.5.1 changed Windows --full-path globs,
       # which breaks Pi's own separator rewrite, so Windows uses fd 10.5.0 from PATH.
@@ -134,7 +134,7 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
       # Only this disposable checkout is updated; publishing uses the committed lockfile.
       - name: Install latest host packages
@@ -177,7 +177,7 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         if: env.OLLAMA_API_KEY != ''
       - run: pnpm install --frozen-lockfile
         if: env.OLLAMA_API_KEY != ''
@@ -263,7 +263,7 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
 
       - name: Validate release metadata and extract notes

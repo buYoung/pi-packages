@@ -3,7 +3,9 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { PI_PREAMBLE, projectPromptCapture, PromptCaptures } from "../src/features/prompt/capture.js";
+import { PI_PREAMBLES, projectPromptCapture, PromptCaptures } from "../src/features/prompt/capture.js";
+
+const [PI_PREAMBLE] = PI_PREAMBLES;
 
 const PI_SYSTEM_PROMPT = fileURLToPath(new URL("../node_modules/@earendil-works/pi-coding-agent/dist/core/system-prompt.js", import.meta.url));
 
@@ -12,17 +14,17 @@ function capture(overrides = {}) {
 }
 
 describe("prompt guard", () => {
-	it("throws when a recorded custom prompt carries pi's preamble at a line start", () => {
+	it.each(PI_PREAMBLES)("throws when a recorded custom prompt carries pi's preamble at a line start: %s", (preamble) => {
 		const captures = new PromptCaptures();
 		captures.record("leaking prompt", capture({
-			custom: `${PI_PREAMBLE}, a coding agent harness.\n\n<tools>\n- read: Read a file\n</tools>`,
+			custom: `${preamble}, a coding agent harness.\n\n<tools>\n- read: Read a file\n</tools>`,
 		}), "before_agent_start");
 		const found = captures.resolve("leaking prompt");
 		expect(found).toBeTruthy();
 
 		expect(() => projectPromptCapture(found, { skillReadTool: "none" })).toThrow(expect.toSatisfy((error) => {
 			expect(error instanceof Error).toBeTruthy();
-			expect(error.message.includes(PI_PREAMBLE)).toBeTruthy();
+			expect(error.message.includes(preamble)).toBeTruthy();
 			expect(error.message).toMatch(/offset 0 of \d+ chars/);
 			expect(error.message).toMatch(/Capture: before_agent_start/);
 			expect(error.message).toMatch(/Compatibility with other extensions/);
@@ -87,13 +89,13 @@ describe("prompt guard", () => {
 		expect(existsSync(PI_SYSTEM_PROMPT), `pi's system prompt module is not at ${PI_SYSTEM_PROMPT}; if pi moved it, update this test`).toBeTruthy();
 		const { buildSystemPrompt } = await import(PI_SYSTEM_PROMPT);
 		const harness = buildSystemPrompt({ cwd: "/tmp" });
-		expect(harness.includes(PI_PREAMBLE), "pi reworded its preamble, so the harness guard matches nothing; update PI_PREAMBLE in src/features/prompt/capture.ts").toBeTruthy();
+		expect(harness.startsWith(PI_PREAMBLE), "pi reworded its preamble, so the harness guard matches nothing; add the new wording first in PI_PREAMBLES in src/features/prompt/capture.ts").toBeTruthy();
 		for (const trigger of ["docs/custom-provider.md", "docs/packages.md"]) {
 			expect(harness.includes(trigger), `pi's rendered prompt no longer carries ${trigger}, so the third-party trigger pair may have moved; update ANTHROPIC_THIRD_PARTY_TRIGGERS in src/features/prompt/capture.ts`).toBeTruthy();
 		}
 		// A custom prompt replaces the harness in full, which is what makes these strings'
 		// presence mean "this prompt carries pi's harness or its gate fingerprint".
 		const custom = buildSystemPrompt({ cwd: "/tmp", customPrompt: "custom" });
-		expect(!custom.includes(PI_PREAMBLE) && !custom.includes("docs/packages.md"), "pi now emits its harness alongside a custom prompt, so these strings no longer imply a leak").toBeTruthy();
+		expect(PI_PREAMBLES.every((preamble) => !custom.includes(preamble)) && !custom.includes("docs/packages.md"), "pi now emits its harness alongside a custom prompt, so these strings no longer imply a leak").toBeTruthy();
 	});
 });

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.3 — 2026-11-07
+
+### Improved
+
+- The bridge now uses Claude Code 2.1.319 (Agent SDK `^0.3.319`).
+- Update the Effect runtime dependency to 4.1.2.
+
+### Fixed
+
+- On Pi 1.5.0 and later, the bridge again refuses to send a prompt that carries Pi's own system prompt, such as one passed on by another extension. Pi 1.5.0 reworded the opening line the check looks for, so such prompts were sent and could fail with 400 or be billed as extra usage.
+
 ## 0.14.2 — 2026-11-02
 
 ### New

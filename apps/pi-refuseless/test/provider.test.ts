@@ -15,7 +15,6 @@ import {
   type Provider,
   type RefreshModelsContext,
   type ThinkingLevel,
-  Type,
 } from "@earendil-works/pi-ai";
 import { type ExtensionAPI, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, type MockInstance, test, vi } from "vitest";
@@ -560,7 +559,11 @@ describe("requests", () => {
     async (id) => {
       const { models, model: mockModel, mock } = await withMock();
       const model = () => mockModel(id);
-      const tool = { name: "bash", description: "Run a command", parameters: Type.Object({ command: Type.String() }) };
+      const tool = {
+        name: "bash",
+        description: "Run a command",
+        parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] },
+      };
       const context: Context = { ...ask("use a tool"), tools: [tool] };
 
       const first = await run(models, model(), context);

@@ -1,6 +1,6 @@
 {
     "name": "@buyong/pi-codex-computer-use",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "description": "Codex Computer Use and Browser Use for Pi. Runs the runtime installed by the Codex Desktop app with the same host flow Codex uses; nothing from OpenAI is bundled.",
     "license": "Apache-2.0",
     "keywords": [
@@ -41,7 +41,7 @@
         "prepack": "tsc && node ../../scripts/codex/check-package.mjs ."
     },
     "dependencies": {
-        "@earendil-works/pi-mcp": "1.4.0"
+        "@earendil-works/pi-mcp": "1.5.0"
     },
     "peerDependencies": {
         "@earendil-works/pi-ai": "*",

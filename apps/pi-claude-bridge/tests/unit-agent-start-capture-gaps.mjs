@@ -24,8 +24,10 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { PI_PREAMBLE, projectPromptCapture } from "../src/features/prompt/capture.js";
+import { PI_PREAMBLES, projectPromptCapture } from "../src/features/prompt/capture.js";
 import { activateWithMockPi } from "./lib/mock-pi.mjs";
+
+const [PI_PREAMBLE] = PI_PREAMBLES;
 
 const { testBridge } = await import("../tools/verify/fixture-entry.js");
 
