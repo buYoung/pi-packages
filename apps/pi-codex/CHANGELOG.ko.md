@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-11-06
+
 ### 해결된 것
 
 - 최신 Codex Desktop 빌드에서 Computer Use가 네이티브 서비스에 다시 연결됩니다(포함된 `@buyong/pi-codex-computer-use` 0.3.2).
