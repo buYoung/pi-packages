@@ -1,6 +1,6 @@
 {
     "name": "@buyong/pi-codex",
-    "version": "0.6.3",
+    "version": "0.6.4",
     "description": "Codex bundle for Pi: installs automatic approval review, Computer Use, Fast mode, image generation, and memory together.",
     "license": "Apache-2.0",
     "keywords": [

@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.15.5] - 2026-11-07
+
 ### Improved
 
 - Update the Effect runtime dependency to 4.1.2.

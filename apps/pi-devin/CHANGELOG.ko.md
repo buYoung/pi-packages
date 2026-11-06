@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-11-07
+
 ### 달라진 것
 
 - Effect와 포함된 `@effect/platform-node`를 4.1.2로 업데이트했습니다.

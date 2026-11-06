@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-11-07
+
 ### 달라진 것
 
 - Computer Use가 `@earendil-works/pi-mcp` 1.5.0을 사용합니다(포함된 `@buyong/pi-codex-computer-use` 0.3.3).
