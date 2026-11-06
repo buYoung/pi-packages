@@ -2,7 +2,9 @@ import { execFile } from "node:child_process";
 import {
     access,
     mkdir,
+    readdir,
     readFile,
+    realpath,
     rm,
     symlink,
     writeFile,
@@ -1148,11 +1150,18 @@ try {
     expect(await readFile(join(f.workspace, "packed.txt"), "utf8")).toBe(
         "packed-effect",
     );
-    await symlink(
-        join(repository, "node_modules/@earendil-works"),
-        join(consumer, "package/node_modules/@earendil-works"),
-        process.platform === "win32" ? "junction" : undefined,
-    );
+    // Link each host package at its real location. pnpm's links inside the scope folder can be relative symlinks,
+    // which Windows resolves against the path they are reached through, so a link to the folder would break them.
+    const hostScope = join(repository, "node_modules/@earendil-works"),
+        consumerScope = join(consumer, "package/node_modules/@earendil-works");
+    await mkdir(consumerScope, { recursive: true });
+    for (const name of await readdir(hostScope)) {
+        await symlink(
+            await realpath(join(hostScope, name)),
+            join(consumerScope, name),
+            process.platform === "win32" ? "junction" : undefined,
+        );
+    }
     const help = await exec(
         process.execPath,
         [join(consumer, "package/dist/cli.js"), "--help"],
