@@ -1,3 +1,5 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
     type Implementation,
     type JsonRpcMessage,
@@ -69,6 +71,31 @@ export interface ComposedEnvironment {
     /** Keys kept in NODE_REPL_TRUSTED_SERVICES, or empty when the variable is omitted. */
     trustedServiceKeys: string[];
     trustedServicesSource: "filtered" | "omitted-absent" | "omitted-unparsable";
+}
+
+/** Compiled `runtime-supervisor.ts`, next to this module. */
+export function supervisorScriptPath(): string {
+    return join(
+        dirname(fileURLToPath(import.meta.url)),
+        "runtime-supervisor.js",
+    );
+}
+
+/**
+ * The process that starts the runtime. With the computer surface on, a plan whose command is a bare
+ * `node_repl` runs under Desktop's node (`RuntimePlan.supervisor`) so the Computer Use service sees
+ * a Desktop-signed ancestor and accepts the IPC peer. Otherwise the plan's command runs unchanged.
+ */
+export function launchCommand(
+    plan: RuntimePlan,
+    state: FeatureState,
+): { command: string; args: string[] } {
+    if (!plan.supervisor || !state.computerUse)
+        return { command: plan.command, args: plan.args };
+    return {
+        command: plan.supervisor,
+        args: [supervisorScriptPath(), plan.command, ...plan.args],
+    };
 }
 
 export function enabledSurfaces(
@@ -233,9 +260,10 @@ export async function openConnection(
 ): Promise<BridgeConnection> {
     const { plan, state, log } = options;
     const environment = composeEnvironment(plan, state, options.hostEnv);
+    const launch = launchCommand(plan, state);
     const transport = new StdioTransport({
-        command: plan.command,
-        args: plan.args,
+        command: launch.command,
+        args: launch.args,
         env: environment.env,
         inheritEnv: false,
         stderr: "pipe",
@@ -278,8 +306,9 @@ export async function openConnection(
     });
     // Field names avoid "key" so the log redaction leaves them readable.
     log.write("server-starting", {
-        command: plan.command,
-        args: plan.args,
+        command: launch.command,
+        args: launch.args,
+        supervised: launch.command !== plan.command,
         source: plan.source,
         surfaces: environment.surfaces,
         trustedServices: environment.trustedServiceKeys,

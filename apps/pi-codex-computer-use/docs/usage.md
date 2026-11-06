@@ -78,6 +78,8 @@ When `CODEX_HOME` is unset or empty, it defaults to `%USERPROFILE%\.codex` on Wi
 
 The macOS app-bundle fallback and cold native-service launch remain unverified. `PI_CODEX_COMPUTER_USE_APP_PATH` can select a nonstandard macOS app bundle. A discovered plan or an `ok` file check does not establish that a private runtime will work after a Desktop update.
 
+With Computer Use on, macOS starts the runtime below the Desktop-signed `cua_node/bin/node`. The Computer Use service checks each IPC client's process ancestry and closes a connection without a Desktop-signed process in it, so starting `node_repl` directly from Pi returns no apps and fails with `Sky Computer Use native pipe startup failed`. The app-bundle fallback already runs Desktop's launcher under that node and needs no extra process; Browser Use does not use it.
+
 ## 3. Select only the features you need
 
 ```text
@@ -171,6 +173,7 @@ Long text, including JSON-RPC error messages and data, is middle-truncated accor
 | Symptom | Action |
 | --- | --- |
 | Runtime unavailable | Install/update Desktop, enable its plugin once, and inspect `/computer-use status`. For a nonstandard macOS app, set `PI_CODEX_COMPUTER_USE_APP_PATH`. |
+| No apps and `Sky Computer Use native pipe startup failed` | The runtime did not start below Desktop's `cua_node/bin/node`. Update the package, then rerun the `Computer Use connection` check; the log's `server-starting` entry also records `supervised`. |
 | `platform-unsupported` | Use a supported platform. Windows implementation still needs actual-machine verification. |
 | Invalid settings | Fix the exact two boolean keys at the reported path; reload/restart. |
 | Setup script stops at missing `bin/npm` or `bin/npx` | The recorded Desktop build omitted those launchers. The check reports that script as `unverified` and separately validates the runtime. Do not install/copy launchers into Desktop based on this message. |

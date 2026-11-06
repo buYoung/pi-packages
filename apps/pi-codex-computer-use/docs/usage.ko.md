@@ -78,6 +78,8 @@ Pi에서 Browser Use를 사용할 수 있습니다. Chrome 확장의 오리진 �
 
 macOS 앱 번들 폴백과 네이티브 서비스 최초 실행은 미검증입니다. 비표준 macOS 앱 번들은 `PI_CODEX_COMPUTER_USE_APP_PATH`로 선택할 수 있습니다. 실행 계획을 찾거나 파일 검사가 `ok`여도 Desktop 업데이트 후 비공개 런타임의 동작을 보장하지는 않습니다.
 
+macOS에서 Computer Use가 켜져 있으면 브리지는 런타임을 Desktop이 서명한 `cua_node/bin/node` 아래에서 시작합니다. Computer Use 서비스는 IPC 클라이언트의 프로세스 조상까지 확인하고 Desktop이 서명한 프로세스가 없는 연결을 끊기 때문에, Pi가 `node_repl`을 직접 실행하면 앱 목록이 비고 `Sky Computer Use native pipe startup failed`가 납니다. 앱 번들 폴백 계획은 이미 이 node로 Desktop의 실행기를 돌리므로 추가 프로세스가 없습니다. Browser Use는 이 프로세스를 쓰지 않습니다.
+
 ## 3. 필요한 기능만 선택
 
 ```text
@@ -171,6 +173,7 @@ JSON-RPC 오류 메시지와 데이터를 포함한 긴 텍스트는 탐색한 �
 | 증상 | 조치 |
 | --- | --- |
 | 런타임 없음 | Desktop을 설치·갱신하고 플러그인을 한 번 활성화한 뒤 `/computer-use status`를 확인합니다. 비표준 macOS 앱은 `PI_CODEX_COMPUTER_USE_APP_PATH`로 지정합니다. |
+| 앱 목록이 비고 `Sky Computer Use native pipe startup failed` | 런타임이 Desktop의 `cua_node/bin/node` 아래에서 시작되지 않았습니다. 패키지를 갱신한 뒤 `/computer-use-check`의 `Computer Use connection`을 다시 확인합니다. 로그의 `server-starting`에 `supervised`가 있는지도 봅니다. |
 | `platform-unsupported` | 지원 플랫폼을 사용합니다. Windows 구현은 실제 기기 검증이 더 필요합니다. |
 | 잘못된 설정 | 표시한 경로의 정확한 불리언 키 두 개를 고치고 다시 로드·시작합니다. |
 | 설정 스크립트가 `bin/npm`·`bin/npx` 부재로 멈춤 | 기록된 Desktop 빌드에는 이 실행기가 없습니다. 점검은 이 스크립트를 `unverified`로 표시하고 런타임을 따로 검증합니다. 이 메시지만 보고 Desktop 안에 실행기를 설치·복사하지 마세요. |

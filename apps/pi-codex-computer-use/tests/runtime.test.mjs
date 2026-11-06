@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { composeEnvironment } from "../dist/connection.js";
+import {
+    composeEnvironment,
+    launchCommand,
+    supervisorScriptPath,
+} from "../dist/connection.js";
 import { discoverRuntime, pluginCacheDir } from "../dist/runtime.js";
 import { catalogKey } from "../dist/tool-catalog.js";
 
@@ -146,4 +151,53 @@ test("invalidates the tool catalog when a wrapped launch is normalized", async (
     const state = { computerUse: true, browserUse: true };
     const oldPlan = { ...plan, command: server.command, args: server.args, runtimeRoot: "/", appPath: undefined };
     assert.notEqual(catalogKey(plan, state), catalogKey(oldPlan, state));
+});
+
+test("starts the runtime below Desktop's node so Computer Use authenticates the peer", async (t) => {
+    const f = await fixture(t);
+    const nodePath = join(f.runtimeRoot, "bin", "node");
+    await writeFile(nodePath, "");
+    await f.config("26.1103.31037", { command: f.command, args: [] });
+    const plan = await f.discover();
+    assert.equal(plan.supervisor, nodePath);
+    const script = supervisorScriptPath();
+    assert.ok(existsSync(script), `${script} should exist in dist`);
+    const withComputer = launchCommand(plan, {
+        computerUse: true,
+        browserUse: false,
+    });
+    assert.equal(withComputer.command, nodePath);
+    assert.deepEqual(withComputer.args, [script, f.command]);
+    const browserOnly = launchCommand(plan, {
+        computerUse: false,
+        browserUse: true,
+    });
+    assert.equal(browserOnly.command, f.command);
+    assert.deepEqual(browserOnly.args, []);
+});
+
+test("runs the runtime directly when Desktop's node is not on disk", async (t) => {
+    const f = await fixture(t);
+    await f.config("26.1103.31037", { command: f.command, args: [] });
+    const plan = await f.discover();
+    assert.equal(plan.supervisor, undefined);
+    assert.deepEqual(
+        launchCommand(plan, { computerUse: true, browserUse: true }),
+        { command: f.command, args: [] },
+    );
+});
+
+test("adds no supervisor when the plan already runs Desktop's node", async (t) => {
+    const f = await fixture(t);
+    const nodePath = join(f.runtimeRoot, "bin", "node");
+    await writeFile(nodePath, "");
+    const launcher = join(f.nodeModules, "@oai", "cua-repl", "bin", "cua-repl.mjs");
+    await f.config("26.1103.31037", { command: nodePath, args: [launcher] });
+    const plan = await f.discover();
+    assert.equal(plan.command, nodePath);
+    assert.equal(plan.supervisor, undefined);
+    assert.deepEqual(
+        launchCommand(plan, { computerUse: true, browserUse: true }),
+        { command: nodePath, args: [launcher] },
+    );
 });

@@ -64,6 +64,13 @@ export interface RuntimePlan {
     command: string;
     args: string[];
     /**
+     * Desktop's own `cua_node/bin/node`. The Computer Use service authenticates its IPC peer through
+     * the sender's process ancestry and rejects a non-Desktop-signed chain, so a bare `node_repl`
+     * command is started one process below this binary. Absent for the app-bundle source, whose
+     * command is already this node running Desktop's launcher, and on Windows.
+     */
+    supervisor?: string;
+    /**
      * Base environment. From the plugin cache it is verbatim, including `CUA_REPL_ENABLED_SURFACES`
      * and `NODE_REPL_TRUSTED_SERVICES`, which the bridge overrides from the feature flags.
      */
@@ -273,6 +280,25 @@ function nodeModulesFromEnv(
     return runtimeRoot ? join(runtimeRoot, "lib", "node_modules") : undefined;
 }
 
+/**
+ * Picks the runtime's own node binary to launch the runtime under (macOS only). A command that is
+ * already that binary needs no supervisor; a simulated platform has no files to check, and Windows
+ * has no peer authentication to satisfy.
+ */
+async function supervisorNode(
+    platform: PlatformInfo & { supported: true },
+    command: string,
+    candidates: (string | undefined)[],
+): Promise<string | undefined> {
+    if (platform.platform !== "darwin" || platform.isSimulated)
+        return undefined;
+    for (const candidate of candidates) {
+        if (!candidate || candidate === command) continue;
+        if (await isFile(candidate)) return candidate;
+    }
+    return undefined;
+}
+
 async function planFromPluginCache(
     codexHome: string,
     platform: PlatformInfo & { supported: true },
@@ -294,12 +320,17 @@ async function planFromPluginCache(
         const runtimeRoot = platform.isSimulated
             ? undefined
             : dirname(dirname(server.command));
+        const supervisor = await supervisorNode(platform, server.command, [
+            server.env.NODE_REPL_NODE_PATH?.trim(),
+            runtimeRoot ? join(runtimeRoot, "bin", "node") : undefined,
+        ]);
         return {
             kind: "plan",
             platform: platform.platform,
             source: "plugin-cache",
             command: server.command,
             args: server.args,
+            ...(supervisor ? { supervisor } : {}),
             env: server.env,
             enabledTools: server.enabledTools,
             outputTokenLimit: server.outputTokenLimit,
