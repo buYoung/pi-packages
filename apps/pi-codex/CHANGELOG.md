@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improved
+
+- Computer Use uses `@earendil-works/pi-mcp` 1.5.0 (included `@buyong/pi-codex-computer-use` 0.3.3).
+
 ## [0.6.3] - 2026-11-06
 
 ### Fixed

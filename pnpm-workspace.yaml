@@ -4,33 +4,60 @@ packages:
 
 # One version of the Pi host packages and the toolchain for every workspace package.
 catalog:
-  "@biomejs/biome": 2.6.3
-  "@earendil-works/pi-ai": 1.4.0
-  "@earendil-works/pi-coding-agent": 1.4.0
-  "@earendil-works/pi-tui": 1.4.0
-  "@types/node": 26.6.5
+  "@biomejs/biome": 2.6.6
+  "@earendil-works/pi-ai": 1.5.0
+  "@earendil-works/pi-coding-agent": 1.5.0
+  "@earendil-works/pi-tui": 1.5.0
+  "@types/node": 26.6.6
   "@types/proper-lockfile": 4.1.4
   tsx: 4.23.15
-  typebox: 1.4.3
+  typebox: 1.4.5
   typescript: 7.0.2
-  vitest: 4.1.12
+  vitest: 5.1.0
 
 # Package-specific Pi SDK baselines; do not upgrade unrelated apps for one consumer.
 catalogs:
   memory:
-    "@earendil-works/pi-ai": 1.4.0
-    "@earendil-works/pi-coding-agent": 1.4.0
-    "@earendil-works/pi-tui": 1.4.0
+    "@earendil-works/pi-ai": 1.5.0
+    "@earendil-works/pi-coding-agent": 1.5.0
+    "@earendil-works/pi-tui": 1.5.0
   devin:
-    "@earendil-works/pi-ai": 1.4.0
-    "@earendil-works/pi-coding-agent": 1.4.0
-    "@earendil-works/pi-tui": 1.4.0
+    "@earendil-works/pi-ai": 1.5.0
+    "@earendil-works/pi-coding-agent": 1.5.0
+    "@earendil-works/pi-tui": 1.5.0
   mcp-adapter:
-    "@earendil-works/pi-ai": 1.4.0
-    "@earendil-works/pi-coding-agent": 1.4.0
-    "@earendil-works/pi-tui": 1.4.0
+    "@earendil-works/pi-ai": 1.5.0
+    "@earendil-works/pi-coding-agent": 1.5.0
+    "@earendil-works/pi-tui": 1.5.0
 
-# Transitive dependencies of the Pi host packages; type checking does not need their install scripts.
-ignoredBuiltDependencies:
-  - "@google/genai"
-  - protobufjs
+# Install scripts the workspace does not need. @google/genai and protobufjs come with the Pi host packages, and type
+# checking does not use their scripts; esbuild and @bufbuild/buf load their platform binary packages without them.
+allowBuilds:
+  "@bufbuild/buf": false
+  "@google/genai": false
+  esbuild: false
+  protobufjs: false
+
+minimumReleaseAgeExclude:
+  - "@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.319"
+  - "@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.319"
+  - "@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.319"
+  - "@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.319"
+  - "@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.319"
+  - "@anthropic-ai/claude-agent-sdk-linux-x64@0.3.319"
+  - "@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.319"
+  - "@anthropic-ai/claude-agent-sdk-win32-x64@0.3.319"
+  - "@anthropic-ai/claude-agent-sdk@0.3.319"
+  - "@anthropic-ai/sdk@1.6.0"
+  - "@biomejs/biome@2.6.6"
+  - "@biomejs/cli-android-arm64@2.6.6"
+  - "@biomejs/cli-android-x64@2.6.6"
+  - "@biomejs/cli-darwin-arm64@2.6.6"
+  - "@biomejs/cli-darwin-x64@2.6.6"
+  - "@biomejs/cli-linux-arm64-musl@2.6.6"
+  - "@biomejs/cli-linux-arm64@2.6.6"
+  - "@biomejs/cli-linux-x64-musl@2.6.6"
+  - "@biomejs/cli-linux-x64@2.6.6"
+  - "@biomejs/cli-win32-arm64@2.6.6"
+  - "@biomejs/cli-win32-x64@2.6.6"
+  - typebox@1.4.5

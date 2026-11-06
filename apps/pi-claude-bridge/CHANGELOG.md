@@ -1,5 +1,12 @@
 # Changelog
 
+## UNRELEASED
+
+### Improved
+
+- The bridge now uses Claude Code 2.1.319 (Agent SDK `^0.3.319`).
+- Update the Effect runtime dependency to 4.1.2.
+
 ## 0.14.2 — 2026-11-02
 
 ### New
