@@ -255,7 +255,7 @@ test("payload identity changes and missing permission fail before the inference 
   } finally { denied.shutdown(); }
 });
 
-test("prompt cache: by default only user and tool results are marked EPHEMERAL, and long is sent only for 24h catalog models", async () => {
+test("prompt cache: by default only the newest user or tool result is marked EPHEMERAL, and long is sent only for 24h catalog models", async () => {
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
   const history = normalizeContext({ messages: [
     { role: "user", content: "cache me", timestamp: 1 },
@@ -264,7 +264,7 @@ test("prompt cache: by default only user and tool results are marked EPHEMERAL, 
     { role: "toolResult", toolCallId: "cache-tool", toolName: "lookup", content: [{ type: "text", text: "result" }], isError: false, timestamp: 3 },
   ] });
   const marks = (body: JsonObject) => (body.chatMessagePrompts as JsonObject[]).map((prompt) => [prompt.source, (prompt.promptCacheOptions as JsonObject | undefined)?.type ?? null]);
-  const expected = [["CHAT_MESSAGE_SOURCE_USER", "CACHE_CONTROL_TYPE_EPHEMERAL"], ["CHAT_MESSAGE_SOURCE_SYSTEM", null], ["CHAT_MESSAGE_SOURCE_TOOL", "CACHE_CONTROL_TYPE_EPHEMERAL"]];
+  const expected = [["CHAT_MESSAGE_SOURCE_USER", null], ["CHAT_MESSAGE_SOURCE_SYSTEM", null], ["CHAT_MESSAGE_SOURCE_TOOL", "CACHE_CONTROL_TYPE_EPHEMERAL"]];
   const plain = await providerFixture();
   try {
     await collect(plain.provider.streamSimple(plain.model, history, { apiKey: providerCredential.sessionToken, reasoning: "medium" }));

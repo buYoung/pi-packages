@@ -71,6 +71,27 @@ test("keeps tool arguments without an ID and usage after stopReason", () => {
   expect(result.message.thinking).toBe("calculating");
 });
 
+test("parallel calls streamed one after another keep each call's arguments", () => {
+  const acc = new ChatAccumulator();
+  for (const deltaToolCalls of [
+    [{ id: "a", name: "bash" }], [{}], [{ argumentsJson: '{"command": "echo one' }], [{ argumentsJson: '"}' }],
+    [{ id: "b", name: "bash" }], [{}], [{ argumentsJson: '{"command": "ech' }], [{ argumentsJson: 'o two"}' }],
+  ]) runSync(acc.accept({ deltaToolCalls }));
+  runSync(acc.accept({ stopReason: "STOP_REASON_STOP_PATTERN" }));
+  runSync(acc.accept({}, true));
+  const result = runSync(acc.finish);
+  expect(result.message.toolCalls!.map((call) => [call.id, JSON.parse(call.argumentsJson)])).toStrictEqual([
+    ["a", { command: "echo one" }], ["b", { command: "echo two" }],
+  ]);
+  expect(result.toolArgumentErrors).toStrictEqual({});
+  // A frame naming one call again after a frame that named two makes the ID-less deltas unambiguous again.
+  const renamed = new ChatAccumulator();
+  runSync(renamed.accept({ deltaToolCalls: [{ id: "a", name: "add" }, { id: "b", name: "add" }] }));
+  runSync(renamed.accept({ deltaToolCalls: [{ id: "a", argumentsJson: "{" }] }));
+  runSync(renamed.accept({ deltaToolCalls: [{ argumentsJson: "}" }] }));
+  expect(renamed.calls.get("a")!.argumentsJson).toBe("{}");
+});
+
 test("ambiguous tool deltas and invalid arguments never become executable calls", () => {
   const acc = new ChatAccumulator();
   expect(() => runSync(acc.accept({ deltaToolCalls: [{ argumentsJson: "{}" }] }))).toThrow(/Cannot attach/);

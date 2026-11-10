@@ -1,4 +1,5 @@
 import { clampThinkingLevel, type AssistantMessageEventStream, type Model, type SimpleStreamOptions, type TranscriptContext } from "@earendil-works/pi-ai";
+import { calculateContextTokens, estimateTokens } from "@earendil-works/pi-coding-agent";
 import { Cause, Effect, Stream } from "effect";
 import { assertCanInfer } from "../../../core/auth/access.ts";
 import { abortWith } from "../../../core/cancellation.ts";
@@ -68,6 +69,28 @@ function resolveCacheRetention(options: SimpleStreamOptions): NonNullable<Simple
 /** A host hook may return a value or a promise and may throw; it is withdrawn when the request stops. */
 const hook = <A>(evaluate: () => A | PromiseLike<A>) => Effect.tryPromise({ try: async () => await evaluate(), catch: toDevinFailure });
 
+/** The margin Pi's own providers keep between the estimated input and the context window. */
+const CONTEXT_SAFETY_TOKENS = 4096;
+
+/**
+ * Limits the output to the room the input leaves in the Pi model's window, as Pi's own providers do, so a full context ends
+ * in a `length` stop that Pi recovers from by compacting. The input is estimated the way Pi's compaction does: the tokens
+ * the latest usable response reported, plus an estimate of the messages after it.
+ */
+function outputLimitForContext(model: Model<DevinAPI>, context: TranscriptContext, requested: number): number {
+  if (model.contextWindow <= 0) return requested;
+  const { messages } = context;
+  let tokens = 0, trailingStart = 0;
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message.role !== "assistant" || message.stopReason === "aborted" || message.stopReason === "error") continue;
+    const reported = calculateContextTokens(message.usage);
+    if (reported > 0) { tokens = reported; trailingStart = index + 1; break; }
+  }
+  for (const message of messages.slice(trailingStart)) tokens += estimateTokens(message);
+  return Math.min(requested, Math.max(1, model.contextWindow - tokens - CONTEXT_SAFETY_TOKENS));
+}
+
 /**
  * Prepares one request synchronously: the response stream (with its start event), the sign-in generation
  * and the provider lifetime current at the call. The returned `run` sends the request and reports into the stream.
@@ -117,7 +140,8 @@ export const prepareRequest = (deps: InferenceDependencies, model: Model<DevinAP
     const lease = yield* Effect.acquireRelease(deps.runs.acquire(account.ownerHash), (acquired) => acquired.release);
     const transcript = yield* toDevinTranscript(context, selected.model);
     if (isFusionModelID(model.id)) transcript.systemPrompt = [transcript.systemPrompt, FUSION_LEAD_GUIDANCE].filter(Boolean).join("\n\n");
-    const maximum = requestOptions.maxTokens === undefined ? selected.model.maxOutputTokens : yield* tokenCount(requestOptions.maxTokens, "maxTokens");
+    const requested = requestOptions.maxTokens === undefined ? selected.model.maxOutputTokens : yield* tokenCount(requestOptions.maxTokens, "maxTokens");
+    const maximum = outputLimitForContext(model, context, requested);
     if (maximum < 1 || maximum > selected.model.maxOutputTokens) return yield* failWith("The output limit is outside the selected Devin model range.");
     const client = yield* deps.clients.open(current, { fetch: requestOptions.fetch, timeoutMs: requestOptions.timeoutMs,
       onRequest: (attempt) => attempt.isMetered ? lease.assertAttempt : Effect.void,
@@ -132,7 +156,11 @@ export const prepareRequest = (deps: InferenceDependencies, model: Model<DevinAP
       if (!Number.isFinite(requestOptions.temperature) || requestOptions.temperature < 0) return yield* failWith("temperature must be a finite value of 0 or more.");
       (yield* object(request.configuration, "configuration")).temperature = requestOptions.temperature;
     }
-    if (cacheRetention === "none") for (const prompt of request.chatMessagePrompts as JsonObject[]) delete prompt.promptCacheOptions;
+    // Like Pi's Anthropic provider, mark only the newest user or tool message: Claude honours a few cache breakpoints per
+    // request and ignores later marks, so marking every message would stop the cached prefix from growing.
+    const prompts = request.chatMessagePrompts as JsonObject[];
+    const newestMark = cacheRetention === "none" ? -1 : prompts.findLastIndex((prompt) => prompt.promptCacheOptions !== undefined);
+    prompts.forEach((prompt, index) => { if (index !== newestMark) delete prompt.promptCacheOptions; });
     const identity = JSON.stringify([request.cascadeId, request.trajectoryReference, request.executionId, request.clientSessionId]);
 
     const frames = client.transport.stream(CHAT_METHOD, request, {

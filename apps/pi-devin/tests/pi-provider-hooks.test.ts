@@ -122,6 +122,33 @@ test("a late 401 from an older auth generation does not cancel runs after a new 
   } finally { late.shutdown(); }
 });
 
+test("the output limit leaves room for the input in the Pi model's context window, as Pi's own providers do", async () => {
+  const limits: number[] = [];
+  const fixture = await providerFixture({ chat: (request) => {
+    limits.push(Number((request.body.configuration as JsonObject).maxTokens));
+    return streamResponse(finalFrames());
+  } });
+  try {
+    // A window the input already fills, a window with 1000 tokens to spare after Pi's 4096-token margin, and the catalog window.
+    for (const contextWindow of [100, 5096, fixture.model.contextWindow]) {
+      expect((await fixture.provider.stream({ ...fixture.model, contextWindow }, context(), options).result()).stopReason).toBe("stop");
+    }
+    await fixture.provider.stream({ ...fixture.model, contextWindow: 5096 }, context(), { ...options, maxTokens: 5 }).result();
+    // After a response, its reported usage stands for the history before it: 3000 tokens leave about 1000 in an 8096 window.
+    const usage = { input: 2990, output: 10, cacheRead: 0, cacheWrite: 0, totalTokens: 3000, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+    const answered = normalizeContext({ messages: [
+      { role: "user", content: "fixture", timestamp: 1 },
+      { role: "assistant", content: [{ type: "text", text: "answer" }], api: "other-api", provider: "other", model: "other", stopReason: "stop", usage, timestamp: 2 },
+      { role: "user", content: "next", timestamp: 3 },
+    ] });
+    await fixture.provider.stream({ ...fixture.model, contextWindow: 8096 }, answered, options).result();
+    expect(limits[0]).toBe(1);
+    expect(limits[1]).toBeGreaterThan(900); expect(limits[1]).toBeLessThan(1000);
+    expect(limits.slice(2, 4)).toStrictEqual([fixture.model.maxTokens, 5]);
+    expect(limits[4]).toBeGreaterThan(900); expect(limits[4]).toBeLessThan(1000);
+  } finally { fixture.shutdown(); }
+});
+
 test("thinking redaction clears only the final thinking and keeps the raw stream length stop", async () => {
   const fixture = await providerFixture({ chat: (request) => {
     expect(request.body.chatModelUid).toBe("swe-2-medium");

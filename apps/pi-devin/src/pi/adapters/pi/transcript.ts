@@ -151,27 +151,47 @@ function inputMessage(message: Exclude<ContextMessage, { role: "assistant" | "sy
   });
 }
 
-/** Pi history as Devin chat messages. Failed or aborted assistants and the results of their tool calls are not replayed. */
+/** Pi's result for a tool call that has none, such as one whose result stayed on another branch of the session tree. */
+const MISSING_TOOL_RESULT = "No result provided";
+
+/**
+ * Pi history as Devin chat messages. Failed or aborted assistants and the results of their tool calls are not replayed.
+ * Like Pi's own providers, a replayed call without a result gets an error result before the next turn, because Devin
+ * rejects a request whose history leaves a call unanswered.
+ */
 export function toDevinTranscript(context: TranscriptContext, model: ModelInfo): Effect.Effect<DevinTranscript, DevinError> {
   return Effect.gen(function* () {
     const tools = yield* toolDeclarations(context, model);
     // Results follow their assistant, so only the calls of the latest failed assistant are skipped. A later failure that
     // reuses an earlier call ID leaves the earlier result in place.
     let failedCalls = new Set<string>();
+    // Calls of the latest replayed assistant that have no result yet.
+    let unansweredCalls = new Set<string>();
     const messages: ChatMessage[] = [];
+    const answerMissingResults = () => {
+      for (const toolCallId of unansweredCalls) {
+        messages.push({ messageId: randomUUID(), source: "CHAT_MESSAGE_SOURCE_TOOL", prompt: MISSING_TOOL_RESULT, toolCallId, toolResultIsError: true });
+      }
+      unansweredCalls = new Set();
+    };
     for (const message of context.messages) {
       if (message.role === "system") continue;
+      if (message.role === "toolResult") unansweredCalls.delete(message.toolCallId);
+      else answerMissingResults();
       if (message.role === "assistant") {
         const isFailed = message.stopReason === "error" || message.stopReason === "aborted";
         failedCalls = new Set(isFailed ? message.content.filter((block) => block.type === "toolCall").map((block) => block.id) : []);
         if (isFailed) continue;
         if (message.stopReason === "pending") return yield* failWith("An unfinished assistant response cannot be sent as Devin history.");
-        messages.push(yield* assistantMessage(message));
+        const replayed = yield* assistantMessage(message);
+        unansweredCalls = new Set(replayed.toolCalls?.map((call) => call.id));
+        messages.push(replayed);
         continue;
       }
       if (message.role === "toolResult" && failedCalls.has(message.toolCallId)) continue;
       messages.push(yield* inputMessage(message, model));
     }
+    answerMissingResults();
     return { messages, tools, systemPrompt: getCurrentSystemPrompt(context.messages) };
   });
 }
