@@ -8,6 +8,10 @@
 
 - `/codex-memory`의 **Memory model**과 **Summary model**에서 추론 강도도 고르고, **Use current Pi model**은 Pi 세션의 추론 강도를 따릅니다(포함된 `@buyong/pi-codex-memory` 0.2.0).
 
+### 달라진 것
+
+- 쓰이지 않은 기억이 요약을 비우지 않고 다음 요약 갱신 때 빠지며, 요약을 보고 인용한 답도 기억 사용으로 칩니다(포함된 `@buyong/pi-codex-memory` 0.2.0).
+
 ## [0.6.4] - 2026-11-07
 
 ### 달라진 것

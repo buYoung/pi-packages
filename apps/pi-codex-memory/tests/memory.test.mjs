@@ -21,6 +21,7 @@ import {
 } from "../dist/config.js";
 import { MemoryFailure, memoryFailureCode } from "../dist/failure.js";
 import {
+    consolidationInput,
     createStages,
     EMPTY_SUMMARY,
     parseConsolidation,
@@ -502,6 +503,113 @@ test("expiry, pinned retention and disabled reads take effect immediately", asyn
         () => new MemoryReader(f.store, f.scope).list({}),
         /disabled/,
     );
+});
+const DAY = 86_400_000;
+/**
+ * Two memories made 20 days apart, or a minute apart so the summary waits for its interval and
+ * draws only on the first. At `later` the first has gone unused for 31 days.
+ */
+async function agedMemories(t, { isSecondInSummary = true } = {}) {
+    const f = await fixture(t);
+    const start = Date.now();
+    await f.run({ now: () => start });
+    const secondAt = start + (isSecondInSummary ? 20 * DAY : 60_000);
+    await f.run({
+        now: () => secondAt,
+        sources: [{ ...f.source, id: "session-2", fingerprint: "second" }],
+    });
+    const byId = (id) =>
+        f.store
+            .records(f.scope, start)
+            .find((record) => record.source.id === id);
+    const consolidate = (model) =>
+        createStages({
+            store: f.store,
+            scope: f.scope,
+            settings: f.settings,
+            model,
+            signal: new AbortController().signal,
+            now: () => start + 31 * DAY,
+        }).consolidate(true);
+    return {
+        ...f,
+        later: start + 31 * DAY,
+        first: byId("session-1"),
+        second: byId("session-2"),
+        consolidate,
+        paths: (nowMs) =>
+            f.store.records(f.scope, nowMs).map((record) => record.path),
+    };
+}
+test("an unused memory the summary draws on leaves it at the next consolidation, then storage; a failed consolidation keeps it", async (t) => {
+    const f = await agedMemories(t);
+    const summary = f.store.state(f.scope).summary;
+    assert.ok(
+        summary.includes(f.first.path) && summary.includes(f.second.path),
+    );
+    f.store.prune(f.scope, f.settings, f.later);
+    assert.equal(f.store.state(f.scope).summary, summary, "not cleared");
+    assert.deepEqual(
+        f.paths(f.later).sort(),
+        [f.first.path, f.second.path].sort(),
+    );
+    const input = JSON.parse(
+        consolidationInput(f.store, f.scope, f.settings, f.later).text,
+    );
+    assert.equal(input.previous_memory_summary, summary);
+    assert.deepEqual(input.changes.removed, [f.first.path]);
+    assert.deepEqual(
+        input.documents.map((document) => document.path),
+        [f.second.path],
+    );
+
+    const failed = await f.consolidate({
+        async complete() {
+            throw new MemoryFailure("provider_error");
+        },
+    });
+    assert.equal(failed.failed, true);
+    assert.equal(f.store.state(f.scope).summary, summary);
+    assert.ok(f.paths(f.later).includes(f.first.path), "kept after a failure");
+    assert.equal(f.store.isForgotten(f.scope, "session-1"), false);
+
+    assert.equal((await f.consolidate(f.model)).consolidated, true);
+    const request = JSON.parse(f.calls.at(-1).input);
+    assert.equal(request.previous_memory_summary, summary);
+    assert.deepEqual(request.changes.removed, [f.first.path]);
+    assert.deepEqual(f.paths(f.later), [f.second.path]);
+    assert.equal(f.store.isForgotten(f.scope, "session-1"), true);
+    assert.ok(!f.store.state(f.scope).summary.includes(f.first.path));
+    assert.ok(f.store.state(f.scope).summary.includes(f.second.path));
+    assert.deepEqual(
+        await readdir(join(f.store.artifactRoot(f.scope), "rollout_summaries")),
+        [f.second.path.slice("rollout_summaries/".length)],
+    );
+});
+test("an unused memory the summary does not draw on is deleted at once without clearing the summary; forgetting still clears it", async (t) => {
+    const f = await agedMemories(t, { isSecondInSummary: false });
+    const summary = f.store.state(f.scope).summary;
+    assert.ok(!summary.includes(f.second.path));
+    f.store.prune(f.scope, f.settings, f.later);
+    assert.equal(f.store.state(f.scope).summary, summary);
+    assert.deepEqual(f.paths(f.later), [f.first.path]);
+    assert.equal(f.store.isForgotten(f.scope, "session-2"), true);
+    f.store.revise(f.scope, f.first.path, null, f.later);
+    assert.equal(f.store.state(f.scope).summary, "");
+});
+test("an unused memory used again before the summary drops it stays", async (t) => {
+    const f = await agedMemories(t);
+    f.store.prune(f.scope, f.settings, f.later);
+    f.store.markUsed(f.scope, [f.first.path], f.later);
+    const input = JSON.parse(
+        consolidationInput(f.store, f.scope, f.settings, f.later).text,
+    );
+    assert.deepEqual(input.changes.removed, []);
+    const calls = f.calls.length;
+    assert.equal((await f.consolidate(f.model)).consolidated, false);
+    assert.equal(f.calls.length, calls, "the summary needs no update");
+    f.store.prune(f.scope, f.settings, f.later + DAY);
+    assert.ok(f.paths(f.later + DAY).includes(f.first.path));
 });
 test("projection uses active branch, edits and correctly labels compaction; never recycles memory tools", async () => {
     const timestamp = new Date().toISOString();
@@ -1011,6 +1119,77 @@ test("citations require the actual read ranges and matching source IDs; stale re
     f.store.revise(f.scope, record.path, null);
     reader.recordCitations(citation(f.source.id));
     assert.equal(reader.evidence().citations.invalid, 1);
+});
+test("an ID shown in the injected summary counts as use; IDs it did not show, invented IDs and other scopes' IDs do not", async (t) => {
+    const f = await fixture(t);
+    await f.run();
+    // The summary waits for its interval, so it does not show this memory yet.
+    await f.run({
+        sources: [{ ...f.source, id: "session-2", fingerprint: "second" }],
+    });
+    const otherScope = workspaceScope(join(f.dir, "other"));
+    f.store.saveSettings(otherScope, f.settings);
+    await runPipeline({
+        store: f.store,
+        scope: otherScope,
+        settings: f.settings,
+        model: f.model,
+        sources: [{ ...f.source, id: "session-other", fingerprint: "other" }],
+        signal: new AbortController().signal,
+    });
+    const record = (id) =>
+        f.store.records(f.scope).find((item) => item.source.id === id);
+    const reader = new MemoryReader(f.store, f.scope);
+    const injection = buildInjection(f.store, f.scope, f.settings);
+    assert.match(injection, /thread_id=session-1/);
+    assert.doesNotMatch(injection, /session-2/);
+    reader.observeInjection(`${injection}\nthread_id=session-other`);
+    const cite = (ids, entries = "") =>
+        `<oai-mem-citation>\n<citation_entries>\n${entries}</citation_entries>\n<rollout_ids>\n${ids.join("\n")}\n</rollout_ids>\n</oai-mem-citation>`;
+    reader.recordCitations(cite(["session-1"]));
+    assert.equal(reader.evidence().citations.valid, 1);
+    assert.deepEqual(reader.evidence().citations.usedPaths, [
+        record("session-1").path,
+    ]);
+    assert.equal(record("session-1").usageCount, 1);
+    reader.recordCitations(
+        "<oai-mem-citation><rollout_ids>session-1</rollout_ids></oai-mem-citation>",
+    );
+    assert.equal(reader.evidence().citations.valid, 1, "entries may be absent");
+    assert.equal(record("session-1").usageCount, 2);
+    for (const id of ["session-2", "session-9", "session-other", "session"]) {
+        reader.recordCitations(cite([id]));
+        assert.deepEqual(
+            reader.evidence().citations,
+            {
+                valid: 0,
+                invalid: 1,
+                errors: ["source_id_mismatch"],
+                usedPaths: [],
+            },
+            id,
+        );
+    }
+    reader.recordCitations(
+        "<oai-mem-citation><rollout_ids></rollout_ids></oai-mem-citation>",
+    );
+    assert.deepEqual(reader.evidence().citations.errors, ["invalid_format"]);
+    assert.equal(record("session-2").usageCount, 0);
+
+    // A read memory and a summary memory in one block.
+    const read = reader.read({ path: record("session-2").path, max_lines: 3 });
+    reader.recordCitations(
+        cite(["session-2", "session-1"], `${read.citation}\n`),
+    );
+    assert.equal(reader.evidence().citations.valid, 2);
+    assert.equal(record("session-2").usageCount, 1);
+    assert.equal(record("session-1").usageCount, 3);
+
+    // A new request starts without the summary the previous one was sent.
+    reader.resetObserved();
+    reader.recordCitations(cite(["session-1"]));
+    assert.equal(reader.evidence().citations.invalid, 1);
+    assert.equal(record("session-1").usageCount, 3);
 });
 test("consolidation rejects forged thread IDs and generated identifiers not in its own input", () => {
     const path = "rollout_summaries/one.md",

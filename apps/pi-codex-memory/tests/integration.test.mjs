@@ -21,7 +21,7 @@ import { CURSOR_MARKER, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { memoryCommand } from "../dist/commands.js";
 import { DEFAULT_SETTINGS } from "../dist/config.js";
 import extension from "../dist/index.js";
-import { EMPTY_SUMMARY } from "../dist/pipeline.js";
+import { EMPTY_SUMMARY, runPipeline } from "../dist/pipeline.js";
 import { MemoryRuntime } from "../dist/runtime.js";
 import { workspaceScope } from "../dist/safety.js";
 import { settingsCommand } from "../dist/settings-commands.js";
@@ -185,6 +185,162 @@ test("two argument-free memory commands are registered; tools validate disabled 
         ).details.entries.length,
         0,
     );
+    await handlers.get("session_shutdown")();
+});
+test("a summary citation counts only IDs shown in the memory context of the model call that answered", async (t) => {
+    const f = await directory(t);
+    const previous = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = f.agentDir;
+    t.after(() => {
+        if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
+        else process.env.PI_CODING_AGENT_DIR = previous;
+    });
+    const scope = workspaceScope(f.cwd);
+    const store = new MemoryStore(join(f.agentDir, "pi-codex-memory"));
+    t.after(() => store.close());
+    const settings = store.saveSettings(scope, {
+        ...DEFAULT_SETTINGS,
+        useMemories: true,
+        generateMemories: true,
+        extractModel: { provider: "fixture", id: "local" },
+        consolidateModel: { provider: "fixture", id: "local" },
+    });
+    const summaryOf = (documents) =>
+        EMPTY_SUMMARY +
+        documents
+            .map(
+                (document) =>
+                    `- ${document.path} — release gate; thread_id=${document.thread_id}`,
+            )
+            .join("\n");
+    await runPipeline({
+        store,
+        scope,
+        settings,
+        sources: [
+            {
+                id: "session-1",
+                cwd: f.cwd,
+                file: "",
+                leafId: "last",
+                updatedAtMs: Date.now() - 3_600_000,
+                fingerprint: "first",
+                text: "human user: the release gate is amber",
+            },
+        ],
+        signal: new AbortController().signal,
+        model: {
+            async complete(request) {
+                return {
+                    text: JSON.stringify(
+                        request.stage === "extraction"
+                            ? {
+                                  rollout_summary:
+                                      "# Task\nThe release gate is amber.",
+                                  rollout_slug: "release-gate",
+                              }
+                            : {
+                                  memory_summary: summaryOf(
+                                      JSON.parse(request.input).documents,
+                                  ),
+                              },
+                    ),
+                };
+            },
+        },
+    });
+    const [record] = store.records(scope);
+    const withId = summaryOf([{ path: record.path, thread_id: "session-1" }]);
+    let attempt = 0;
+    const setSummary = (summary) =>
+        store.completeConsolidation(
+            store.claim(
+                scope,
+                "consolidation",
+                `test-${attempt++}`,
+                Date.now(),
+                settings,
+                true,
+            ),
+            store.state(scope).revision,
+            store.state(scope).inputs,
+            summary,
+            Date.now(),
+        );
+    const handlers = new Map(),
+        statuses = [],
+        warnings = [];
+    extension({
+        registerTool() {},
+        registerCommand() {},
+        on: (name, handler) => handlers.set(name, handler),
+        appendEntry() {},
+        sendMessage() {},
+    });
+    const ctx = {
+        ...fakeContext(f, {
+            notify: (message) => warnings.push(message),
+            setStatus: (_key, text) => statuses.push(text),
+        }),
+        hasUI: true,
+    };
+    await handlers.get("session_start")({}, ctx);
+    const call = async () =>
+        (await handlers.get("context")({ messages: [] }, ctx)).messages[0]
+            .content[0].text;
+    const answer = () =>
+        handlers.get("message_end")(
+            {
+                message: {
+                    role: "assistant",
+                    stopReason: "stop",
+                    content: [
+                        {
+                            type: "text",
+                            text: "amber\n<oai-mem-citation><citation_entries></citation_entries><rollout_ids>session-1</rollout_ids></oai-mem-citation>",
+                        },
+                    ],
+                },
+            },
+            ctx,
+        );
+    const usage = () =>
+        store.records(scope).find((item) => item.source?.id === "session-1")
+            .usageCount;
+
+    await handlers.get("before_agent_start")({}, ctx);
+    assert.match(await call(), /thread_id=session-1/);
+    answer();
+    assert.equal(usage(), 1);
+    assert.equal(statuses.at(-1), "Memory: on · 1 cited");
+    assert.equal(warnings.length, 0);
+
+    // A follow-up message opens a new request frame; the previous frame's context does not count.
+    handlers.get("message_start")({ message: { role: "user" } }, ctx);
+    answer();
+    assert.equal(usage(), 1, "no context was sent in this frame yet");
+    assert.equal(warnings.length, 1);
+    assert.match(await call(), /thread_id=session-1/);
+    answer();
+    assert.equal(usage(), 2);
+
+    // The next request is sent a summary without the ID.
+    setSummary(EMPTY_SUMMARY);
+    await handlers.get("before_agent_start")({}, ctx);
+    assert.doesNotMatch(await call(), /session-1/);
+    answer();
+    assert.equal(usage(), 2);
+    assert.equal(statuses.at(-1), "Memory: on");
+    assert.equal(warnings.length, 2);
+
+    // A change during the request rebuilds the context of the later model call.
+    setSummary(withId);
+    await handlers.get("before_agent_start")({}, ctx);
+    assert.match(await call(), /thread_id=session-1/);
+    store.addNote(scope, "The release gate applies to this project only.");
+    assert.doesNotMatch(await call(), /session-1/);
+    answer();
+    assert.equal(usage(), 2);
     await handlers.get("session_shutdown")();
 });
 test("TUI extraction returns control; reopening the menu keeps it running and Stop interrupts that exact request", async (t) => {

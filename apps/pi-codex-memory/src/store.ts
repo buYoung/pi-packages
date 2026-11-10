@@ -68,6 +68,21 @@ export interface MemoryRecord {
         importedAtMs: number;
     };
 }
+/**
+ * Whether a memory went unused for the retention period, counted from its last use or creation.
+ * Pinned memories never do.
+ */
+export function isUnused(
+    record: MemoryRecord,
+    settings: Pick<MemorySettings, "maxUnusedDays">,
+    nowMs: number,
+): boolean {
+    return (
+        !record.isPinned &&
+        nowMs - (record.lastUsedAtMs || record.generatedAtMs) >
+            settings.maxUnusedDays * 86_400_000
+    );
+}
 export interface ScopeState {
     revision: number;
     generation: number;
@@ -1002,12 +1017,17 @@ export class MemoryStore {
             return true;
         });
     }
+    /**
+     * Publishes a summary built from `inputs`. With `retention`, unused memories it no longer
+     * draws on are deleted with it.
+     */
     completeConsolidation(
         lease: JobLease,
         revision: number,
         inputs: Record<string, string>,
         summary: string,
         nowMs: number,
+        retention?: Pick<MemorySettings, "maxUnusedDays">,
     ): boolean {
         return this.transaction(() => {
             if (
@@ -1026,6 +1046,17 @@ export class MemoryStore {
                     Object.keys(inputs).length ? nowMs : 0,
                     lease.scope,
                 );
+            if (
+                retention &&
+                this.retireUnused(lease.scope, retention, nowMs, inputs)
+            ) {
+                this.changed(lease.scope, false);
+                this.database
+                    .prepare(
+                        "UPDATE scopes SET generation = generation + 1 WHERE scope = ?",
+                    )
+                    .run(lease.scope);
+            }
             this.succeeded(lease, nowMs);
             this.publish(lease.scope, nowMs);
             return true;
@@ -1142,41 +1173,68 @@ export class MemoryStore {
             this.changed(scope, false);
         });
     }
+    /** Deletes a memory and leaves a tombstone so its conversation is not turned into memory again. */
+    private deleteRecord(scope: string, record: MemoryRecord): void {
+        this.database
+            .prepare("DELETE FROM records WHERE scope = ? AND id = ?")
+            .run(scope, record.id);
+        this.database
+            .prepare(
+                "INSERT OR IGNORE INTO tombstones(scope,source_id) VALUES (?,?)",
+            )
+            .run(scope, record.source?.id ?? record.id);
+    }
+    /**
+     * Deletes unused memories that a summary built from `inputs` does not draw on. One it draws on
+     * stays until consolidation leaves it out, so the summary never points at a deleted source.
+     */
+    private retireUnused(
+        scope: string,
+        settings: Pick<MemorySettings, "maxUnusedDays">,
+        nowMs: number,
+        inputs: Record<string, string>,
+    ): boolean {
+        let isRetired = false;
+        for (const record of this.records(scope, nowMs)) {
+            if (!isUnused(record, settings, nowMs) || record.path in inputs)
+                continue;
+            this.deleteRecord(scope, record);
+            isRetired = true;
+        }
+        return isRetired;
+    }
+    /**
+     * Retention cleanup. A memory past the expiry the user set is deleted now and clears the
+     * summary; an unused memory leaves the summary at the next consolidation, then storage.
+     */
     prune(scope: string, settings: MemorySettings, nowMs: number): void {
         this.transaction(() => {
             this.ensureScope(scope);
             const rows = this.database
                 .prepare("SELECT value FROM records WHERE scope = ?")
                 .all(scope) as { value: string }[];
-            let changed = false;
+            let isExpired = false;
             for (const row of rows) {
                 const record = JSON.parse(row.value) as MemoryRecord;
-                const expired =
-                    record.expiresAtMs !== null && record.expiresAtMs <= nowMs;
-                const unused =
-                    !record.isPinned &&
-                    nowMs - (record.lastUsedAtMs || record.generatedAtMs) >
-                        settings.maxUnusedDays * 86_400_000;
-                if (!expired && !unused) continue;
-                this.database
-                    .prepare("DELETE FROM records WHERE scope = ? AND id = ?")
-                    .run(scope, record.id);
-                changed = true;
-                this.database
-                    .prepare(
-                        "INSERT OR IGNORE INTO tombstones(scope,source_id) VALUES (?,?)",
-                    )
-                    .run(scope, record.source?.id ?? record.id);
+                if (record.expiresAtMs === null || record.expiresAtMs > nowMs)
+                    continue;
+                this.deleteRecord(scope, record);
+                isExpired = true;
             }
-            if (changed) {
-                this.changed(scope, true);
-                this.database
-                    .prepare(
-                        "UPDATE scopes SET generation = generation + 1 WHERE scope = ?",
-                    )
-                    .run(scope);
-                this.publish(scope, nowMs);
-            }
+            const isRetired = this.retireUnused(
+                scope,
+                settings,
+                nowMs,
+                this.state(scope).inputs,
+            );
+            if (!isExpired && !isRetired) return;
+            this.changed(scope, isExpired);
+            this.database
+                .prepare(
+                    "UPDATE scopes SET generation = generation + 1 WHERE scope = ?",
+                )
+                .run(scope);
+            this.publish(scope, nowMs);
         });
     }
     reset(scope: string, nowMs = Date.now()): void {
