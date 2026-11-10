@@ -1,0 +1,10 @@
+@buyong/pi-background-exec
+
+src/herdr-agent-state.ts is derived from the Pi integration of Herdr
+(https://github.com/herdrdev/herdr), file
+src/integration/assets/pi/herdr-agent-state.ts, integration version 9, as
+shipped with Herdr 0.9.5 (revision ee5bfb5041bb3e4a49d591c72308aae3c81ecdde).
+Herdr is licensed under the Apache License, Version 2.0. The file was changed
+for this package; the changes are listed at the top of the file.
+
+This package is not affiliated with or endorsed by the Herdr project.

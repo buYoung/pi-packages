@@ -1,0 +1,65 @@
+{
+  "name": "@buyong/pi-background-exec",
+  "version": "0.1.0",
+  "description": "Background shell jobs for Pi that wake the agent with their results, and Herdr agent state that stays working until those jobs finish.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "type": "module",
+  "keywords": [
+    "pi-package"
+  ],
+  "files": [
+    "src/",
+    "skills/",
+    "README.md",
+    "README.ko.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buYoung/pi-packages.git",
+    "directory": "apps/pi-background-exec"
+  },
+  "homepage": "https://github.com/buYoung/pi-packages/tree/main/apps/pi-background-exec#readme",
+  "bugs": {
+    "url": "https://github.com/buYoung/pi-packages/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run test:unit",
+    "test:unit": "vitest run"
+  },
+  "pi": {
+    "extensions": [
+      "./src/background-exec.ts",
+      "./src/herdr-agent-state.ts"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [],
+    "themes": []
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "typebox": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
