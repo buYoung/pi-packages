@@ -16,12 +16,6 @@ Runs long shell commands such as builds, tests, and simulations in the backgroun
 pi install npm:@buyong/pi-background-exec
 ```
 
-The package is not on npm yet. Until it is, install it from this checkout:
-
-```sh
-pi install /absolute/path/to/pi-packages/apps/pi-background-exec
-```
-
 If you already load your own copy of `background_exec`, for example `~/.pi/agent/extensions/background-exec.ts`, remove it first. Two extensions that register the same tool name collide.
 
 ## What you get

@@ -16,12 +16,6 @@
 pi install npm:@buyong/pi-background-exec
 ```
 
-아직 npm에 올라가지 않았습니다. 그전까지는 이 저장소에서 설치합니다.
-
-```sh
-pi install /absolute/path/to/pi-packages/apps/pi-background-exec
-```
-
 `~/.pi/agent/extensions/background-exec.ts`처럼 `background_exec`를 등록하는 확장을 따로 쓰고 있다면 먼저 지우세요. 같은 도구 이름을 등록하는 확장이 둘이면 충돌합니다.
 
 ## 제공하는 것

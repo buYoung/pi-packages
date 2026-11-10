@@ -26,7 +26,7 @@ These apps install into Pi. Each README states its requirements, setup, and firs
 
 The new memory package is available from this source checkout; registry publication has not been established. See its README for local installation.
 
-`pi-mcp-adapter` and `pi-background-exec` are not published to npm yet. See their READMEs to install them from this checkout.
+`pi-mcp-adapter` is not published to npm yet. See its README to install it from this checkout.
 
 Install a published app by its npm name, for example:
 
