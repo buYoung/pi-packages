@@ -13,6 +13,7 @@ import {
     type JobLease,
     type MemoryStore,
     type RolloutSource,
+    sourceSessionId,
 } from "./store.js";
 
 /** Sessions that become memory at once in one scope, as in Codex's extraction concurrency. */
@@ -441,7 +442,7 @@ export class MemoryCoordinator {
             if (
                 this.#workers.has(source.id) ||
                 manual?.claimed.has(source.id) ||
-                store.isSessionOpen(source.sessionId, now()) ||
+                store.isSessionOpen(sourceSessionId(source), now()) ||
                 !needsExtraction(store, scope, source, now()) ||
                 !store.isClaimable(
                     scope,
@@ -469,7 +470,7 @@ export class MemoryCoordinator {
             )
                 return "blocked";
             // The session may have reopened while the model was checked.
-            if (store.isSessionOpen(source.sessionId, now())) continue;
+            if (store.isSessionOpen(sourceSessionId(source), now())) continue;
             const lease = store.claim(
                 scope,
                 key,

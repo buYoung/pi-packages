@@ -24,7 +24,7 @@ import {
     scanSources,
     sourceScope,
 } from "./sources.js";
-import { MemoryStore } from "./store.js";
+import { MemoryStore, sourceSessionId } from "./store.js";
 
 const JOBS_FAILED =
     "Some memory jobs failed. Open /codex-memory-settings and choose Show what failed.";
@@ -397,7 +397,7 @@ export class MemoryRuntime {
                 force: true,
                 onJobChange: () => this.changed(),
                 checkSource: (source, requestSignal) =>
-                    source.sessionId === this.sessionId
+                    sourceSessionId(source) === this.sessionId
                         ? Promise.resolve(
                               isSameSource(
                                   currentSources(

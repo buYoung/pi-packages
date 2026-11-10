@@ -28,6 +28,7 @@ import {
     type MemoryRecord,
     type MemoryStore,
     type RolloutSource,
+    sourceSessionId,
 } from "./store.js";
 
 const extractionPrompt = readFileSync(
@@ -409,7 +410,7 @@ export function needsExtraction(
 ): boolean {
     return (
         !store.isSourceExcluded(scope, source) &&
-        !store.isBusy(scope, source.sessionId, nowMs) &&
+        !store.isBusy(scope, sourceSessionId(source), nowMs) &&
         !store.hasCompleted(scope, `extract:${source.id}`, source.fingerprint)
     );
 }
@@ -528,7 +529,7 @@ export function createStages(options: StageOptions) {
             const envelope = {
                 rollout_path: mask(source.file),
                 rollout_primary_cwd_hint: mask(source.cwd),
-                source_thread_id: source.sessionId,
+                source_thread_id: sourceSessionId(source),
                 source_leaf_id: source.leafId,
                 ...(source.part
                     ? {
@@ -573,7 +574,7 @@ export function createStages(options: StageOptions) {
             );
             signal.throwIfAborted();
             if (
-                store.isBusy(scope, source.sessionId, now()) ||
+                store.isBusy(scope, sourceSessionId(source), now()) ||
                 !(await checkSource(source, signal)) ||
                 !store.completeExtraction(
                     lease,

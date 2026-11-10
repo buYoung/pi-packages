@@ -42,7 +42,8 @@ import {
 export interface RolloutSource {
     /** The part's ID; the session ID when the session is one part. */
     id: string;
-    sessionId: string;
+    /** Absent from a source built before sessions had parts, whose id is the session ID. */
+    sessionId?: string;
     cwd: string;
     file: string;
     leafId: string | null;
@@ -61,13 +62,17 @@ export interface RolloutSource {
 /** A memory's provenance. Memories made before sessions had parts carry no sessionId; their id is the session ID. */
 export type RecordSource = Omit<
     RolloutSource,
-    "text" | "sessionId" | "partIds" | "fileSizeBytes" | "fileModifiedAtMs"
-> & { sessionId?: string };
+    "text" | "partIds" | "fileSizeBytes" | "fileModifiedAtMs"
+>;
+/** The session a source came from. */
+export function sourceSessionId(
+    source: Pick<RolloutSource, "id" | "sessionId">,
+): string {
+    return source.sessionId ?? source.id;
+}
 /** The session a memory came from. */
 function recordSessionId(record: MemoryRecord): string | undefined {
-    return record.source
-        ? (record.source.sessionId ?? record.source.id)
-        : undefined;
+    return record.source ? sourceSessionId(record.source) : undefined;
 }
 /** Tombstone keys that exclude a memory's source: its session and its own part. */
 function sourceKeys(record: MemoryRecord): string[] {
@@ -732,7 +737,7 @@ export class MemoryStore {
     /** Forgetting a memory excludes its whole session; retention excludes only its own part. */
     isSourceExcluded(scope: string, source: RolloutSource): boolean {
         const isForgotten = (target: string) =>
-            this.isForgotten(target, source.sessionId) ||
+            this.isForgotten(target, sourceSessionId(source)) ||
             this.isForgotten(target, source.id);
         return (
             isForgotten(scope) ||
@@ -1092,7 +1097,7 @@ export class MemoryStore {
             if (
                 record.kind !== "rollout" ||
                 record.id === source.id ||
-                recordSessionId(record) !== source.sessionId ||
+                recordSessionId(record) !== sourceSessionId(source) ||
                 source.partIds.includes(record.id)
             )
                 continue;
