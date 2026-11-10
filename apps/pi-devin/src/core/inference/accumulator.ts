@@ -40,7 +40,10 @@ function argumentsError(call: ToolCall): string | undefined {
   }
 }
 
-/** Attaches argument deltas without an ID to the call that started with the first ID. Ambiguous parallel deltas are rejected. */
+/**
+ * Attaches argument deltas without an ID to the call the latest ID-carrying frame named. Backends stream parallel calls one
+ * after another, each ID followed by its own deltas. A delta is ambiguous, and rejected, when that frame named several calls.
+ */
 export class ChatAccumulator {
   readonly message: ChatMessage = { messageId: "", source: "CHAT_MESSAGE_SOURCE_SYSTEM", prompt: "" };
   readonly usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
@@ -48,6 +51,8 @@ export class ChatAccumulator {
   /** Calls the server marked as invalid JSON. Their arguments are reported, never parsed into a runnable call. */
   private readonly serverArgumentErrors = new Set<string>();
   private currentCall?: ToolCall;
+  /** Whether the frame that set `currentCall` named more than one call, so an ID-less delta cannot tell them apart. */
+  private isCurrentCallAmbiguous = false;
   private hasEnded = false;
   private readonly startedAt = performance.now();
   private firstDeltaMs?: number;
@@ -109,6 +114,7 @@ export class ChatAccumulator {
     const self = this;
     return Effect.gen(function* () {
       if (!Array.isArray(deltas)) return yield* failWith("deltaToolCalls must be an array.");
+      const namedIDs = new Set(deltas.map((delta) => Predicate.isObject(delta) && Predicate.isString(delta.id) ? delta.id : "").filter(Boolean));
       for (const value of deltas) {
         const delta = yield* object(value, "tool delta");
         const id = Predicate.isString(delta.id) && delta.id ? delta.id : undefined;
@@ -119,9 +125,10 @@ export class ChatAccumulator {
             self.calls.set(id, call);
           }
           self.currentCall = call;
+          self.isCurrentCallAmbiguous = namedIDs.size > 1;
         } else {
           self.idlessToolDeltaCount++;
-          if (deltas.length !== 1 || !self.currentCall || self.calls.size > 1) {
+          if (deltas.length !== 1 || !self.currentCall || self.isCurrentCallAmbiguous) {
             return yield* failWith("Cannot attach a delta without a tool ID to a specific call.");
           }
         }
