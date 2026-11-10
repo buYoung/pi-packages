@@ -24,11 +24,7 @@ These apps install into Pi. Each README states its requirements, setup, and firs
 | [`apps/pi-codex-memory`](apps/pi-codex-memory) | `@buyong/pi-codex-memory` | Codex memory v2 extraction, consolidation, recall and `/codex-memory` management (Pi 1.4.0+) |
 | [`apps/pi-redact`](apps/pi-redact) | `@buyong/pi-redact` | Masks credentials in tool results and every model request before they reach a language model |
 
-The new memory package is available from this source checkout; registry publication has not been established. See its README for local installation.
-
-`pi-mcp-adapter` is not published to npm yet. See its README to install it from this checkout.
-
-Install a published app by its npm name, for example:
+Install an app by its npm name, for example:
 
 ```sh
 pi install npm:@buyong/pi-codex

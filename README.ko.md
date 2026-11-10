@@ -24,11 +24,7 @@
 | [`apps/pi-codex-memory`](apps/pi-codex-memory) | `@buyong/pi-codex-memory` | Codex memory v2 추출·통합·조회와 `/codex-memory` 관리(Pi 1.4.0+) |
 | [`apps/pi-redact`](apps/pi-redact) | `@buyong/pi-redact` | 도구 결과와 모든 모델 요청의 인증 정보를 언어 모델로 보내기 전에 가림 |
 
-새 메모리 패키지는 소스 체크아웃에서 사용할 수 있으며 npm 게시 여부는 확인하지 않았습니다. 로컬 설치는 해당 README를 따르세요.
-
-`pi-mcp-adapter`는 아직 npm에 게시하지 않았습니다. 이 체크아웃에서 설치하는 방법은 해당 README를 따르세요.
-
-게시된 앱은 npm 이름으로 설치합니다. 예:
+앱은 npm 이름으로 설치합니다. 예:
 
 ```sh
 pi install npm:@buyong/pi-codex
