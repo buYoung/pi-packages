@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
 ### New
 
 - In `/codex-memory`, **Memory model** and **Summary model** pick a model and then its thinking level: **Default** or one of the levels that model offers. Each row shows the level it uses, such as `· high`.

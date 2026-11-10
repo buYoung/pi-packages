@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-11-10
+
+### New
+
+- **Memory model** and **Summary model** in `/codex-memory` now also set a thinking level, and **Use current Pi model** follows the Pi session's thinking level (included `@buyong/pi-codex-memory` 0.2.0).
+
 ## [0.6.4] - 2026-11-07
 
 ### Improved
