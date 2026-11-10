@@ -70,7 +70,7 @@ The agent sees a memory summary with each request and searches and reads memory 
 Memory: on · 1 cited
 ```
 
-`1 cited` appears only when the last answer cited memory that the agent actually read; a citation that does not match what was read shows a warning instead. While a memory job runs in any Pi session of the scope, every session shows it, for example `Memory: on · creating 3 memories…` or `Memory: on · updating summary…`; other sessions catch up within 30 seconds. `update failed` means a memory job failed and has not succeeded since.
+`1 cited` appears only when the last answer cited memory that the agent actually read, or that the summary sent with that request showed; a citation that matches neither shows a warning instead. While a memory job runs in any Pi session of the scope, every session shows it, for example `Memory: on · creating 3 memories…` or `Memory: on · updating summary…`; other sessions catch up within 30 seconds. `update failed` means a memory job failed and has not succeeded since.
 
 Memory is a record of past conversations. It does not prove the code is still in that state, so check important points against the code.
 
@@ -144,7 +144,7 @@ Settings are saved per scope. In `/codex-memory-settings`, Enter or Space cycles
 | Create memories after | 2 hours idle | 15 minutes, 30 minutes, 60 minutes, 2 hours, 6 hours | How long after its last message a closed conversation becomes memory. A shorter wait makes memories appear sooner, but a conversation you reopen and continue is extracted again. |
 | Update the summary every | 2 hours | 15 minutes, 30 minutes, 60 minutes, 2 hours, 3 hours, 6 hours | New memories can be searched right away; this is how often they are merged into the summary sent with each request. |
 | Use conversations from the last | 7 days | 1, 3, 7, 14, 30 days | Conversations whose last message is older are skipped, except when you choose **All closed conversations** for a manual run. |
-| Delete unused memories after | 30 days | 7, 30, 90, 365 days | Memories you asked the agent to save and memories you edited are kept. |
+| Delete unused memories after | 30 days | 7, 30, 90, 365 days | A memory counts as used when an answer cites it. An unused memory that the summary draws on first leaves the summary at its next update, then is deleted. Memories you asked the agent to save and memories you edited are kept. |
 
 These are fixed: up to 8 conversations at once, 256 KiB of input per model call and a 12 KiB summary per request.
 
@@ -152,7 +152,7 @@ For how the defaults were chosen and when to change them, see the [verification 
 
 ## Verification
 
-Every code change runs 128 tests, a TUI smoke check and a package check, all without a model. With real models, a scenario set six facts in a 16-turn conversation and asked for them again in a new session. With memory on, both tested models (Haiku and Luna) answered all six; with memory off, neither answered any. Another check ran several real Pi processes: only closed conversations became memory, each once, and another session took over when the coordinating process was killed. The commands, token use and limits are in the [verification report](docs/verification.md).
+Every code change runs 133 tests, a TUI smoke check and a package check, all without a model. With real models, a scenario set six facts in a 16-turn conversation and asked for them again in a new session. With memory on, both tested models (Haiku and Luna) answered all six; with memory off, neither answered any. Another check ran several real Pi processes: only closed conversations became memory, each once, and another session took over when the coordinating process was killed. The commands, token use and limits are in the [verification report](docs/verification.md).
 
 From the repository root, after installing dependencies:
 

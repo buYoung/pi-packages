@@ -22,11 +22,12 @@ import {
     fitJSONString,
 } from "./safety.js";
 import { isSourceUnchanged } from "./sources.js";
-import type {
-    JobLease,
-    MemoryRecord,
-    MemoryStore,
-    RolloutSource,
+import {
+    isUnused,
+    type JobLease,
+    type MemoryRecord,
+    type MemoryStore,
+    type RolloutSource,
 } from "./store.js";
 
 const extractionPrompt = readFileSync(
@@ -246,8 +247,10 @@ export function consolidationInput(
     records: MemoryRecord[];
 } {
     const state = store.state(scope);
+    // An unused memory goes to `removed`, so the summary drops what only it supported.
     const candidates = store
         .records(scope, nowMs)
+        .filter((record) => !isUnused(record, settings, nowMs))
         .sort(
             (a, b) =>
                 Number(b.isPinned) - Number(a.isPinned) ||
@@ -607,6 +610,7 @@ export function createStages(options: StageOptions) {
                 prepared.inputs,
                 summary,
                 now(),
+                settings,
             );
             if (!published) store.fail(lease, now(), 0, true, "superseded");
             return {

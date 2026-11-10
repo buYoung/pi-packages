@@ -38,9 +38,12 @@ text, but keep the `|note=` key and the returned path/range. Use returned actual
 end_line_number, NOT the requested max_lines. Do not estimate line numbers.
 
 When a read or search result informs the answer, append one citation block at
-the end of the final reply, outside code fences. Do not cite `memory_summary.md`.
-Use only complete lines actually returned by read/search in this turn. A listed
+the end of the final reply, outside code fences. Never put `memory_summary.md` in
+citation_entries. Use only complete lines actually returned by read/search in this turn. A listed
 filename, an injected pointer or a truncated line is not evidence that you read it.
+When the injected summary informs the answer, also put in rollout_ids the exact
+thread_id values it shows for the items you used; if you read nothing, leave
+citation_entries empty.
 
 <oai-mem-citation>
 <citation_entries>

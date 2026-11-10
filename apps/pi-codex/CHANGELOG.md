@@ -8,6 +8,10 @@
 
 - **Memory model** and **Summary model** in `/codex-memory` now also set a thinking level, and **Use current Pi model** follows the Pi session's thinking level (included `@buyong/pi-codex-memory` 0.2.0).
 
+### Improved
+
+- Unused memories leave the summary at its next update instead of emptying it, and answers that cite the summary count as memory use (included `@buyong/pi-codex-memory` 0.2.0).
+
 ## [0.6.4] - 2026-11-07
 
 ### Improved

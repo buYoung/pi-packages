@@ -90,11 +90,21 @@ function page<T>(
         truncated: next < values.length,
     };
 }
+/** Whether `text` contains `id` as a whole identifier, not inside a longer one. */
+function hasIdentifier(text: string, id: string): boolean {
+    const isPart = (character: string | undefined) =>
+        !!character && /[A-Za-z0-9_-]/.test(character);
+    for (let at = text.indexOf(id); at >= 0; at = text.indexOf(id, at + 1))
+        if (!isPart(text[at - 1]) && !isPart(text[at + id.length])) return true;
+    return false;
+}
 export class MemoryReader {
     private readonly observed = new Map<
         string,
         { hash: string; sourceId: string | null; lines: Set<number> }
     >();
+    /** The memory context added to the model call that produced the latest answer. */
+    private injected = "";
     private readCount = 0;
     private searchCount = 0;
     private citations = {
@@ -120,9 +130,25 @@ export class MemoryReader {
     }
     resetObserved(): void {
         this.observed.clear();
+        this.injected = "";
         this.readCount = 0;
         this.searchCount = 0;
         this.citations = { valid: 0, invalid: 0, errors: [], usedPaths: [] };
+    }
+    /** Records the memory context added to a model call; each call replaces the previous one. */
+    observeInjection(text: string): void {
+        this.injected = text;
+    }
+    /** This scope's memories whose source ID the injected context shows, by ID. */
+    private injectedSources(): Map<string, string> {
+        const sources = new Map<string, string>();
+        if (!this.injected) return sources;
+        for (const record of this.store.records(this.scope)) {
+            const id = record.source?.id;
+            if (id && hasIdentifier(this.injected, id))
+                sources.set(id, record.path);
+        }
+        return sources;
     }
     evidence() {
         return {
@@ -476,6 +502,7 @@ export class MemoryReader {
                 for (const [path, body] of this.documents(scope))
                     documents.set(path, body);
         const used = new Set<string>();
+        const injected = this.injectedSources();
         const blocks = [
             ...text.matchAll(
                 /<oai-mem-citation>([\s\S]*?)<\/oai-mem-citation>/g,
@@ -504,7 +531,9 @@ export class MemoryReader {
                 .trim()
                 .split("\n")
                 .filter((line) => line.trim());
-            if (!entries || !ids || !rows.length) errors.add("invalid_format");
+            // Without entries, the IDs alone cite what the injected summary showed.
+            if (!ids || (!rows.length && !suppliedIds.size))
+                errors.add("invalid_format");
             for (const row of rows) {
                 const match =
                     /^((?:repositories\/repository-[a-f0-9]{24}\/)?(?:rollout_summaries|extensions\/ad_hoc\/notes)\/[A-Za-z0-9_-]+\.md):(\d+)-(\d+)\|note=.+$/.exec(
@@ -546,17 +575,22 @@ export class MemoryReader {
                     }
                 paths.add(path);
             }
-            if (
-                [...suppliedIds].some((id) => !expectedIds.has(id)) ||
-                [...expectedIds].some((id) => !suppliedIds.has(id))
-            )
+            // An ID without a cited entry counts when the summary sent with this answer showed it.
+            const summaryPaths = new Set<string>();
+            for (const id of suppliedIds) {
+                if (expectedIds.has(id)) continue;
+                const path = injected.get(id);
+                if (path) summaryPaths.add(path);
+                else errors.add("source_id_mismatch");
+            }
+            if ([...expectedIds].some((id) => !suppliedIds.has(id)))
                 errors.add("source_id_mismatch");
             if (errors.size) {
                 this.citations.invalid++;
                 this.citations.errors.push(...errors);
             } else {
-                this.citations.valid += rows.length;
-                for (const path of paths) used.add(path);
+                this.citations.valid += rows.length + summaryPaths.size;
+                for (const path of [...paths, ...summaryPaths]) used.add(path);
             }
         }
         this.citations.errors = [...new Set(this.citations.errors)];

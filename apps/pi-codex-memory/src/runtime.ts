@@ -304,8 +304,10 @@ export class MemoryRuntime {
         this.recallMarker = exposure;
         return true;
     }
+    /** The memory context added to a model call; the answer it produces may cite IDs shown in it. */
     recordInjection(text: string): void {
         this.injectedBytes = Buffer.byteLength(text);
+        this.reader.observeInjection(text);
     }
     evidence() {
         return { injectedBytes: this.injectedBytes, ...this.reader.evidence() };
