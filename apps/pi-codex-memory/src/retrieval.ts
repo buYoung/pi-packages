@@ -139,14 +139,14 @@ export class MemoryReader {
     observeInjection(text: string): void {
         this.injected = text;
     }
-    /** This scope's memories whose source ID the injected context shows, by ID. */
-    private injectedSources(): Map<string, string> {
-        const sources = new Map<string, string>();
+    /** This scope's memories whose source ID the injected context shows, by ID; parts of one session share it. */
+    private injectedSources(): Map<string, string[]> {
+        const sources = new Map<string, string[]>();
         if (!this.injected) return sources;
         for (const record of this.store.records(this.scope)) {
-            const id = record.source?.id;
+            const id = record.source?.sessionId ?? record.source?.id;
             if (id && hasIdentifier(this.injected, id))
-                sources.set(id, record.path);
+                sources.set(id, [...(sources.get(id) ?? []), record.path]);
         }
         return sources;
     }
@@ -577,11 +577,16 @@ export class MemoryReader {
             }
             // An ID without a cited entry counts when the summary sent with this answer showed it.
             const summaryPaths = new Set<string>();
+            let summaryIds = 0;
             for (const id of suppliedIds) {
                 if (expectedIds.has(id)) continue;
-                const path = injected.get(id);
-                if (path) summaryPaths.add(path);
-                else errors.add("source_id_mismatch");
+                const idPaths = injected.get(id);
+                if (!idPaths) {
+                    errors.add("source_id_mismatch");
+                    continue;
+                }
+                summaryIds++;
+                for (const path of idPaths) summaryPaths.add(path);
             }
             if ([...expectedIds].some((id) => !suppliedIds.has(id)))
                 errors.add("source_id_mismatch");
@@ -589,7 +594,7 @@ export class MemoryReader {
                 this.citations.invalid++;
                 this.citations.errors.push(...errors);
             } else {
-                this.citations.valid += rows.length + summaryPaths.size;
+                this.citations.valid += rows.length + summaryIds;
                 for (const path of [...paths, ...summaryPaths]) used.add(path);
             }
         }

@@ -22,7 +22,11 @@ export interface RepositoryObservation {
     worktreeRoot: string;
     branchAtCapture: string | null;
     capturedAtMs: number;
-    binding: "session_start" | "current_location";
+    /**
+     * session_start covers the whole session; attached covers a conversation from the point memory
+     * first saw it; current_location is the session folder's repository when it was read.
+     */
+    binding: "session_start" | "attached" | "current_location";
 }
 function metadata(path: string): string {
     const stat = lstatSync(path);

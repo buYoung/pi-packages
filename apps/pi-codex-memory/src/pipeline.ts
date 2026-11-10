@@ -28,6 +28,7 @@ import {
     type MemoryRecord,
     type MemoryStore,
     type RolloutSource,
+    sourceSessionId,
 } from "./store.js";
 
 const extractionPrompt = readFileSync(
@@ -235,6 +236,15 @@ export function parseConsolidation(
     }
     return summary;
 }
+/** When a memory's conversation took place: its last message, or when a note was written. */
+function conversationTime(record: MemoryRecord): number {
+    return record.source?.updatedAtMs ?? record.generatedAtMs;
+}
+/**
+ * The next summary request. The summary reflects every current memory: when they do not all fit,
+ * only added and changed ones go, newest conversation first, and what does not fit waits for the
+ * next request, which builds on the summary this one produces.
+ */
 export function consolidationInput(
     store: MemoryStore,
     scope: string,
@@ -242,13 +252,19 @@ export function consolidationInput(
     nowMs: number,
 ): {
     text: string;
+    /** The digest of every memory the summary reflects once this request succeeds. */
     inputs: Record<string, string>;
     revision: number;
+    /** The memories supplied in full. */
     records: MemoryRecord[];
+    /** Every memory the summary reflects once this request succeeds. */
+    reflected: MemoryRecord[];
+    /** Added or changed memories left for a later request. */
+    remaining: number;
 } {
     const state = store.state(scope);
     // An unused memory goes to `removed`, so the summary drops what only it supported.
-    const candidates = store
+    const current = store
         .records(scope, nowMs)
         .filter((record) => !isUnused(record, settings, nowMs))
         .sort(
@@ -258,56 +274,102 @@ export function consolidationInput(
                 (b.lastUsedAtMs || b.generatedAtMs) -
                     (a.lastUsedAtMs || a.generatedAtMs) ||
                 a.path.localeCompare(b.path),
-        );
-    const records: MemoryRecord[] = [];
-    let bytes = Buffer.byteLength(state.summary) + 32 * 1024;
-    for (const record of candidates) {
-        const size =
-            Buffer.byteLength(
-                JSON.stringify({
-                    path: record.path,
-                    content: store.document(record),
-                }),
-            ) + 2;
-        if (
-            records.length >= settings.maxSources ||
-            bytes + size >
-                settings.maxInputBytes - Buffer.byteLength(consolidationPrompt)
         )
-            continue;
-        records.push(record);
-        bytes += size;
+        .slice(0, settings.maxSources);
+    const digests = new Map(
+        current.map((record) => [record.path, digest(store.document(record))]),
+    );
+    // A cleared summary reflects nothing, whatever it was built from.
+    const before: Record<string, string> = state.summary ? state.inputs : {};
+    const isPending = (record: MemoryRecord) =>
+        before[record.path] !== digests.get(record.path);
+    const document = (record: MemoryRecord) => ({
+        path: record.path,
+        thread_id: record.source?.sessionId ?? record.source?.id ?? null,
+        content: store.document(record),
+    });
+    const size = (record: MemoryRecord) =>
+        Buffer.byteLength(JSON.stringify(document(record))) + 2;
+    // The manifest names each current memory at most once.
+    const budget =
+        settings.maxInputBytes -
+        Buffer.byteLength(consolidationPrompt) -
+        Buffer.byteLength(state.summary) -
+        32 * 1024 -
+        Buffer.byteLength(JSON.stringify(current.map((record) => record.path)));
+    const pending = current.filter(isPending);
+    // When every memory fits, all go as evidence for what the summary keeps. Otherwise only
+    // waiting ones go, newest conversation first, and the summary stands for the rest.
+    const records: MemoryRecord[] = [];
+    if (current.reduce((bytes, record) => bytes + size(record), 0) <= budget)
+        records.push(...current);
+    else {
+        let bytes = 0;
+        for (const record of [...pending].sort(
+            (a, b) =>
+                Number(b.isPinned) - Number(a.isPinned) ||
+                conversationTime(b) - conversationTime(a) ||
+                a.path.localeCompare(b.path),
+        )) {
+            if (bytes + size(record) > budget) continue;
+            records.push(record);
+            bytes += size(record);
+        }
+        // Every request takes at least one waiting memory, so the summary reaches them all.
+        if (pending.length && !records.length)
+            throw new MemoryFailure("input_budget");
     }
-    if (candidates.length && !records.length)
-        throw new MemoryFailure("input_budget");
-    records.sort((a, b) => a.path.localeCompare(b.path));
+    const isSupplied = new Set(records.map((record) => record.path));
+    const byPath = (a: MemoryRecord, b: MemoryRecord) =>
+        a.path.localeCompare(b.path);
+    records.sort(byPath);
+    // A changed memory not supplied stays reflected as it was.
+    const reflected = current
+        .filter(
+            (record) => isSupplied.has(record.path) || record.path in before,
+        )
+        .sort(byPath);
     const inputs = Object.fromEntries(
-        records.map((record) => [record.path, digest(store.document(record))]),
+        reflected.map((record) => [
+            record.path,
+            isSupplied.has(record.path)
+                ? digests.get(record.path)!
+                : before[record.path]!,
+        ]),
     );
     const changes = {
-        added: Object.keys(inputs).filter((path) => !(path in state.inputs)),
-        changed: Object.keys(inputs).filter(
-            (path) =>
-                path in state.inputs && inputs[path] !== state.inputs[path],
-        ),
-        removed: Object.keys(state.inputs).filter((path) => !(path in inputs)),
+        added: records
+            .filter((record) => !(record.path in before))
+            .map((record) => record.path),
+        changed: records
+            .filter((record) => record.path in before && isPending(record))
+            .map((record) => record.path),
+        removed: Object.keys(before).filter((path) => !digests.has(path)),
+        retained: reflected
+            .filter((record) => !isSupplied.has(record.path))
+            .map((record) => record.path),
     };
     const text = JSON.stringify({
         memory_version: 2,
         changes,
         previous_memory_summary: state.summary,
-        documents: records.map((record) => ({
-            path: record.path,
-            thread_id: record.source?.id ?? null,
-            content: store.document(record),
-        })),
+        previous_memory_summary_bytes: Buffer.byteLength(state.summary),
+        documents: records.map(document),
     });
     if (
         Buffer.byteLength(text) + Buffer.byteLength(consolidationPrompt) >
         settings.maxInputBytes
     )
         throw new MemoryFailure("input_budget");
-    return { text, inputs, revision: state.revision, records };
+    return {
+        text,
+        inputs,
+        revision: state.revision,
+        records,
+        reflected,
+        remaining: pending.filter((record) => !isSupplied.has(record.path))
+            .length,
+    };
 }
 export interface PipelineResult {
     extracted: number;
@@ -329,6 +391,8 @@ export interface StageOptions {
         source: RolloutSource,
         signal: AbortSignal,
     ) => Promise<boolean>;
+    /** A one-off request, such as the create-memory script, that runs while memory is off. */
+    isExplicit?: boolean;
 }
 /**
  * A caller's cancellation keeps the job's attempt. A timeout, even one that aborted the signal
@@ -346,7 +410,7 @@ export function needsExtraction(
 ): boolean {
     return (
         !store.isSourceExcluded(scope, source) &&
-        !store.isBusy(scope, source.id, nowMs) &&
+        !store.isBusy(scope, sourceSessionId(source), nowMs) &&
         !store.hasCompleted(scope, `extract:${source.id}`, source.fingerprint)
     );
 }
@@ -432,7 +496,7 @@ export function createStages(options: StageOptions) {
         );
         requestSignal.throwIfAborted();
         if (!hasCurrentSettings()) throw new MemoryFailure("superseded");
-        store.recordCall(lease, now(), source);
+        store.recordCall(lease, now(), source, options.isExplicit);
         try {
             const reply = await abortable(
                 model.complete({
@@ -465,8 +529,18 @@ export function createStages(options: StageOptions) {
             const envelope = {
                 rollout_path: mask(source.file),
                 rollout_primary_cwd_hint: mask(source.cwd),
-                source_thread_id: source.id,
+                source_thread_id: sourceSessionId(source),
                 source_leaf_id: source.leafId,
+                ...(source.part
+                    ? {
+                          conversation_part: {
+                              number: source.part.number,
+                              is_latest: source.part.isLatest,
+                              warning:
+                                  "This rollout is one part of a longer conversation; each part is recorded separately. A later part may supersede the state this part ends with.",
+                          },
+                      }
+                    : {}),
                 ...(source.repository
                     ? {
                           repository_observation: source.repository,
@@ -500,7 +574,7 @@ export function createStages(options: StageOptions) {
             );
             signal.throwIfAborted();
             if (
-                store.isBusy(scope, source.id, now()) ||
+                store.isBusy(scope, sourceSessionId(source), now()) ||
                 !(await checkSource(source, signal)) ||
                 !store.completeExtraction(
                     lease,
@@ -531,9 +605,10 @@ export function createStages(options: StageOptions) {
         }
     }
     /**
-     * Merges current memories into the summary; skipped while cooling down unless forced.
-     * `onStart` runs once this session holds the summary job and will call the model; an empty
-     * template needs no call.
+     * Merges current memories into the summary; skipped while cooling down unless forced. When
+     * they do not fit in one request, each request builds on the summary the one before produced,
+     * until the summary reflects them all. `onStart` runs once this session holds the summary job
+     * and will call the model; an empty template needs no call.
      */
     async function consolidate(
         force: boolean,
@@ -544,94 +619,103 @@ export function createStages(options: StageOptions) {
         skipped: boolean;
     }> {
         const outcome = { consolidated: false, failed: false, skipped: false };
-        const prepared = consolidationInput(store, scope, settings, now());
-        const state = store.state(scope);
-        if (
-            JSON.stringify(prepared.inputs) === JSON.stringify(state.inputs) &&
-            state.summary
-        )
-            return outcome;
-        if (
-            !force &&
-            state.consolidatedAtMs &&
-            now() - state.consolidatedAtMs < settings.consolidationCooldownMs
-        )
-            return outcome;
-        const fingerprint = digest(
-            JSON.stringify({
-                inputs: prepared.inputs,
-                revision: prepared.revision,
-            }),
-        );
-        if (
-            prepared.records.length &&
-            !(await isModelReady(
+        for (let isFirst = true; ; isFirst = false) {
+            const prepared = consolidationInput(store, scope, settings, now());
+            const state = store.state(scope);
+            if (
+                JSON.stringify(prepared.inputs) ===
+                    JSON.stringify(state.inputs) &&
+                state.summary
+            )
+                return outcome;
+            if (
+                isFirst &&
+                !force &&
+                state.consolidatedAtMs &&
+                now() - state.consolidatedAtMs <
+                    settings.consolidationCooldownMs
+            )
+                return outcome;
+            const fingerprint = digest(
+                JSON.stringify({
+                    inputs: prepared.inputs,
+                    revision: prepared.revision,
+                }),
+            );
+            if (
+                prepared.reflected.length &&
+                !(await isModelReady(
+                    "consolidation",
+                    fingerprint,
+                    settings.consolidateModel,
+                ))
+            )
+                return { ...outcome, failed: true };
+            const lease = store.claim(
+                scope,
                 "consolidation",
                 fingerprint,
-                settings.consolidateModel,
-            ))
-        )
-            return { ...outcome, failed: true };
-        const lease = store.claim(
-            scope,
-            "consolidation",
-            fingerprint,
-            now(),
-            settings,
-            force,
-        );
-        if (!lease) return outcome;
-        if (prepared.records.length) onStart?.();
-        try {
-            let summary = EMPTY_SUMMARY;
-            if (prepared.records.length) {
-                const reply = await call(
-                    lease,
-                    "consolidation",
-                    consolidationPrompt,
-                    prepared.text,
-                );
-                summary = parseConsolidation(
-                    reply.text,
-                    new Set(Object.keys(prepared.inputs)),
-                    new Map(
-                        prepared.records.map((record) => [
-                            record.path,
-                            record.source?.id ?? null,
-                        ]),
-                    ),
-                );
-                checkGrounding(reply.input, summary);
-            }
-            signal.throwIfAborted();
-            const published = store.completeConsolidation(
-                lease,
-                prepared.revision,
-                prepared.inputs,
-                summary,
                 now(),
                 settings,
+                force,
             );
-            if (!published) store.fail(lease, now(), 0, true, "superseded");
-            return {
-                ...outcome,
-                consolidated: published && prepared.records.length > 0,
-            };
-        } catch (error) {
-            const code = memoryFailureCode(error),
-                isCancelled = isCancellation(error, signal),
-                isSuperseded = code === "superseded";
-            store.fail(
-                lease,
-                now(),
-                settings.retryDelayMs,
-                isCancelled || isSuperseded,
-                code,
-            );
-            if (isCancelled) throw error;
-            return isSuperseded
-                ? { ...outcome, skipped: true }
-                : { ...outcome, failed: true };
+            if (!lease) return outcome;
+            if (isFirst && prepared.reflected.length) onStart?.();
+            try {
+                let summary = EMPTY_SUMMARY;
+                if (prepared.reflected.length) {
+                    const reply = await call(
+                        lease,
+                        "consolidation",
+                        consolidationPrompt,
+                        prepared.text,
+                    );
+                    summary = parseConsolidation(
+                        reply.text,
+                        new Set(Object.keys(prepared.inputs)),
+                        new Map(
+                            prepared.reflected.map((record) => [
+                                record.path,
+                                record.source?.sessionId ??
+                                    record.source?.id ??
+                                    null,
+                            ]),
+                        ),
+                    );
+                    checkGrounding(reply.input, summary);
+                }
+                signal.throwIfAborted();
+                const published = store.completeConsolidation(
+                    lease,
+                    prepared.revision,
+                    prepared.inputs,
+                    summary,
+                    now(),
+                    settings,
+                );
+                if (!published) {
+                    store.fail(lease, now(), 0, true, "superseded");
+                    // After earlier requests the summary is only partly updated.
+                    return isFirst ? outcome : { ...outcome, skipped: true };
+                }
+                if (prepared.reflected.length) outcome.consolidated = true;
+                if (!prepared.remaining) return outcome;
+            } catch (error) {
+                const code = memoryFailureCode(error),
+                    isCancelled = isCancellation(error, signal),
+                    isSuperseded = code === "superseded";
+                store.fail(
+                    lease,
+                    now(),
+                    settings.retryDelayMs,
+                    isCancelled || isSuperseded,
+                    code,
+                );
+                if (isCancelled) throw error;
+                return isSuperseded
+                    ? { ...outcome, skipped: true }
+                    : { ...outcome, failed: true };
+            }
         }
     }
     return { hasCurrentSettings, isModelReady, extract, consolidate };

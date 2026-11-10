@@ -7,11 +7,13 @@ import {
 } from "./failure.js";
 import { createStages, needsExtraction, piMemoryModel } from "./pipeline.js";
 import { safeError } from "./safety.js";
+import type { ScannedFile } from "./sources.js";
 import {
     ACTIVITY_TTL_MS,
     type JobLease,
     type MemoryStore,
     type RolloutSource,
+    sourceSessionId,
 } from "./store.js";
 
 /** Sessions that become memory at once in one scope, as in Codex's extraction concurrency. */
@@ -33,7 +35,16 @@ export interface CoordinatorHost {
     scan(
         settings: MemorySettings,
         signal: AbortSignal,
-        shouldRead: (path: string, mtimeMs: number) => boolean,
+        options: {
+            shouldRead: (
+                path: string,
+                mtimeMs: number,
+                sizeBytes: number,
+            ) => boolean;
+            onFile: (file: ScannedFile) => void;
+            /** Also parts no repository binding covers, as a manual run does. */
+            allowUnbound: boolean;
+        },
     ): Promise<RolloutSource[]>;
     /** A memory menu is open, so settings may be about to change. */
     isPaused(): boolean;
@@ -374,15 +385,25 @@ export class MemoryCoordinator {
         );
         if (consolidation.failed) tally.failed++;
     }
-    /** A session file not modified since its memory was made has no new work, so it is not parsed. */
-    #mayHaveWork(path: string, mtimeMs: number): boolean {
+    /**
+     * A session file not modified since its memory was made, or, for scheduled scans, since a scan
+     * found no work in it, has no new work, so it is not parsed.
+     */
+    #mayHaveWork(
+        path: string,
+        mtimeMs: number,
+        sizeBytes: number,
+        isScheduled: boolean,
+    ): boolean {
+        const { store, scope } = this.#host;
         const id = sessionIdOf(path);
-        if (!id) return true;
-        const succeededAt = this.#host.store.succeededAt(
-            this.#host.scope,
-            `extract:${id}`,
+        const succeededAt = id
+            ? store.succeededAt(scope, `extract:${id}`)
+            : undefined;
+        if (succeededAt !== undefined && mtimeMs <= succeededAt) return false;
+        return !(
+            isScheduled && store.isScanned(scope, path, sizeBytes, mtimeMs)
         );
-        return succeededAt === undefined || mtimeMs > succeededAt;
     }
     async #dispatch(
         settings: MemorySettings,
@@ -393,10 +414,18 @@ export class MemoryCoordinator {
         const { store, scope } = this.#host;
         const now = () => this.#host.now();
         const force = !!manual;
+        const files: ScannedFile[] = [];
+        // A manual run is an explicit request, so it also takes parts of conversations that
+        // began before memory saw them, attributed by their folder's current repository.
         const sources = await this.#host.scan(
             manual?.scanSettings ?? settings,
             signal,
-            (path, mtimeMs) => this.#mayHaveWork(path, mtimeMs),
+            {
+                shouldRead: (path, mtimeMs, sizeBytes) =>
+                    this.#mayHaveWork(path, mtimeMs, sizeBytes, !manual),
+                onFile: (file) => files.push(file),
+                allowUnbound: !!manual,
+            },
         );
         const stages = createStages({
             store,
@@ -413,7 +442,7 @@ export class MemoryCoordinator {
             if (
                 this.#workers.has(source.id) ||
                 manual?.claimed.has(source.id) ||
-                store.isSessionOpen(source.id, now()) ||
+                store.isSessionOpen(sourceSessionId(source), now()) ||
                 !needsExtraction(store, scope, source, now()) ||
                 !store.isClaimable(
                     scope,
@@ -441,7 +470,7 @@ export class MemoryCoordinator {
             )
                 return "blocked";
             // The session may have reopened while the model was checked.
-            if (store.isSessionOpen(source.id, now())) continue;
+            if (store.isSessionOpen(sourceSessionId(source), now())) continue;
             const lease = store.claim(
                 scope,
                 key,
@@ -454,6 +483,29 @@ export class MemoryCoordinator {
             manual?.claimed.add(source.id);
             this.#start(source, lease, settings, settingsSnapshot, signal);
         }
+        // A file whose every part is made, excluded or out of attempts is not parsed again
+        // until it changes; parsing a long session costs seconds.
+        signal.throwIfAborted();
+        if (!manual)
+            for (const file of files)
+                if (
+                    file.sources.every(
+                        (source) =>
+                            store.isSourceExcluded(scope, source) ||
+                            store.isSettled(
+                                scope,
+                                `extract:${source.id}`,
+                                source.fingerprint,
+                                settings,
+                            ),
+                    )
+                )
+                    store.markScanned(
+                        scope,
+                        file.path,
+                        file.sizeBytes,
+                        file.modifiedAtMs,
+                    );
         return "done";
     }
     #start(

@@ -928,11 +928,20 @@ test("settings cycle preset values in place, keep a stored custom value in the c
         },
     });
     plain.hasUI = true;
-    const picks = ["Delete unused memories after", "90 days", undefined];
+    const picks = [
+        "Delete unused memories after",
+        "90 days",
+        "Stop a model call after",
+        "5 minutes",
+        undefined,
+    ];
     await settingsCommand(commandOptions(plain, runtime));
     assert.ok(rows[0].includes("Delete unused memories after: 30 days"));
     assert.deepEqual(rows[1], ["7 days", "30 days", "90 days", "365 days"]);
     assert.equal(runtime.settings().maxUnusedDays, 90);
+    assert.ok(rows[0].includes("Stop a model call after: 10 minutes"));
+    assert.deepEqual(rows[3], ["2 minutes", "5 minutes", "10 minutes"]);
+    assert.equal(runtime.settings().timeoutMs, 5 * 60_000);
     await runtime.dispose();
 });
 test("an in-place change that stops a running job swaps Stop current job for Remember this conversation now", async (t) => {

@@ -110,6 +110,14 @@ export function createMemoryMasker(): (text: string) => string {
     return (text) => redactor.redactText(text);
 }
 /** Reject newly invented contact identifiers and host paths; explicit user notes are not filtered. */
+/** Whether `text` names `value` on its own, not as part of a longer name or another folder's file. */
+function namesWhole(text: string, value: string): boolean {
+    const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(
+        `(?<![\\p{L}\\p{N}_.~/\\\\-])${escaped}(?![\\p{L}\\p{N}_.~-])`,
+        "u",
+    ).test(text);
+}
 export function createMemoryGroundingGuard(): (
     input: string,
     output: string,
@@ -125,6 +133,17 @@ export function createMemoryGroundingGuard(): (
                 pending.push(...Object.values(value));
         }
         const evidence = values.join("\n");
+        const hasPath = (path: string) => {
+            if (evidence.includes(path)) return true;
+            // A folder and a file name named apart, as in `cd <folder> && cat <name>`.
+            const at = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+            return (
+                at > 0 &&
+                at < path.length - 1 &&
+                namesWhole(evidence, path.slice(0, at)) &&
+                namesWhole(evidence, path.slice(at + 1))
+            );
+        };
         const emails = detector
             .scan(output)
             .detections.filter((item) => item.ruleId === "pii.email-address")
@@ -139,7 +158,7 @@ export function createMemoryGroundingGuard(): (
                 (value) =>
                     !evidence.toLowerCase().includes(value.toLowerCase()),
             ) ||
-            paths.some((value) => !evidence.includes(value))
+            paths.some((value) => !hasPath(value))
         )
             throw new MemoryFailure("ungrounded_identifier");
     };

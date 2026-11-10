@@ -37,6 +37,8 @@ pi install ./apps/pi-codex-memory
 
 `@buyong/pi-codex` 번들에도 이 확장이 들어 있습니다. 번들과 이 패키지를 함께 켜면 안 됩니다.
 
+업데이트한 뒤에는 열려 있는 Pi 세션을 모두 다시 시작하거나 각 세션에서 `/reload`를 실행하세요. 이 버전이 기억 DB를 한 번 열면 이전 버전은 그 DB를 열지 못합니다. 하지만 이미 열려 있던 세션은 처음 불러온 버전으로 계속 동작하므로, 이 버전이 만든 요약을 다시 덮어쓸 수 있습니다.
+
 ## 빠른 시작
 
 검증에 쓴 설정으로 기억을 만들고 새 세션에서 꺼내 봅니다. 기억 생성 모델과 요약 모델은 모두 `claude-haiku-5-5 [claude-bridge]`이고 시간 설정은 기본값입니다. `claude-bridge` 공급자는 [@buyong/pi-claude-bridge](https://github.com/buYoung/pi-packages/blob/main/apps/pi-claude-bridge/README.ko.md) 확장이 제공하므로 그 안내에 따라 먼저 설치해 두어야 합니다. 모델 목록은 **Use current Pi model**로 시작하고, 이어서 Pi의 `/scoped-models`에서 고른 모델이 나옵니다. 고른 모델이 없으면 쓸 수 있는 모든 모델이 나오므로 원하는 모델이 들어 있는지 확인하세요.
@@ -81,8 +83,9 @@ Memory: on · 1 cited
 기억이 켜져 있으면 닫은 대화가 백그라운드에서 기억이 됩니다. 이 작업은 기억 범위마다 열려 있는 Pi 세션 하나가 맡고, 그 세션이 닫히면 90초 안팎에 열려 있는 다른 세션이 이어받습니다. 열려 있는 Pi 세션이 하나도 없으면 처리하지 않습니다.
 
 - 대화를 닫았고 마지막 메시지 뒤 2시간이 지나면 기억이 됩니다. 열어 둔 대화는 닫을 때까지 기다립니다.
-- 한 번에 최대 8개 대화를 처리합니다.
-- 기다리는 대화가 없을 때 새 기억을 요약에 합치며, 최대 2시간에 한 번입니다.
+- 한 번에 대화나 긴 대화의 구간을 최대 8개까지 처리합니다.
+- 모델 호출 한 번에 담기지 않는 긴 대화는 compaction 지점에서 구간으로 나누고, 구간마다 기억을 따로 만듭니다. 뒤의 compaction으로 닫힌 구간은 한 번만 처리하고, 대화가 이어지면 마지막 구간만 다시 처리합니다. fork한 대화는 복사해 온 닫힌 구간을 다시 처리하지 않습니다.
+- 기다리는 대화가 없을 때 새 기억을 요약에 합치며, 최대 2시간에 한 번입니다. 기억이 모델 호출 한 번에 다 들어가지 않으면, 최근 대화부터 여러 번에 나눠 앞의 요약에 이어서 합칩니다.
 - 새로 입력하면 **Remember this conversation now** 작업만 멈춥니다. 백그라운드 작업은 닫은 대화를 읽으므로 계속 진행합니다.
 
 자기 범위나 Personal에서 기억이 켜져 있으면 Pi 세션은 30초마다 열려 있다고 기록합니다. 이 기록이 90초 동안 갱신되지 않으면, 예를 들어 Pi를 종료했거나 Pi가 비정상 종료되면 그 대화를 닫힌 것으로 봅니다. 이 확장이 없는 Pi에서 열어 둔 대화도 닫힌 것으로 봅니다.
@@ -92,16 +95,26 @@ Memory: on · 1 cited
 - **All closed conversations**: 이번 실행에서 기간 제한을 적용하지 않습니다.
 - **Last 7 days**: **Use conversations from the last** 값을 적용합니다. 설정한 일수가 이름에 표시되며, 처음에는 이 항목이 선택되어 있습니다.
 
-두 선택 모두 현재 기억 범위의 닫힌 대화만 처리하고 요약도 바로 갱신합니다. 변경 없는 대화와 잊은 기억은 다시 생성하지 않습니다. 이번 선택은 저장된 설정이나 자동 생성 동작을 바꾸지 않습니다. Esc를 누르면 작업을 시작하지 않고 기억 화면으로 돌아갑니다.
+두 선택 모두 현재 기억 범위의 닫힌 대화만 처리하고 요약도 바로 갱신합니다. 저장소에서는 기억을 설치하기 전에 시작한 대화처럼, 기억이 대화를 처음 보기 전의 내용도 포함하고 그 폴더가 지금 속한 저장소의 기억으로 만듭니다. 자동 생성은 이 부분을 빼고 처리합니다. 변경 없는 대화와 잊은 기억은 다시 생성하지 않습니다. 이번 선택은 저장된 설정이나 자동 생성 동작을 바꾸지 않습니다. Esc를 누르면 작업을 시작하지 않고 기억 화면으로 돌아갑니다.
 
 기억을 끄면 저장된 기억은 남지만 쓰지도 새로 만들지도 않습니다.
+
+### 터미널에서 세션 파일 하나를 기억으로 만들기
+
+[설치](#설치)처럼 빌드한 저장소 사본에서 `create-memory`에 세션 파일을 넘깁니다.
+
+```sh
+pnpm --filter @buyong/pi-codex-memory create-memory ~/.pi/agent/sessions/<폴더>/<세션>.jsonl
+```
+
+세션 폴더의 기억 범위와 그 범위의 설정, 모델을 쓰고, 모델 공급자를 쓰기 위해 Pi 설정의 확장을 불러옵니다. 그 범위의 기억이 꺼져 있어도 실행됩니다. **Create memories now**처럼 **Use conversations from the last** 기간 안의 구간을 처리한 뒤 요약을 갱신합니다. Ctrl+C로 멈춥니다.
 
 ### 틀린 기억 고치기
 
 `/codex-memory`에서 **Saved memories**를 엽니다. 글자를 입력해 목록을 좁히고 기억을 고른 뒤 **View memory and source**, **Edit memory**, **Forget memory** 중 하나를 고릅니다. 작업이 끝나면 같은 검색어로 목록이 다시 열려 다음 기억으로 넘어갈 수 있고, Esc를 누르면 `/codex-memory`로 돌아갑니다. 이 작업은 모델을 호출하지 않습니다.
 
 - 고치거나 잊은 기억은 바로 요약과 검색 결과에서 빠집니다.
-- 잊은 기억은 같은 대화에서 다시 만들어지지 않습니다. 원본 세션, 공급자 쪽 사본, 같은 사실이 담긴 다른 대화는 지우지 않습니다.
+- 잊은 기억은 같은 대화에서 다시 만들어지지 않습니다. 긴 대화의 구간 하나를 잊으면 그 대화 전체가 다시 기억이 되지 않습니다. 이미 저장된 다른 구간의 기억은 남습니다. 원본 세션, 공급자 쪽 사본, 같은 사실이 담긴 다른 대화는 지우지 않습니다.
 
 ## 명령
 
@@ -110,7 +123,7 @@ Memory: on · 1 cited
 | 명령 | 항목 |
 | --- | --- |
 | `/codex-memory` | **Enabled**, **Memory model**과 **Summary model**(각각 모델을 고른 뒤 추론 강도를 고름), **Memory scope**, **Saved memories**, 기억이 켜져 있을 때 **Create memories now**(작업 중에는 **Stop current job**) |
-| `/codex-memory-settings` | **Remember this conversation now**(작업 중에는 **Stop current job**), 실패 뒤에만 보이는 **Show what failed**, **Create memories after**, **Update the summary every**, **Use conversations from the last**, **Delete unused memories after**, **Other repositories**, **Forget all memories in this scope** |
+| `/codex-memory-settings` | **Remember this conversation now**(작업 중에는 **Stop current job**), 실패 뒤에만 보이는 **Show what failed**, **Create memories after**, **Update the summary every**, **Use conversations from the last**, **Delete unused memories after**, **Stop a model call after**, **Other repositories**, **Forget all memories in this scope** |
 
 화면을 열어도 진행 중인 작업은 멈추지 않습니다. UI가 없는 실행에서는 두 명령 모두 상태를 JSON으로 출력하며 아무것도 바꾸지 않습니다.
 
@@ -147,14 +160,15 @@ Memory: on · 1 cited
 | Update the summary every | 2 hours | 15분, 30분, 60분, 2시간, 3시간, 6시간 | 새 기억은 바로 검색할 수 있고, 요청마다 전달되는 요약에는 이 간격으로 합쳐집니다. |
 | Use conversations from the last | 7 days | 1일, 3일, 7일, 14일, 30일 | 마지막 메시지가 이보다 오래된 대화는 건너뜁니다. 수동 실행에서 **All closed conversations**를 고르면 이번 실행에만 이 제한을 적용하지 않습니다. |
 | Delete unused memories after | 30 days | 7일, 30일, 90일, 365일 | 답에서 인용한 기억은 사용한 것으로 칩니다. 요약에 들어 있는 기억은 쓰이지 않으면 다음 요약 갱신 때 요약에서 먼저 빠진 뒤 지웁니다. 에이전트에게 저장을 요청한 기억과 직접 고친 기억은 남깁니다. |
+| Stop a model call after | 10 minutes | 2분, 5분, 10분 | 기억 요청이나 요약 요청 하나가 실행될 수 있는 시간입니다. 이보다 오래 걸리면 멈추고 나중에 다시 시도합니다. 느린 모델이나 높은 추론 강도에는 더 긴 시간이 필요합니다. |
 
-다음 값은 고정입니다. 한 번에 처리하는 대화는 최대 8개, 모델 호출당 입력은 256 KiB, 요청마다 전달하는 요약은 12 KiB까지입니다.
+다음 값은 고정입니다. 한 번에 처리하는 대화나 구간은 최대 8개, 모델 호출당 입력은 256 KiB, 요청마다 전달하는 요약은 12 KiB까지입니다.
 
 기본값을 정한 근거와 조정 기준은 [검증 결과](docs/verification.ko.md#기본값을-정한-방법)에 있습니다.
 
 ## 검증
 
-코드를 바꿀 때마다 모델 없이 테스트 133개, TUI 스모크 검사, 패키지 검사를 실행합니다. 실제 모델로는 16턴 대화에서 정한 사실 6개를 새 세션에서 다시 묻는 시나리오로 확인했습니다. 기억을 켜면 시험한 두 모델(Haiku, Luna) 모두 6개를 답했고, 끄면 하나도 답하지 못했습니다. 실제 Pi 프로세스 여러 개로 한 검사에서는 닫은 대화만 한 번씩 기억이 되었고, 작업을 맡은 프로세스를 강제로 종료하자 다른 세션이 이어받았습니다. 실행 명령과 토큰 사용량, 한계는 [검증 결과](docs/verification.ko.md)에 있습니다.
+코드를 바꿀 때마다 모델 없이 테스트 145개, TUI 스모크 검사, 패키지 검사를 실행합니다. 실제 모델로는 16턴 대화에서 정한 사실 6개를 새 세션에서 다시 묻는 시나리오로 확인했습니다. 기억을 켜면 시험한 두 모델(Haiku, Luna) 모두 6개를 답했고, 끄면 하나도 답하지 못했습니다. 실제 Pi 프로세스 여러 개로 한 검사에서는 닫은 대화만 한 번씩 기억이 되었고, 작업을 맡은 프로세스를 강제로 종료하자 다른 세션이 이어받았습니다. 실행 명령과 토큰 사용량, 한계는 [검증 결과](docs/verification.ko.md)에 있습니다.
 
 의존성을 설치한 뒤 저장소 루트에서 실행합니다.
 

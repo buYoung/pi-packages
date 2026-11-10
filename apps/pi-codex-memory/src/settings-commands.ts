@@ -26,7 +26,8 @@ type NumberKey =
     | "minIdleMs"
     | "consolidationCooldownMs"
     | "maxRolloutAgeDays"
-    | "maxUnusedDays";
+    | "maxUnusedDays"
+    | "timeoutMs";
 /** Settings that Enter and Space cycle through preset values, as Pi's /settings does. */
 const NUMBER_ROWS: readonly {
     readonly key: NumberKey;
@@ -73,6 +74,14 @@ const NUMBER_ROWS: readonly {
             "Memories the agent has not used for this long are deleted. Memories you asked the agent to save or edited yourself are kept.",
         format: (value) => `${value} days`,
         presets: [7, 30, 90, 365],
+    },
+    {
+        key: "timeoutMs",
+        label: "Stop a model call after",
+        description:
+            "How long one memory or summary request may run. A request that runs longer stops and is tried again later.",
+        format: duration,
+        presets: [2 * MINUTE, 5 * MINUTE, 10 * MINUTE],
     },
 ];
 

@@ -15,14 +15,16 @@ import { RepositoryAccess } from "./repository-access.js";
 import { buildInjection, MemoryReader } from "./retrieval.js";
 import { canonicalCwd, safeError } from "./safety.js";
 import {
-    currentSource,
+    currentSources,
     isSameSource,
     isSourceUnchanged,
     type MemoryExposure,
+    type ScannedFile,
+    SourceCache,
     scanSources,
     sourceScope,
 } from "./sources.js";
-import { MemoryStore } from "./store.js";
+import { MemoryStore, sourceSessionId } from "./store.js";
 
 const JOBS_FAILED =
     "Some memory jobs failed. Open /codex-memory-settings and choose Show what failed.";
@@ -45,6 +47,7 @@ export class MemoryRuntime {
     private readonly now: () => number;
     private readonly sleep: (ms: number, signal: AbortSignal) => Promise<void>;
     private readonly coordinator: MemoryCoordinator;
+    private readonly sources = new SourceCache();
     private timer: ReturnType<typeof setTimeout> | undefined;
     private operation: AbortController | undefined;
     private pending: Promise<PipelineResult> | undefined;
@@ -91,8 +94,8 @@ export class MemoryRuntime {
             now: this.now,
             sleep: this.sleep,
             context: () => this.ctx,
-            scan: (settings, signal, shouldRead) =>
-                this.scan(settings, signal, false, shouldRead),
+            scan: (settings, signal, options) =>
+                this.scan(settings, signal, false, options),
             isPaused: () => this.isManaging,
             changed: () => this.changed(),
         });
@@ -230,7 +233,15 @@ export class MemoryRuntime {
         settings: MemorySettings,
         signal: AbortSignal,
         allowUnmarked: boolean,
-        shouldRead?: (path: string, mtimeMs: number) => boolean,
+        options: {
+            shouldRead?: (
+                path: string,
+                mtimeMs: number,
+                sizeBytes: number,
+            ) => boolean;
+            onFile?: (file: ScannedFile) => void;
+            allowUnbound?: boolean;
+        } = {},
     ) {
         return scanSources({
             agentDir: this.agentDir,
@@ -249,7 +260,8 @@ export class MemoryRuntime {
                 this.scope === "global"
                     ? undefined
                     : (cwd) => this.store.selectsGlobal(cwd),
-            shouldRead,
+            ...options,
+            cache: this.sources,
         });
     }
     isActive(): boolean {
@@ -353,17 +365,17 @@ export class MemoryRuntime {
         ]);
         const ctx = this.ctx;
         const execute = async () => {
+            // Latest part first, so a run that reaches its extraction limit covers the recent work.
             const current =
                 mode === "current"
-                    ? currentSource(
+                    ? currentSources(
                           ctx.sessionManager,
                           settings.maxInputBytes - 8192,
                       )
-                    : null;
+                    : [];
             if (
-                current &&
                 this.scope !== "global" &&
-                sourceScope(current) !== this.scope
+                current.some((source) => sourceScope(source) !== this.scope)
             )
                 throw new MemoryUserError(
                     "The session source belongs to a different memory repository.",
@@ -371,8 +383,6 @@ export class MemoryRuntime {
             const sources =
                 mode === "current"
                     ? current
-                        ? [current]
-                        : []
                     : await this.scan(settings, signal, mode === "import");
             signal.throwIfAborted();
             return runPipeline({
@@ -387,13 +397,14 @@ export class MemoryRuntime {
                 force: true,
                 onJobChange: () => this.changed(),
                 checkSource: (source, requestSignal) =>
-                    source.id === this.sessionId
+                    sourceSessionId(source) === this.sessionId
                         ? Promise.resolve(
                               isSameSource(
-                                  currentSource(
+                                  currentSources(
                                       ctx.sessionManager,
                                       settings.maxInputBytes - 8192,
-                                  ),
+                                  ).find((item) => item.id === source.id) ??
+                                      null,
                                   source,
                               ),
                           )
