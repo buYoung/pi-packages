@@ -1,5 +1,5 @@
 import type { Credential as HostCredential, ModelsPublication, RefreshModelsContext } from "@earendil-works/pi-ai";
-import { Context, Effect, Layer, Scheduler } from "effect";
+import { Context, Deferred, Effect, Layer, Scheduler } from "effect";
 import { abortWith } from "../../../core/cancellation.ts";
 import { toDevinFailure } from "../../../core/errors.ts";
 import { modelIDForUID, projectModelVariants, resolveBackendSelection, type VariantProjection } from "../../../core/models/variants.ts";
@@ -56,8 +56,14 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
   const clear = () => {
     models = []; projection = undefined; scope = undefined; catalogAccount = undefined; checkedAtMs = 0; modelCredential = undefined; credentialScope = undefined;
   };
-  const currentProjection = (credential: Credential) => !projection || scope !== catalogScope(credential)
-    ? failWith("No Devin model list matches the current account and endpoint. Refresh the model list.") : Effect.succeed(projection);
+  // Pi refreshes a provider it registers without waiting for it, so a session that starts in a model runtime other sessions
+  // already use can send its first request before the list is restored. Such a request waits for the first refresh to end.
+  const firstRefresh = yield* Deferred.make<void>();
+  const currentProjection = (credential: Credential) => Effect.gen(function* () {
+    if (!projection) yield* Deferred.await(firstRefresh);
+    return !projection || scope !== catalogScope(credential)
+      ? yield* failWith("No Devin model list matches the current account and endpoint. Refresh the model list.") : projection;
+  });
   const fromHost = (credential: HostCredential | undefined) => credential?.type === "oauth" ? auth.fromHost(credential) : Effect.succeed(undefined);
   const effectiveCredential = (credential: HostCredential | undefined, baseUrl?: string) => Effect.flatMap(fromHost(credential), (resolved) => resolved
     ? Effect.map(endpoint(baseUrl ?? resolved.apiServerURL), (apiServerURL): Credential | undefined => ({ ...resolved, apiServerURL })) : Effect.succeed(undefined));
@@ -145,7 +151,9 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
       return candidates.filter((model) => model.provider === "devin" && model.api === DEVIN_API && model.baseUrl === resolved.apiServerURL && (model as DevinModel).devin?.scope === expected);
     }).pipe(Effect.catchCause(() => Effect.succeed([]))),
     // Sign-in, logout and restores change the current credential, which decides whose quota is shown.
-    refresh: (context) => Effect.flatMap(lifetime.current, (current) => current.guard(refresh(context)).pipe(abortWith(context.signal), Effect.ensuring(changes.publish))),
+    // A refresh Pi superseded ends aborted; the newer one ends the wait.
+    refresh: (context) => Effect.flatMap(lifetime.current, (current) => current.guard(refresh(context)).pipe(abortWith(context.signal), Effect.ensuring(Effect.andThen(changes.publish,
+      Effect.suspend(() => context.signal?.aborted ? Effect.void : Deferred.succeed(firstRefresh, undefined)))))),
     resolve: (modelID, level, credential) => Effect.gen(function* () {
       const current = yield* currentProjection(credential);
       let wanted = modelID;

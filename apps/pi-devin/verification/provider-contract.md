@@ -50,7 +50,7 @@ In all three cases, controlled timers confirmed that the final fetch signal ende
 - `pi-devin.state.v1` stores only the session/account hash, cascade/trajectory, the next stage and the run budget. No tokens, fingerprints, JWTs or duplicate transcripts.
 - resume/reload restore the ID and stage of the same branch, including an unfinished budget, so reload does not reset it. fork/new session use a new ID; moving in the tree uses a new trajectory and stage 0.
 - When the verified account/endpoint owner differs, the earlier history is not sent. Blocking after an account switch and a normal request in a new session were checked with the real session API.
-- The checked default Pi registry had no `devin`. If a registration after this extension overrides `devin`, the session start reports the collision and stops this extension's requests. There is no public API to query the existing registry from the factory, so collision detection for every registration order is not guaranteed. Avoid duplicate installs; this package does not remove other extensions or change settings.
+- The checked default Pi registry had no `devin`. If a registration after this extension overrides `devin`, the session start reports the collision and stops this extension's requests. Another instance of this package is not a collision: sessions that share a model runtime each load one, and its provider sends each call to the instance of the session that made it. There is no public API to query the existing registry from the factory, so collision detection for every registration order is not guaranteed. Avoid duplicate installs; this package does not remove other extensions or change settings.
 
 ## Auth failures, cleanup and sensitive values
 

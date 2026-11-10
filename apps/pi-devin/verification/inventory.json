@@ -127,6 +127,7 @@
     "src/pi/adapters/pi/provider.ts",
     "src/pi/adapters/pi/registration.ts",
     "src/pi/adapters/pi/response-stream.ts",
+    "src/pi/adapters/pi/session-routing.ts",
     "src/pi/adapters/pi/sidekick-tool.ts",
     "src/pi/adapters/pi/transcript.ts",
     "src/pi/adapters/pi/ui/devin-panel.ts",

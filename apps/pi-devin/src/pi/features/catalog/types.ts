@@ -39,6 +39,7 @@ export interface ModelCatalogShape {
   readonly filter: (models: readonly Model<DevinAPI>[], credential: HostCredential | undefined) => Effect.Effect<readonly Model<DevinAPI>[]>;
   /** Restores or refreshes the list for Pi's current credential. Stops with the provider lifetime and Pi's signal. */
   readonly refresh: (context: RefreshModelsContext) => Effect.Effect<void, DevinFailure>;
+  /** Before the first refresh has ended, waits for it when there is no list yet. Likewise `resolveUID`. */
   readonly resolve: (modelID: string, level: EffectiveThinkingLevel, credential: Credential) => Effect.Effect<BackendModelSelection, DevinError>;
   /** Resolves a catalog UID chosen by a payload hook at that variant's thinking level, including UIDs hidden from the list. */
   readonly resolveUID: (uid: string, credential: Credential) => Effect.Effect<BackendModelSelection, DevinError>;

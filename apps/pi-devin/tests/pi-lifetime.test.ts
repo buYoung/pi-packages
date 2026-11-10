@@ -84,6 +84,22 @@ test("two extension instances in one process keep separate lifetimes: shutting o
   } finally { first.shutdown(); second.shutdown(); }
 });
 
+test("a request that comes before the provider's first model refresh waits for it instead of failing", async () => {
+  const listed = serve(), late = serve();
+  try {
+    await listed.refresh();
+    // Pi derives the request's auth from the stored OAuth credential first.
+    await late.provider.auth.oauth!.toAuth(providerHostCredential);
+    const result = settle(late.provider.streamSimple(listed.model(), prompt(), options));
+    for (let round = 0; round < 20; round++) await new Promise((resolve) => setImmediate(resolve));
+    expect(late.chats()).toBe(0);
+    await late.refresh();
+    const completed = await result;
+    expect([completed.stopReason, completed.errorMessage]).toStrictEqual(["stop", undefined]);
+    expect(late.chats()).toBe(1);
+  } finally { listed.shutdown(); late.shutdown(); }
+});
+
 test("after shutdown the same provider object refuses work until the next session_start, then serves it again", async () => {
   const opened = serve();
   try {

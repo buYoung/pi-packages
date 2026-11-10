@@ -15,12 +15,14 @@ import { Sidekicks } from "../../features/sidekick/service.ts";
 import { registerDevinCommand } from "./devin-command.ts";
 import { registerFusionCommand } from "./fusion-command.ts";
 import { makeDevinProvider } from "./provider.ts";
+import { isSessionRoutingProvider, makeSessionRouting } from "./session-routing.ts";
 import { PiSidekickHost, sidekickTool } from "./sidekick-tool.ts";
 import type { DevinExtension } from "./types.ts";
 import { UsageStatus } from "./usage-status.ts";
 
 /**
  * Registers one extension instance: its runtime, the provider, and, for the lead, the sidekick tool, `/devin` and `/devin-fusion`.
+ * The registered provider sends each call to the instance of the session that made it, as sessions sharing a model runtime require.
  * Pi's event handlers run their effects synchronously and return after the services finished, so the next event sees the result.
  * A failed layer build throws here, before anything is registered.
  */
@@ -29,8 +31,9 @@ export function registerDevinExtension(pi: ExtensionAPI, environment: Layer.Laye
   const run = <A, E>(effect: Effect.Effect<A, E, ExtensionServices>) => runtime.runSync(effect);
   const { isFusionChild } = run(ExtensionConfig);
   const isLead = !isFusionChild;
-  const provider = makeDevinProvider(runtime);
   const catalog = run(ModelCatalog), runs = run(Runs), sidekicks = run(Sidekicks), status = run(UsageStatus);
+  const routing = makeSessionRouting(makeDevinProvider(runtime), () => run(runs.isInAuxiliaryPhase));
+  const { provider } = routing;
   pi.registerProvider(provider);
   if (isLead) {
     registerDevinCommand(pi, runtime);
@@ -52,7 +55,11 @@ export function registerDevinExtension(pi: ExtensionAPI, environment: Layer.Laye
   });
   pi.on("input", (event) => { if (isLead) run(sidekicks.userInput(event.source)); });
   pi.on("session_start", (_event, context) => {
-    if (context.modelRegistry.getRegisteredNativeProvider("devin") !== provider) {
+    const { modelRegistry, sessionManager } = context;
+    // Another session's instance in the same model runtime registered its own routing provider, which reaches this one too.
+    const registered = modelRegistry.getRegisteredNativeProvider("devin");
+    if (registered !== provider && !isSessionRoutingProvider(registered)) {
+      routing.detach();
       run(shutdownProvider);
       run(failWith("The Devin provider ID collides with another registration. Remove the duplicate extension and reload."));
     }
@@ -61,6 +68,7 @@ export function registerDevinExtension(pi: ExtensionAPI, environment: Layer.Laye
       getBranch: () => context.sessionManager.getBranch(),
       append: (data) => pi.appendEntry(DEVIN_STATE_ENTRY, data),
     }));
+    routing.attach(() => sessionManager.getSessionId(), modelRegistry);
     if (isLead) run(sidekicks.sessionStarted(context.sessionManager.getSessionId()));
     syncSidekick(context.model);
     run(Effect.andThen(status.bind(context), status.update(context)));
@@ -83,6 +91,7 @@ export function registerDevinExtension(pi: ExtensionAPI, environment: Layer.Laye
   pi.on("session_shutdown", () => {
     run(status.bind(undefined));
     if (isLead) run(sidekicks.reset);
+    routing.detach();
     run(shutdownProvider);
   });
   return { provider, runtime };

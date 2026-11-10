@@ -8,6 +8,7 @@
 - A session whose history has a tool call without a result, for example after moving to another point with `/tree`, works again. Like Pi's own providers, the call gets the error result "No result provided"; before, every Devin request in that session failed with `invalid_argument`.
 - The output limit leaves room for the input in the model's context window, as in Pi's own providers. A full context now ends the reply with a `length` stop, which Pi recovers from by compacting; before, the session could keep sending input larger than the window.
 - Claude's prompt cache keeps growing in long sessions. Only the newest user message or tool result is marked for caching, as in Pi's Anthropic provider; before, every one was marked, the cache stopped growing after the first few requests, and the rest of the conversation was sent uncached each time.
+- Sessions that share one Pi model runtime, such as in-process subagents, each keep their own Devin runs. Before, the session that started last received every session's Devin requests; when it ended, the other sessions' requests failed with "The Devin provider shut down.", and its own first request could fail with "No Devin model list matches the current account and endpoint."
 
 ## [0.1.14] - 2026-11-07
 
