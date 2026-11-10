@@ -1285,3 +1285,105 @@ test("turning memory off ends Create memories now in a session that does not coo
         (error) => error.name === "AbortError",
     );
 });
+
+test("a scheduled scan does not parse a session file that held no work again until it changes", async (t) => {
+    const f = await fixture(t);
+    const a = f.open();
+    a.runtime.store.saveSettings(a.runtime.scope, ENABLED);
+    const atMs = START - 3 * HOUR,
+        iso = new Date(atMs).toISOString();
+    const path = join(f.sessions, `${iso.replace(/[:.]/g, "-")}_empty-1.jsonl`);
+    // A marked conversation without a message has nothing to turn into memory.
+    const lines = [
+        {
+            type: "session",
+            version: 3,
+            id: "empty-1",
+            cwd: f.cwd,
+            timestamp: iso,
+        },
+        {
+            type: "custom",
+            id: "origin",
+            parentId: null,
+            timestamp: iso,
+            customType: "pi-codex-memory.origin",
+            data: { isInteractiveRoot: true },
+        },
+    ];
+    await writeFile(
+        path,
+        `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`,
+    );
+    await utimes(path, atMs / 1000, atMs / 1000);
+    await f.step(0, a.runtime);
+    await f.step(45_000, a.runtime);
+    await f.step(45_000, a.runtime);
+    await settled(a.runtime);
+    assert.deepEqual(
+        f.inspect("SELECT path FROM scanned_files").map((row) => row.path),
+        [path],
+    );
+    // A later Pi process starts without the first one's parsed files. An unreadable file fails
+    // the scan if it is read.
+    await a.runtime.dispose();
+    const b = f.open();
+    await chmod(path, 0o000);
+    t.after(() => chmod(path, 0o600).catch(() => {}));
+    await f.writeSession("other-1", atMs);
+    for (let index = 0; index < 4; index++) await f.step(30_000, b.runtime);
+    await settled(b.runtime);
+    assert.deepEqual(b.model.extractions, ["other-1"], "the scan ran");
+    assert.equal(b.runtime.failure, undefined, "the marked file was not read");
+    await chmod(path, 0o600);
+    await appendFile(
+        path,
+        `${JSON.stringify({
+            type: "message",
+            id: "user",
+            parentId: "origin",
+            timestamp: iso,
+            message: {
+                role: "user",
+                content: "Remember the plan.",
+                timestamp: atMs,
+            },
+        })}\n`,
+    );
+    await utimes(path, atMs / 1000, atMs / 1000);
+    await f.step(30_000, b.runtime);
+    await f.step(30_000, b.runtime);
+    await settled(b.runtime);
+    assert.deepEqual(
+        b.model.extractions,
+        ["other-1", "empty-1"],
+        "a changed file is read again",
+    );
+});
+
+test("Create memories now also takes a conversation memory saw only after it began, by its folder's repository; scheduled runs do not", async (t) => {
+    const f = await fixture(t);
+    await mkdir(join(f.cwd, ".git"));
+    await writeFile(join(f.cwd, ".git", "HEAD"), "ref: refs/heads/main\n");
+    await writeFile(join(f.cwd, ".git", "config"), "[core]\nbare = false\n");
+    const a = f.open();
+    assert.match(a.runtime.scope, /^repository-/);
+    a.runtime.store.saveSettings(a.runtime.scope, ENABLED);
+    // Its origin carries no repository binding.
+    await f.writeSession("unbound-1", START - 3 * HOUR);
+    await f.step(0, a.runtime);
+    await f.step(45_000, a.runtime);
+    await f.step(45_000, a.runtime);
+    await settled(a.runtime);
+    assert.deepEqual(
+        a.model.extractions,
+        [],
+        "scheduled runs need the session's own binding",
+    );
+    assert.deepEqual(await a.runtime.createNow(), { extracted: 1, failed: 0 });
+    assert.deepEqual(a.model.extractions, ["unbound-1"]);
+    assert.equal(
+        a.runtime.store.records(a.runtime.scope)[0].source.repository.binding,
+        "current_location",
+    );
+});

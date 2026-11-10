@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { buildSessionProjection } from "@earendil-works/pi-coding-agent";
 import {
@@ -610,6 +611,158 @@ test("an unused memory used again before the summary drops it stays", async (t) 
     assert.equal(f.calls.length, calls, "the summary needs no update");
     f.store.prune(f.scope, f.settings, f.later + DAY);
     assert.ok(f.paths(f.later + DAY).includes(f.first.path));
+});
+test("a summary whose memories do not fit in one request builds on itself, newest conversation first, until it reflects them all", async (t) => {
+    const f = await fixture(t);
+    const settings = f.store.saveSettings(f.scope, {
+        ...f.settings,
+        maxInputBytes: 64 * 1024,
+        maxRolloutsPerRun: 32,
+    });
+    const start = Date.now() - 10 * 3_600_000;
+    const sources = Array.from({ length: 8 }, (_, index) => ({
+        ...f.source,
+        id: `session-${index}`,
+        fingerprint: `part-${index}`,
+        updatedAtMs: start + index * 60_000,
+    }));
+    const calls = [];
+    const model = {
+        async complete(request) {
+            const input = JSON.parse(request.input);
+            if (request.stage === "extraction")
+                return {
+                    text: JSON.stringify({
+                        rollout_summary: `# Task\n${"작업 기록 ".repeat(550)}`,
+                        rollout_slug: "task",
+                    }),
+                };
+            calls.push(input);
+            // Keeps what the summary said about memories it is not sent again.
+            const kept = input.previous_memory_summary
+                .split("\n")
+                .filter((line) =>
+                    input.changes.retained.some((path) => line.includes(path)),
+                );
+            const added = input.documents.map(
+                (document) =>
+                    `- ${document.path} — task history; thread_id=${document.thread_id}`,
+            );
+            return {
+                text: JSON.stringify({
+                    memory_summary:
+                        EMPTY_SUMMARY + [...kept, ...added].join("\n"),
+                }),
+            };
+        },
+    };
+    const result = await runPipeline({
+        store: f.store,
+        scope: f.scope,
+        settings,
+        model,
+        sources,
+        signal: new AbortController().signal,
+    });
+    assert.equal(result.extracted, 8);
+    assert.equal(result.consolidated, true);
+    assert.equal(result.failed, 0);
+    assert.ok(calls.length >= 2, `${calls.length} requests`);
+    const byTime = f.store
+        .records(f.scope)
+        .sort((a, b) => b.source.updatedAtMs - a.source.updatedAtMs)
+        .map((record) => record.path);
+    const supplied = calls.map((call) =>
+        call.documents.map((document) => document.path),
+    );
+    assert.deepEqual(
+        supplied.flat().sort(),
+        [...byTime].sort(),
+        "only waiting memories are sent, each once",
+    );
+    assert.deepEqual(
+        [...supplied[0]].sort(),
+        byTime.slice(0, supplied[0].length).sort(),
+        "the newest conversations go first",
+    );
+    assert.deepEqual(calls[0].changes.retained, []);
+    assert.equal(
+        calls[1].previous_memory_summary_bytes,
+        Buffer.byteLength(calls[1].previous_memory_summary),
+    );
+    assert.deepEqual(
+        [...calls[1].changes.retained].sort(),
+        [...supplied[0]].sort(),
+        "a later request keeps what the earlier ones reflected",
+    );
+    const state = f.store.state(f.scope);
+    assert.deepEqual(Object.keys(state.inputs).sort(), [...byTime].sort());
+    for (const path of byTime) assert.ok(state.summary.includes(path), path);
+    const stages = (value) =>
+        createStages({
+            store: f.store,
+            scope: f.scope,
+            settings: value,
+            model,
+            signal: new AbortController().signal,
+        });
+    const count = calls.length;
+    assert.equal(
+        (await stages(settings).consolidate(true)).consolidated,
+        false,
+    );
+    assert.equal(calls.length, count, "the summary needs no update");
+
+    // Leaving one memory out sends no document; the summary stands for the rest.
+    const fewer = f.store.saveSettings(f.scope, { ...settings, maxSources: 7 });
+    assert.equal((await stages(fewer).consolidate(true)).consolidated, true);
+    const dropped = calls.at(-1);
+    assert.deepEqual(dropped.documents, []);
+    assert.equal(dropped.changes.removed.length, 1);
+    assert.equal(dropped.changes.retained.length, 7);
+    assert.ok(
+        !f.store.state(f.scope).summary.includes(dropped.changes.removed[0]),
+    );
+
+    // Forgetting a memory clears the summary, so every other one is sent again.
+    f.store.revise(f.scope, dropped.changes.retained[0], null);
+    assert.equal(f.store.state(f.scope).summary, "");
+    const cleared = calls.length;
+    assert.equal((await stages(fewer).consolidate(true)).consolidated, true);
+    const rest = f.store.records(f.scope).map((record) => record.path);
+    assert.equal(rest.length, 7);
+    assert.deepEqual(
+        calls
+            .slice(cleared)
+            .flatMap((call) => call.changes.added)
+            .sort(),
+        [...rest].sort(),
+    );
+    assert.ok(calls.length - cleared >= 2, "still more than one request");
+    for (const path of rest)
+        assert.ok(f.store.state(f.scope).summary.includes(path), path);
+
+    // A settings change during a later request leaves the summary partly updated.
+    f.store.revise(f.scope, rest[0], null);
+    let requests = 0;
+    const interrupted = await createStages({
+        store: f.store,
+        scope: f.scope,
+        settings: fewer,
+        model: {
+            async complete(request) {
+                if (++requests === 2) f.store.saveSettings(f.scope, fewer);
+                return model.complete(request);
+            },
+        },
+        signal: new AbortController().signal,
+    }).consolidate(true);
+    assert.equal(requests, 2);
+    assert.deepEqual(interrupted, {
+        consolidated: true,
+        failed: false,
+        skipped: true,
+    });
 });
 test("projection uses active branch, edits and correctly labels compaction; never recycles memory tools", async () => {
     const timestamp = new Date().toISOString();
@@ -1227,6 +1380,173 @@ test("consolidation rejects forged thread IDs and generated identifiers not in i
             ),
         /ungrounded_identifier/,
     );
+});
+test("sessions sharing a summary that takes several requests continue each other's work and never repeat a request", async (t) => {
+    const f = await fixture(t);
+    const settings = f.store.saveSettings(f.scope, {
+        ...f.settings,
+        maxInputBytes: 64 * 1024,
+        maxRolloutsPerRun: 32,
+    });
+    const start = Date.now() - 10 * 3_600_000;
+    const sources = Array.from({ length: 8 }, (_, index) => ({
+        ...f.source,
+        id: `session-${index}`,
+        fingerprint: `part-${index}`,
+        updatedAtMs: start + index * 60_000,
+    }));
+    const requests = [];
+    const model = {
+        async complete(request) {
+            const input = JSON.parse(request.input);
+            if (request.stage === "extraction")
+                return {
+                    text: JSON.stringify({
+                        rollout_summary: `# Task\n${"작업 기록 ".repeat(550)}`,
+                        rollout_slug: "task",
+                    }),
+                };
+            requests.push(request.input);
+            // Overlaps the other session's turn.
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            const kept = input.previous_memory_summary
+                .split("\n")
+                .filter((line) =>
+                    input.changes.retained.some((path) => line.includes(path)),
+                );
+            const added = input.documents.map(
+                (document) =>
+                    `- ${document.path} — task history; thread_id=${document.thread_id}`,
+            );
+            return {
+                text: JSON.stringify({
+                    memory_summary:
+                        EMPTY_SUMMARY + [...kept, ...added].join("\n"),
+                }),
+            };
+        },
+    };
+    // The memories are made; their summary waits.
+    await runPipeline({
+        store: f.store,
+        scope: f.scope,
+        settings,
+        model: {
+            complete: (request) =>
+                request.stage === "extraction"
+                    ? model.complete(request)
+                    : Promise.reject(new MemoryFailure("provider_error")),
+        },
+        sources,
+        signal: new AbortController().signal,
+    });
+    // A second connection stands for another Pi process.
+    const other = new MemoryStore(f.store.root);
+    t.after(() => other.close());
+    const stages = (store, value = model, signal = undefined) =>
+        createStages({
+            store,
+            scope: f.scope,
+            settings,
+            model: value,
+            signal: signal ?? new AbortController().signal,
+        });
+    const paths = () => f.store.records(f.scope).map((record) => record.path);
+    const isComplete = () =>
+        Object.keys(f.store.state(f.scope).inputs).length === paths().length &&
+        paths().every((path) => f.store.state(f.scope).summary.includes(path));
+
+    // One session closes during its second request; another continues from what it left.
+    const closing = new AbortController();
+    let turns = 0;
+    await assert.rejects(
+        stages(
+            f.store,
+            {
+                async complete(request) {
+                    if (++turns === 2) {
+                        // The request is abandoned unanswered.
+                        closing.abort();
+                        return { text: "{}" };
+                    }
+                    return model.complete(request);
+                },
+            },
+            closing.signal,
+        ).consolidate(true),
+    );
+    const left = JSON.parse(requests[0]).documents.map(
+        (document) => document.path,
+    );
+    assert.ok(left.length > 0 && left.length < paths().length);
+    assert.equal((await stages(other).consolidate(true)).consolidated, true);
+    assert.deepEqual(
+        [...JSON.parse(requests[1]).changes.retained].sort(),
+        [...left].sort(),
+        "the second session keeps what the first reflected",
+    );
+    assert.ok(isComplete());
+
+    // Two sessions at once: each request is made once, and together they reflect every memory.
+    f.store.revise(f.scope, paths()[0], null);
+    const before = requests.length;
+    const results = await Promise.all([
+        stages(f.store).consolidate(true),
+        stages(other).consolidate(true),
+    ]);
+    assert.ok(results.every((result) => !result.failed));
+    const made = requests.slice(before);
+    assert.ok(made.length >= 2, `${made.length} requests`);
+    assert.equal(new Set(made).size, made.length, "no request is repeated");
+    assert.ok(isComplete());
+});
+test("opening a memory database moves it to version 2, which earlier releases refuse; a later version is refused", async (t) => {
+    const dir = await mkdtemp(join(tmpdir(), "pi-memory-version-"));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    const root = join(dir, "memory");
+    const version = () => {
+        const database = new DatabaseSync(join(root, "state.sqlite"));
+        try {
+            return database.prepare("SELECT version FROM schema_version").get()
+                .version;
+        } finally {
+            database.close();
+        }
+    };
+    const setVersion = (value) => {
+        const database = new DatabaseSync(join(root, "state.sqlite"));
+        database.prepare("UPDATE schema_version SET version = ?").run(value);
+        database.close();
+    };
+    new MemoryStore(root).close();
+    assert.equal(version(), 2, "a new database");
+    // As left by an earlier release, whose stores accept only version 1.
+    setVersion(1);
+    new MemoryStore(root).close();
+    assert.equal(version(), 2, "an existing database");
+    setVersion(3);
+    assert.throws(
+        () => new MemoryStore(root),
+        /Unsupported memory database version/,
+    );
+});
+test("the grounding check takes a path joined from a folder and a file name the input names apart, but not under another folder", () => {
+    const guard = createMemoryGroundingGuard();
+    const input = JSON.stringify({
+        text: "cd /tmp/work && grep gate DECISIONS.md; cp DECISIONS.md /tmp/old/DECISIONS.md.bak",
+    });
+    guard(input, "Decision log: `/tmp/work/DECISIONS.md`.");
+    for (const output of [
+        "/tmp/wor/DECISIONS.md",
+        "/tmp/other/DECISIONS.md",
+        "/tmp/work/DECISIONS",
+        "/tmp/work/NOTES.md",
+    ])
+        assert.throws(
+            () => guard(input, output),
+            /ungrounded_identifier/,
+            output,
+        );
 });
 test("invalidated summaries retain current notes and record discovery without bypassing caller cooldown", async (t) => {
     const f = await fixture(t);

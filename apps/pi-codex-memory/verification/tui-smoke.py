@@ -85,6 +85,7 @@ try:
     os.write(master, b"/codex-memory-settings\r")
     read_until(
         "Create memories after",
+        "Stop a model call after",
         "Other repositories",
         "Type to search · Enter/Space to change · Esc to cancel",
     )

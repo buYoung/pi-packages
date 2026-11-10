@@ -28,7 +28,7 @@ node scripts/codex/check-package.mjs apps/pi-codex-memory
 | Command | What it checks |
 | --- | --- |
 | `typecheck`, `lint` | Type errors and Biome rules |
-| `test` | 133 tests. Isolated stores and fake model responses cover extraction, consolidation, recall, citation validation, correction and forgetting, cancellation, repository sharing and read consent. Several sessions sharing one store, on a fake clock, cover background coordination: one coordinator per scope, closed conversations only, at most 8 jobs, takeover after a lost lease or a long sleep, shutdown while a provider ignores cancellation, the status shown in every session, and both age ranges in **Create memories now**, including the age boundary, session exclusions, unchanged and forgotten memories, and TUI/RPC cancellation. Some tests load the extension into the real Pi SDK and run its commands and tools. |
+| `test` | 145 tests. Isolated stores and fake model responses cover extraction, consolidation, recall, citation validation, correction and forgetting, cancellation, repository sharing and read consent. Several sessions sharing one store, on a fake clock, cover background coordination: one coordinator per scope, closed conversations only, at most 8 jobs, takeover after a lost lease or a long sleep, shutdown while a provider ignores cancellation, the status shown in every session, and both age ranges in **Create memories now**, including the age boundary, session exclusions, unchanged and forgotten memories, and TUI/RPC cancellation. Long sessions are covered too: a session file over 16 MiB with images, parts split at compactions whose IDs stay put as the conversation grows and are shared by a fork, a closed part replacing the memory of the part it was, a binding attached to a conversation under way, and a file with no work left that a later process does not read again. A summary whose memories do not fit in one request is checked to reflect them all over several requests, newest conversation first. Two connections to one database check that a session continues a summary another left partway and that two sessions at once never repeat a request, and opening a database is checked to move it to version 2. The `create-memory` script is run against a fixture model provider loaded from Pi settings. Some tests load the extension into the real Pi SDK and run its commands and tools. |
 | `tui-smoke.py` | In the real Pi TUI, opens `/codex-memory` and checks its rows, row description and key hint, opens its memory model list, opens `/codex-memory-settings`, and reopens `/codex-memory` after `/reload`. It also opens and cancels the creation range selector, then runs **All closed conversations** with no eligible conversations. Fails if any model request is sent. Requires `pi` on `PATH`. |
 | `check-package.mjs` | Confirms that the release archive contains the required files and entry points. |
 
@@ -114,6 +114,8 @@ Asking the same question without memory used 3,453 tokens with Haiku and 1,156 w
 
 The owner set the defaults: a closed conversation becomes memory 2 hours after its last message, the summary is updated at most every 2 hours, and conversations from the last 7 days are used. Codex uses 6 hours, 6 hours and 10 days. Codex skips only the session that starts the job and judges every other conversation by idle time alone, whether or not it is still open.
 
+A model call stops after 10 minutes. With `claude-sonnet-5-5` at `xhigh` reasoning, a summary of about 256 KiB of memories did not finish within the earlier 2 minutes.
+
 Only closed conversations become memory, so the wait no longer has to keep extraction out of ongoing work. It covers the time in which you may reopen a conversation you just closed: a reopened conversation that you continue is extracted again.
 
 ### When to change them
@@ -123,4 +125,5 @@ Change settings in `/codex-memory-settings`.
 - If memories show up too late for your next task, set **Create memories after** to 30 or 60 minutes. A conversation you reopen and continue within that time is extracted again, which adds calls.
 - To reduce calls, set **Update the summary every** to 3 hours or 6 hours.
 - To include older work, raise **Use conversations from the last**. The next scan then processes more past conversations.
+- If **Show what failed** shows `timeout`, raise **Stop a model call after** or choose a lower thinking level for that model.
 - If you need memory right away, choose **Create memories now** in `/codex-memory` for closed conversations, or **Remember this conversation now** in `/codex-memory-settings` for the current one.

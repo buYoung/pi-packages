@@ -1,4 +1,5 @@
 import {
+    type CustomEntry,
     type ExtensionAPI,
     type ExtensionContext,
     getAgentDir,
@@ -7,7 +8,10 @@ import {
 import { Type } from "typebox";
 import { type CommandOptions, memoryCommand } from "./commands.js";
 import { isMemoryEnabled } from "./config.js";
-import { observeRepository } from "./repositories.js";
+import {
+    observeRepository,
+    type RepositoryObservation,
+} from "./repositories.js";
 import { MemoryRuntime } from "./runtime.js";
 import { canonicalCwd, OUTPUT_MAX_BYTES, safeError } from "./safety.js";
 import { settingsCommand } from "./settings-commands.js";
@@ -95,14 +99,11 @@ export default function codexMemory(
     pi.on("session_start", async (_event, ctx) => {
         const memory = await get(ctx);
         const branch = ctx.sessionManager.getBranch();
-        if (
-            (ctx.mode === "tui" || ctx.mode === "rpc") &&
-            !branch.some(
-                (entry) =>
-                    entry.type === "custom" &&
-                    entry.customType === ORIGIN_ENTRY,
-            )
-        ) {
+        const origins = branch.filter(
+            (entry): entry is CustomEntry =>
+                entry.type === "custom" && entry.customType === ORIGIN_ENTRY,
+        );
+        if (ctx.mode === "tui" || ctx.mode === "rpc") {
             const hasHistory = branch.some(
                 (entry) =>
                     (entry.type === "message" &&
@@ -110,14 +111,35 @@ export default function codexMemory(
                     entry.type === "compaction" ||
                     entry.type === "branch_summary",
             );
-            const repository = hasHistory
-                ? undefined
-                : observeRepository(ctx.cwd, "session_start");
-            pi.appendEntry(ORIGIN_ENTRY, {
-                version: 3,
-                isInteractiveRoot: true,
-                ...(repository ? { repository } : {}),
-            });
+            // Earlier history may come from another checkout, so a binding observed after the
+            // conversation began covers only what follows it.
+            const binding = hasHistory ? "attached" : "session_start";
+            if (!origins.length) {
+                const repository = observeRepository(ctx.cwd, binding);
+                pi.appendEntry(ORIGIN_ENTRY, {
+                    version: 3,
+                    isInteractiveRoot: true,
+                    ...(repository ? { repository } : {}),
+                });
+            } else if (
+                !origins.some(
+                    (entry) =>
+                        (
+                            entry.data as
+                                | { repository?: RepositoryObservation }
+                                | undefined
+                        )?.repository,
+                )
+            ) {
+                // A conversation memory first saw outside a repository, or a fork of one.
+                const repository = observeRepository(ctx.cwd, "attached");
+                if (repository)
+                    pi.appendEntry(ORIGIN_ENTRY, {
+                        version: 3,
+                        isInteractiveRoot: true,
+                        repository,
+                    });
+            }
         }
         memory.prepareInjection();
         memory.start();

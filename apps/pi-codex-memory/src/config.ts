@@ -49,7 +49,7 @@ export const DEFAULT_SETTINGS: Readonly<MemorySettings> = Object.freeze({
     maxSources: 256,
     maxInputBytes: 256 * 1024,
     maxOutputTokens: 4096,
-    timeoutMs: 120_000,
+    timeoutMs: 10 * 60_000,
     retryDelayMs: 15 * 60_000,
     maxAttempts: 3,
     maxInjectionBytes: 12 * 1024,

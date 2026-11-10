@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### New
+
+- In a clone of the repository, `pnpm --filter @buyong/pi-codex-memory create-memory <session-file>` turns one session file into memory with the settings and models of its memory scope, whether memory is on or off there.
+- In `/codex-memory-settings`, **Stop a model call after** sets how long one memory or summary request may run: 2, 5 or 10 minutes.
+
+### Improved
+
+- **BREAKING:** The memory database moves to version 2 the first time this version opens it, and earlier versions refuse to open it from then on. They split no session into parts and keep only the memories that fit in one summary request, so a Pi session running one would rewrite the summaries this version builds. A session that was already open keeps the version it loaded, so restart every open Pi session or run `/reload` in it after updating. Going back to an earlier version needs a new memory database.
+- The memory prompt now says that the length limit counts bytes and that Korean, Chinese and Japanese take 3 bytes per character, so memories in those languages are less likely to run past 9,000 bytes and lose their middle. The summary prompt says the same of its 10,000-byte limit, and each summary request states the size of the existing summary so the model shortens older entries instead of appending past the limit.
+- A model call now stops after 10 minutes by default instead of 2, so a summary made with a slow model or a high thinking level can finish. A scope whose settings were saved before keeps 2 minutes until you change **Stop a model call after**.
+- A conversation too long for one model call is split at its compactions into parts, and each part becomes its own memory. Before, the middle of such a conversation was cut to fit one call, so most of it was lost, and every continuation processed the whole conversation again. A part closed by a later compaction is now processed once, and a fork reuses the closed parts it copied.
+
+### Fixed
+
+- The summary now reflects every memory. Before, when the memories did not fit in one model call, the summary drew only on those that fit, and the rest never reached it. Now it is updated over several calls, newest conversations first, each building on the summary the one before produced.
+- A memory that names a file by joining a folder and a file name the conversation mentions apart, as after `cd`, is no longer rejected as `ungrounded_identifier`. A path under a folder the conversation does not mention is still rejected, and the memory prompt now asks for each path in full instead of paths merged with braces or wildcards, which the check also rejects.
+- Session files larger than 16 MiB, such as long conversations with many screenshots, now become memory. Before, they were skipped without notice. A session file is now read one line at a time and its images are dropped while reading, and a file with nothing left to process is not read again until it changes.
+- In a repository, a conversation that memory first saw after it had begun, or a fork of one, now becomes memory from its next session start on. **Create memories now** also takes what it held before and counts it for the repository its folder belongs to now. Before, such a conversation never became memory.
+
 ## [0.2.0] - 2026-11-10
 
 ### New

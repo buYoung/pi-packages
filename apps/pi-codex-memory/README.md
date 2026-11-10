@@ -37,6 +37,8 @@ After installation, start Pi and the `/codex-memory` and `/codex-memory-settings
 
 The `@buyong/pi-codex` bundle also includes this extension. Do not enable both the bundle and this package.
 
+After updating, restart every open Pi session or run `/reload` in it. Once this version has opened the memory database, earlier versions cannot open it, but a session that was already open keeps running the version it loaded and can rewrite summaries this version made.
+
 ## Quick start
 
 This walkthrough uses the verification settings to create a memory and bring it back in a new session: `claude-haiku-5-5 [claude-bridge]` as both the memory and summary model, with the default timing. The `claude-bridge` provider comes from the [@buyong/pi-claude-bridge](https://github.com/buYoung/pi-packages/blob/main/apps/pi-claude-bridge/README.md) extension, so install it first by following its instructions. Each model list starts with **Use current Pi model**, followed by the models chosen in Pi's `/scoped-models`, or every available model when none are chosen, so make sure the model you want is there.
@@ -79,8 +81,9 @@ Memory is a record of past conversations. It does not prove the code is still in
 While memory is on, conversations become memory in the background after you close them. One open Pi session per memory scope coordinates this work; when it closes, another open session takes over within about 90 seconds. Nothing is processed while no Pi session is open.
 
 - A conversation becomes memory once it is closed and 2 hours have passed since its last message. A conversation left open waits until you close it.
-- Up to 8 conversations are processed at once.
-- New memories are merged into the summary once no conversation is waiting, at most once every 2 hours.
+- Up to 8 conversations, or parts of long ones, are processed at once.
+- A conversation too long for one model call is split at its compactions into parts, and each part becomes its own memory. A part closed by a later compaction is processed once; as the conversation continues, only its latest part is processed again. A fork reuses the closed parts it copied.
+- New memories are merged into the summary once no conversation is waiting, at most once every 2 hours. When the memories do not fit in one model call, the summary is updated over several calls, each building on the one before, newest conversations first.
 - Typing in Pi stops only **Remember this conversation now**; background jobs read closed conversations and keep running.
 
 While memory is on in its scope or in Personal, each Pi session records every 30 seconds that it is open. A conversation counts as closed once that record has not been renewed for 90 seconds, for example after you quit Pi or it crashes. A conversation open in a Pi without this extension counts as closed.
@@ -90,16 +93,26 @@ To save something right away, ask the agent to "remember" it; a confirmation sho
 - **All closed conversations** ignores the age limit for this run.
 - **Last 7 days** uses **Use conversations from the last**; the label shows your configured number of days and is selected by default.
 
-Both choices process only closed conversations in the current memory scope and update the summary right away. Unchanged conversations and forgotten memories are not regenerated. The choice does not change saved settings or automatic generation. Esc returns to the memory page without starting a job.
+Both choices process only closed conversations in the current memory scope and update the summary right away. In a repository, they also take what a conversation held before memory first saw it, such as a conversation started before memory was installed, and count it for the repository its folder belongs to now; automatic generation leaves that part out. Unchanged conversations and forgotten memories are not regenerated. The choice does not change saved settings or automatic generation. Esc returns to the memory page without starting a job.
 
 Turning memory off keeps saved memories but neither uses nor creates them.
+
+### Turn one session file into memory from a terminal
+
+In a clone built as in [Install](#install), pass a session file to `create-memory`:
+
+```sh
+pnpm --filter @buyong/pi-codex-memory create-memory ~/.pi/agent/sessions/<folder>/<session>.jsonl
+```
+
+It uses the memory scope of the session's folder with that scope's settings and models, and loads the extensions in your Pi settings for their model providers. It runs whether memory is on or off in that scope. Like **Create memories now**, it takes the session's parts from the period in **Use conversations from the last**, then updates the summary. Ctrl+C stops it.
 
 ### Fix a wrong memory
 
 Run `/codex-memory` and open **Saved memories**. Type to filter the list by text, pick a memory, and choose **View memory and source**, **Edit memory** or **Forget memory**. Afterwards the list opens again with the same filter, so you can go on to the next memory; Esc returns to `/codex-memory`. These actions do not call a model.
 
 - Edited or forgotten memories leave the summary and search results immediately.
-- A forgotten memory is not created again from the same conversation. Original sessions, provider-side copies and other conversations with the same fact are not erased.
+- A forgotten memory is not created again from the same conversation. Forgetting one part of a long conversation stops the whole conversation from becoming memory again; its other saved parts stay. Original sessions, provider-side copies and other conversations with the same fact are not erased.
 
 ## Commands
 
@@ -108,7 +121,7 @@ Both commands take no arguments and open a page laid out like Pi's `/settings`. 
 | Command | Rows |
 | --- | --- |
 | `/codex-memory` | **Enabled**, **Memory model** and **Summary model** (each picks a model, then its thinking level), **Memory scope**, **Saved memories**, and while memory is on **Create memories now** (or **Stop current job** while a job runs) |
-| `/codex-memory-settings` | **Remember this conversation now** (or **Stop current job** while a job runs), **Show what failed** after a failure, **Create memories after**, **Update the summary every**, **Use conversations from the last**, **Delete unused memories after**, **Other repositories** and **Forget all memories in this scope** |
+| `/codex-memory-settings` | **Remember this conversation now** (or **Stop current job** while a job runs), **Show what failed** after a failure, **Create memories after**, **Update the summary every**, **Use conversations from the last**, **Delete unused memories after**, **Stop a model call after**, **Other repositories** and **Forget all memories in this scope** |
 
 Opening a page does not stop a running job. Without a UI, both commands print the status as JSON and change nothing.
 
@@ -145,14 +158,15 @@ Settings are saved per scope. In `/codex-memory-settings`, Enter or Space cycles
 | Update the summary every | 2 hours | 15 minutes, 30 minutes, 60 minutes, 2 hours, 3 hours, 6 hours | New memories can be searched right away; this is how often they are merged into the summary sent with each request. |
 | Use conversations from the last | 7 days | 1, 3, 7, 14, 30 days | Conversations whose last message is older are skipped, except when you choose **All closed conversations** for a manual run. |
 | Delete unused memories after | 30 days | 7, 30, 90, 365 days | A memory counts as used when an answer cites it. An unused memory that the summary draws on first leaves the summary at its next update, then is deleted. Memories you asked the agent to save and memories you edited are kept. |
+| Stop a model call after | 10 minutes | 2, 5, 10 minutes | How long one memory or summary request may run. A request that runs longer stops and is tried again later. A slow model or a high thinking level needs longer. |
 
-These are fixed: up to 8 conversations at once, 256 KiB of input per model call and a 12 KiB summary per request.
+These are fixed: up to 8 conversations or parts at once, 256 KiB of input per model call and a 12 KiB summary per request.
 
 For how the defaults were chosen and when to change them, see the [verification report](docs/verification.md#how-the-defaults-were-chosen).
 
 ## Verification
 
-Every code change runs 133 tests, a TUI smoke check and a package check, all without a model. With real models, a scenario set six facts in a 16-turn conversation and asked for them again in a new session. With memory on, both tested models (Haiku and Luna) answered all six; with memory off, neither answered any. Another check ran several real Pi processes: only closed conversations became memory, each once, and another session took over when the coordinating process was killed. The commands, token use and limits are in the [verification report](docs/verification.md).
+Every code change runs 145 tests, a TUI smoke check and a package check, all without a model. With real models, a scenario set six facts in a 16-turn conversation and asked for them again in a new session. With memory on, both tested models (Haiku and Luna) answered all six; with memory off, neither answered any. Another check ran several real Pi processes: only closed conversations became memory, each once, and another session took over when the coordinating process was killed. The commands, token use and limits are in the [verification report](docs/verification.md).
 
 From the repository root, after installing dependencies:
 

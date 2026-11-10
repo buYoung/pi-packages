@@ -38,22 +38,52 @@ import {
     workspaceScope,
 } from "./safety.js";
 
+/** One part of a session to turn into memory: the whole session unless it is too long for one input. */
 export interface RolloutSource {
+    /** The part's ID; the session ID when the session is one part. */
     id: string;
+    sessionId: string;
     cwd: string;
     file: string;
     leafId: string | null;
     updatedAtMs: number;
     fingerprint: string;
     text: string;
+    /** Present when the session has several parts; numbered from 1 in conversation order. */
+    part?: { number: number; isLatest: boolean };
+    /** Every part ID of the session's current branch, including parts this read left out. */
+    partIds?: readonly string[];
+    /** The session file's size and mtime when it was read. */
+    fileSizeBytes?: number;
+    fileModifiedAtMs?: number;
     repository?: RepositoryObservation;
+}
+/** A memory's provenance. Memories made before sessions had parts carry no sessionId; their id is the session ID. */
+export type RecordSource = Omit<
+    RolloutSource,
+    "text" | "sessionId" | "partIds" | "fileSizeBytes" | "fileModifiedAtMs"
+> & { sessionId?: string };
+/** The session a memory came from. */
+function recordSessionId(record: MemoryRecord): string | undefined {
+    return record.source
+        ? (record.source.sessionId ?? record.source.id)
+        : undefined;
+}
+/** Tombstone keys that exclude a memory's source: its session and its own part. */
+function sourceKeys(record: MemoryRecord): string[] {
+    return [
+        ...new Set([
+            recordSessionId(record) ?? record.id,
+            record.source?.id ?? record.id,
+        ]),
+    ];
 }
 export interface MemoryRecord {
     id: string;
     path: string;
     kind: "rollout" | "note";
     body: string;
-    source: Omit<RolloutSource, "text"> | null;
+    source: RecordSource | null;
     generatedAtMs: number;
     lastUsedAtMs: number;
     usageCount: number;
@@ -100,6 +130,12 @@ export interface JobLease {
 }
 /** How long an open session's heartbeat, and a coordinator's lease, last without renewal. */
 export const ACTIVITY_TTL_MS = 90_000;
+/**
+ * Version 2 splits long sessions into parts and builds a summary over several requests. Releases
+ * before it accept only version 1, so they cannot open a database this one has opened and rewrite
+ * its summaries.
+ */
+const SCHEMA_VERSION = 2;
 interface JobRow {
     owner: string | null;
     lease_until: number;
@@ -147,7 +183,8 @@ export class MemoryStore {
             PRAGMA journal_mode = DELETE;
             PRAGMA secure_delete = ON;
             CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
-            INSERT INTO schema_version SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM schema_version);
+            INSERT INTO schema_version SELECT ${SCHEMA_VERSION} WHERE NOT EXISTS (SELECT 1 FROM schema_version);
+            UPDATE schema_version SET version = ${SCHEMA_VERSION} WHERE version = 1;
             CREATE TABLE IF NOT EXISTS scopes (
                 scope TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0,
                 generation INTEGER NOT NULL DEFAULT 0, summary TEXT NOT NULL DEFAULT '',
@@ -175,7 +212,7 @@ export class MemoryStore {
         const version = this.database
             .prepare("SELECT version FROM schema_version")
             .get() as { version: number };
-        if (version.version !== 1) {
+        if (version.version !== SCHEMA_VERSION) {
             this.close();
             throw new Error("Unsupported memory database version.");
         }
@@ -188,6 +225,9 @@ export class MemoryStore {
             CREATE TABLE IF NOT EXISTS repository_reads (source_scope TEXT NOT NULL, target_scope TEXT NOT NULL,
                 enabled INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY(source_scope, target_scope));
+            CREATE TABLE IF NOT EXISTS scanned_files (scope TEXT NOT NULL, path TEXT NOT NULL,
+                size INTEGER NOT NULL, modified_at REAL NOT NULL, epoch INTEGER NOT NULL,
+                PRIMARY KEY(scope, path));
         `);
     }
     close(): void {
@@ -403,19 +443,17 @@ export class MemoryStore {
                     .all(scope, targetScope ?? scope) as { source_id: string }[]
             ).map((row) => row.source_id),
         );
+        const isExcluded = (record: MemoryRecord) =>
+            sourceKeys(record).some((key) => excluded.has(key));
         const affectedPaths = targetScope
             ? this.records(targetScope, 0)
-                  .filter((record) =>
-                      excluded.has(record.source?.id ?? record.id),
-                  )
+                  .filter(isExcluded)
                   .map((record) => record.path)
             : [];
         return {
             scope,
             revision: this.state(scope).revision,
-            records: records.filter(
-                (record) => !excluded.has(record.source?.id ?? record.id),
-            ),
+            records: records.filter((record) => !isExcluded(record)),
             excludedSources: excluded.size,
             affectedPaths,
         };
@@ -493,8 +531,10 @@ export class MemoryStore {
                         )
                         .run(targetScope, id).changes,
                 );
+            const isExcluded = (record: MemoryRecord) =>
+                sourceKeys(record).some((key) => excluded.has(key));
             for (const record of this.records(targetScope, 0))
-                if (excluded.has(record.source?.id ?? record.id)) {
+                if (isExcluded(record)) {
                     this.database
                         .prepare(
                             "DELETE FROM records WHERE scope = ? AND id = ?",
@@ -513,7 +553,7 @@ export class MemoryStore {
             );
             for (const record of selected) {
                 if (
-                    excluded.has(record.source?.id ?? record.id) ||
+                    isExcluded(record) ||
                     (record.expiresAtMs !== null &&
                         record.expiresAtMs <= nowMs) ||
                     (!record.isPinned &&
@@ -689,14 +729,18 @@ export class MemoryStore {
             )
             .get(scope, sourceId);
     }
+    /** Forgetting a memory excludes its whole session; retention excludes only its own part. */
     isSourceExcluded(scope: string, source: RolloutSource): boolean {
+        const isForgotten = (target: string) =>
+            this.isForgotten(target, source.sessionId) ||
+            this.isForgotten(target, source.id);
         return (
-            this.isForgotten(scope, source.id) ||
+            isForgotten(scope) ||
             (scope !== "global" && this.selectsGlobal(source.cwd)) ||
             (scope.startsWith("repository-") &&
                 ((source.repository?.scope ?? workspaceScope(source.cwd)) !==
                     scope ||
-                    this.isForgotten(workspaceScope(source.cwd), source.id)))
+                    isForgotten(workspaceScope(source.cwd))))
         );
     }
     private put(scope: string, record: MemoryRecord): void {
@@ -861,13 +905,22 @@ export class MemoryStore {
             this.epoch(lease.scope) === lease.epoch
         );
     }
-    /** Confirms the lease still owns the job right before a model call, then counts the call in today's usage. */
-    recordCall(lease: JobLease, nowMs: number, source?: RolloutSource): void {
+    /**
+     * Confirms the lease still owns the job right before a model call, then counts the call in
+     * today's usage. Only an explicit request calls the model while memory creation is off.
+     */
+    recordCall(
+        lease: JobLease,
+        nowMs: number,
+        source?: RolloutSource,
+        isExplicit = false,
+    ): void {
         this.transaction(() => {
             // A scope selection can change after the lease was claimed without changing settings.
             if (
                 !this.owns(lease, nowMs) ||
-                !this.getSettings(lease.scope).generateMemories ||
+                (!isExplicit &&
+                    !this.getSettings(lease.scope).generateMemories) ||
                 (source && this.isSourceExcluded(lease.scope, source))
             )
                 throw new MemoryFailure("superseded");
@@ -961,7 +1014,13 @@ export class MemoryStore {
                       Buffer.byteLength(body) +
                       Buffer.byteLength(marker);
             if (body) {
-                const { text: _text, ...provenance } = source;
+                const {
+                    text: _text,
+                    partIds: _partIds,
+                    fileSizeBytes: _fileSizeBytes,
+                    fileModifiedAtMs: _fileModifiedAtMs,
+                    ...provenance
+                } = source;
                 const safeSlug =
                     this.mask(slug)
                         .toLowerCase()
@@ -1011,11 +1070,91 @@ export class MemoryStore {
                 this.database
                     .prepare("DELETE FROM records WHERE scope = ? AND id = ?")
                     .run(lease.scope, source.id);
-            if (body || prior) this.changed(lease.scope, !!prior);
+            const isRetired = this.retireOtherParts(lease.scope, source);
+            if (body || prior || isRetired)
+                this.changed(lease.scope, !!prior || isRetired);
             this.succeeded(lease, nowMs);
             this.publish(lease.scope, nowMs);
             return true;
         });
+    }
+    /**
+     * Deletes the session's memories of parts its current branch no longer has: a latest part that
+     * has since closed, or parts of a branch the session left. They leave no tombstone. A deleted
+     * part's job row goes too, so another session that still holds it makes it again; a closed part
+     * may be such a shared one, so its deletion also clears the scanned-file marks.
+     */
+    private retireOtherParts(scope: string, source: RolloutSource): boolean {
+        if (!source.partIds) return false;
+        let isRetired = false,
+            isShared = false;
+        for (const record of this.records(scope, 0)) {
+            if (
+                record.kind !== "rollout" ||
+                record.id === source.id ||
+                recordSessionId(record) !== source.sessionId ||
+                source.partIds.includes(record.id)
+            )
+                continue;
+            this.database
+                .prepare("DELETE FROM records WHERE scope = ? AND id = ?")
+                .run(scope, record.id);
+            this.database
+                .prepare("DELETE FROM jobs WHERE scope = ? AND key = ?")
+                .run(scope, `extract:${record.id}`);
+            isRetired = true;
+            if (record.source?.part && !record.source.part.isLatest)
+                isShared = true;
+        }
+        if (isShared)
+            this.database
+                .prepare("DELETE FROM scanned_files WHERE scope = ?")
+                .run(scope);
+        return isRetired;
+    }
+    /** Whether the job's result for this input is final: made, or failed with no attempt left. */
+    isSettled(
+        scope: string,
+        key: string,
+        fingerprint: string,
+        settings: MemorySettings,
+    ): boolean {
+        const row = this.job(scope, key);
+        return (
+            row?.fingerprint === fingerprint &&
+            (row.status === "succeeded" ||
+                (row.status === "failed" &&
+                    row.attempts >= settings.maxAttempts))
+        );
+    }
+    /** Records that a session file, at this size and mtime, holds no work for scheduled scans. */
+    markScanned(
+        scope: string,
+        path: string,
+        sizeBytes: number,
+        modifiedAtMs: number,
+    ): void {
+        this.database
+            .prepare(
+                "INSERT OR REPLACE INTO scanned_files(scope,path,size,modified_at,epoch) VALUES (?,?,?,?,?)",
+            )
+            .run(scope, path, sizeBytes, modifiedAtMs, this.epoch(scope));
+    }
+    /**
+     * Whether the file is unchanged since it was marked. Settings, scope, edit and forgetting
+     * changes move the epoch, which voids every mark.
+     */
+    isScanned(
+        scope: string,
+        path: string,
+        sizeBytes: number,
+        modifiedAtMs: number,
+    ): boolean {
+        return !!this.database
+            .prepare(
+                "SELECT 1 FROM scanned_files WHERE scope = ? AND path = ? AND size = ? AND modified_at = ? AND epoch = ?",
+            )
+            .get(scope, path, sizeBytes, modifiedAtMs, this.epoch(scope));
     }
     /**
      * Publishes a summary built from `inputs`. With `retention`, unused memories it no longer
@@ -1113,11 +1252,12 @@ export class MemoryStore {
                 (item) => item.path === path,
             );
             if (!record) throw new MemoryUserError("Memory record not found.");
-            this.database
-                .prepare(
-                    "INSERT OR IGNORE INTO tombstones(scope,source_id) VALUES (?,?)",
-                )
-                .run(scope, record.source?.id ?? record.id);
+            for (const key of sourceKeys(record))
+                this.database
+                    .prepare(
+                        "INSERT OR IGNORE INTO tombstones(scope,source_id) VALUES (?,?)",
+                    )
+                    .run(scope, key);
             this.database
                 .prepare("DELETE FROM records WHERE scope = ? AND id = ?")
                 .run(scope, record.id);
@@ -1173,7 +1313,10 @@ export class MemoryStore {
             this.changed(scope, false);
         });
     }
-    /** Deletes a memory and leaves a tombstone so its conversation is not turned into memory again. */
+    /**
+     * Deletes a memory and leaves a tombstone so its source is not turned into memory again: the
+     * whole conversation for a memory made before sessions had parts, otherwise only its part.
+     */
     private deleteRecord(scope: string, record: MemoryRecord): void {
         this.database
             .prepare("DELETE FROM records WHERE scope = ? AND id = ?")
@@ -1241,11 +1384,12 @@ export class MemoryStore {
         this.transaction(() => {
             this.ensureScope(scope);
             for (const record of this.records(scope, 0))
-                this.database
-                    .prepare(
-                        "INSERT OR IGNORE INTO tombstones(scope,source_id) VALUES (?,?)",
-                    )
-                    .run(scope, record.source?.id ?? record.id);
+                for (const key of sourceKeys(record))
+                    this.database
+                        .prepare(
+                            "INSERT OR IGNORE INTO tombstones(scope,source_id) VALUES (?,?)",
+                        )
+                        .run(scope, key);
             this.database
                 .prepare("DELETE FROM records WHERE scope = ?")
                 .run(scope);
@@ -1400,7 +1544,10 @@ export class MemoryStore {
         const context = repository
             ? `repository_scope: ${repository.scope}\nworktree_root: ${JSON.stringify(repository.worktreeRoot)}\ngit_branch_at_capture: ${JSON.stringify(repository.branchAtCapture)}\ngit_observed_at: ${new Date(repository.capturedAtMs).toISOString()}\nrepository_binding: ${repository.binding}\n`
             : "";
-        return `thread_id: ${record.source?.id}\ncwd: ${record.source?.cwd}\nsource_entry: ${record.source?.leafId}\nupdated_at: ${new Date(record.source?.updatedAtMs ?? 0).toISOString()}\n${context}\n${imported}${record.body}`;
+        const part = record.source?.part
+            ? `conversation_part: ${record.source.part.number}${record.source.part.isLatest ? " (latest)" : ""}\n`
+            : "";
+        return `thread_id: ${record.source ? recordSessionId(record) : undefined}\ncwd: ${record.source?.cwd}\nsource_entry: ${record.source?.leafId}\nupdated_at: ${new Date(record.source?.updatedAtMs ?? 0).toISOString()}\n${part}${context}\n${imported}${record.body}`;
     }
     /** Called under the SQLite writer lock; retrieval never trusts Markdown over the DB. */
     private publish(scope: string, nowMs: number): void {

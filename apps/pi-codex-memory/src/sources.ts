@@ -1,4 +1,4 @@
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import {
@@ -9,7 +9,7 @@ import {
     type SessionProjection,
 } from "@earendil-works/pi-coding-agent";
 import type { MemorySettings } from "./config.js";
-import { isSourceEligible } from "./config.js";
+import { DEFAULT_SETTINGS, isSourceEligible } from "./config.js";
 import { MemoryFailure } from "./failure.js";
 import {
     observeRepository,
@@ -24,13 +24,19 @@ import {
     truncateMiddleBytes,
     workspaceScope,
 } from "./safety.js";
+import { readSessionFile } from "./session-file.js";
 import type { RolloutSource } from "./store.js";
 
 export const ORIGIN_ENTRY = "pi-codex-memory.origin";
 /** Version 2 records `exposure`; version-1 markers prove only that some memory context was received. */
 export const RECALL_ENTRY = "pi-codex-memory.recall";
 export type MemoryExposure = "local" | "external";
-const MAX_SESSION_BYTES = 16 * 1024 * 1024;
+const COMPACTION_BOUNDARY = "pi-codex-memory.compaction-boundary";
+/**
+ * Rendered bytes packed into one conversation part. Fixed rather than taken from settings, so part
+ * boundaries, and the memories keyed by them, stay put when the input budget changes.
+ */
+const PART_BYTES = DEFAULT_SETTINGS.maxInputBytes - 8192;
 const HARNESS_TOOL = /(?:pi_codex_memory|subagent|contact_supervisor)/i;
 const EXTERNAL_OMISSION =
     "Assistant text omitted because it received external repository memory context; not independent evidence and not evidence of task success or failure.";
@@ -158,39 +164,53 @@ export function branchExposure(
         exposure = strongerExposure(exposure, entryExposure(entry));
     return exposure;
 }
-export function renderProjection(
+/** One rendered message; `entryIndex` is its entry's position in the projection. */
+interface RenderItem {
+    entryIndex: number;
+    header: string;
+    content: string;
+    priority: number;
+    sizeBytes: number;
+    isIncluded: boolean;
+    isEvidence: boolean;
+}
+/** The JSON-escaped "\n\n" between rendered items. */
+const SEPARATOR_BYTES = 4;
+function itemBytes(items: readonly RenderItem[]): number {
+    return (
+        items.reduce((total, item) => total + item.sizeBytes, 0) +
+        SEPARATOR_BYTES * Math.max(0, items.length - 1)
+    );
+}
+/** The projection's messages as rendered items in order; memory exposure carries across every entry. */
+function renderItems(
     projection: SessionProjection,
-    maxBytes: number,
-    recalledEntries: ReadonlyMap<string, MemoryExposure> = new Map(),
-): string {
-    const items: {
-        header: string;
-        content: string;
-        priority: number;
-        sizeBytes: number;
-        isIncluded: boolean;
-        isEvidence: boolean;
-    }[] = [];
-    let totalBytes = 0;
+    recalledEntries: ReadonlyMap<string, MemoryExposure>,
+): RenderItem[] {
+    const items: RenderItem[] = [];
     let exposure: MemoryExposure | undefined;
+    let entryIndex = 0;
     const add = (
         header: string,
         content: string,
         priority: number,
         isEvidence: boolean,
     ) => {
-        const sizeBytes = jsonStringBytes(header + content);
         items.push({
+            entryIndex,
             header,
             content,
             priority,
-            sizeBytes,
+            sizeBytes: jsonStringBytes(header + content),
             isIncluded: true,
             isEvidence,
         });
-        totalBytes += sizeBytes + (items.length > 1 ? 4 : 0); // JSON-escaped "\n\n".
     };
-    for (const { sourceEntry, messages } of projection.entries) {
+    for (const [
+        index,
+        { sourceEntry, messages },
+    ] of projection.entries.entries()) {
+        entryIndex = index;
         if (sourceEntry.type === "custom")
             exposure = strongerExposure(exposure, entryExposure(sourceEntry));
         if (
@@ -356,7 +376,21 @@ export function renderProjection(
             add(header, content, priority, !isRecallResponse);
         }
     }
+    return items;
+}
+export function renderProjection(
+    projection: SessionProjection,
+    maxBytes: number,
+    recalledEntries: ReadonlyMap<string, MemoryExposure> = new Map(),
+): string {
+    return fitItems(renderItems(projection, recalledEntries), maxBytes);
+}
+/** Joins items within maxBytes, shortening and then omitting the least important first. */
+function fitItems(source: readonly RenderItem[], maxBytes: number): string {
+    // Fitting rewrites items, so each part is fitted on its own copies.
+    const items = source.map((item) => ({ ...item }));
     if (!items.some((item) => item.isEvidence)) return "";
+    let totalBytes = itemBytes(items);
     const render = () =>
         items
             .filter((item) => item.isIncluded)
@@ -431,15 +465,21 @@ function extractionProjection(
                       id: entry.id,
                       parentId: entry.parentId,
                       timestamp: entry.timestamp,
-                      customType: "pi-codex-memory.compaction-boundary",
+                      customType: COMPACTION_BOUNDARY,
                   }
                 : entry,
     );
     return buildSessionProjection(entries, branch.at(-1)?.id ?? null);
 }
-function sessionRepository(
+/** A session's repository binding and, when it was attached to a conversation already under way, where it starts. */
+interface SessionBinding {
+    repository: RepositoryObservation;
+    /** The origin entry the binding applies from; undefined when it covers the whole session. */
+    attachmentId?: string;
+}
+function sessionBinding(
     branch: readonly SessionEntry[],
-): RepositoryObservation | undefined {
+): SessionBinding | undefined {
     for (const entry of branch) {
         if (entry.type !== "custom" || entry.customType !== ORIGIN_ENTRY)
             continue;
@@ -453,7 +493,8 @@ function sessionRepository(
         if (data?.version !== 3 || data.isInteractiveRoot !== true) continue;
         const value = data.repository;
         if (
-            value?.binding === "session_start" &&
+            (value?.binding === "session_start" ||
+                value?.binding === "attached") &&
             typeof value.scope === "string" &&
             /^repository-[a-f0-9]{24}$/.test(value.scope) &&
             typeof value.commonDirectory === "string" &&
@@ -464,12 +505,17 @@ function sessionRepository(
             repositoryScope(value.commonDirectory) === value.scope
         )
             return {
-                scope: value.scope,
-                commonDirectory: value.commonDirectory,
-                worktreeRoot: value.worktreeRoot,
-                branchAtCapture: value.branchAtCapture,
-                capturedAtMs: value.capturedAtMs,
-                binding: "session_start",
+                repository: {
+                    scope: value.scope,
+                    commonDirectory: value.commonDirectory,
+                    worktreeRoot: value.worktreeRoot,
+                    branchAtCapture: value.branchAtCapture,
+                    capturedAtMs: value.capturedAtMs,
+                    binding: value.binding,
+                },
+                ...(value.binding === "attached"
+                    ? { attachmentId: entry.id }
+                    : {}),
             };
     }
     return undefined;
@@ -490,34 +536,147 @@ export function isSameSource(
         sourceScope(latest) === sourceScope(source)
     );
 }
-function snapshot(
+/** A contiguous range of projection entries rendered as one extraction input. */
+interface ConversationPart {
+    /** The boundary entry the part starts at; null for the start of the branch. */
+    start: SessionEntry | null;
+    /** The boundary entry that starts the next part; null for the latest part. */
+    end: SessionEntry | null;
+    /** Projection entry indexes [from, to). */
+    from: number;
+    to: number;
+    items: RenderItem[];
+    sizeBytes: number;
+}
+function entryKey(entry: SessionEntry | null): string {
+    return entry ? `${entry.id}@${entry.timestamp}` : "root";
+}
+/**
+ * Splits the projection at compaction boundaries and at `attachmentId`, then packs consecutive
+ * pieces into parts of at most PART_BYTES, so a conversation within that budget stays one part.
+ * Packing runs from the start, so earlier parts keep their boundaries as the conversation grows.
+ * A binding attached mid-conversation always starts a new part.
+ */
+function conversationParts(
+    projection: SessionProjection,
+    items: readonly RenderItem[],
+    attachmentId: string | undefined,
+): ConversationPart[] {
+    const pieces: (ConversationPart & { isHard: boolean })[] = [];
+    let itemIndex = 0;
+    projection.entries.forEach(({ sourceEntry }, index) => {
+        const isHard = sourceEntry.id === attachmentId;
+        const isBoundary =
+            isHard ||
+            sourceEntry.type === "compaction" ||
+            (sourceEntry.type === "custom" &&
+                sourceEntry.customType === COMPACTION_BOUNDARY);
+        if (!pieces.length || (isBoundary && index > 0))
+            pieces.push({
+                start: pieces.length ? sourceEntry : null,
+                end: null,
+                from: index,
+                to: index,
+                items: [],
+                sizeBytes: 0,
+                isHard,
+            });
+        const piece = pieces.at(-1)!;
+        piece.to = index + 1;
+        while (items[itemIndex]?.entryIndex === index)
+            piece.items.push(items[itemIndex++]!);
+    });
+    const parts: ConversationPart[] = [];
+    for (const piece of pieces) {
+        piece.sizeBytes = itemBytes(piece.items);
+        const last = parts.at(-1);
+        const joinedBytes = last
+            ? last.sizeBytes +
+              piece.sizeBytes +
+              (last.items.length && piece.items.length ? SEPARATOR_BYTES : 0)
+            : 0;
+        if (
+            last &&
+            !piece.isHard &&
+            (!last.items.length || joinedBytes <= PART_BYTES)
+        ) {
+            for (const item of piece.items) last.items.push(item);
+            last.sizeBytes = joinedBytes;
+            last.to = piece.to;
+        } else
+            parts.push({
+                start: piece.start,
+                end: null,
+                from: piece.from,
+                to: piece.to,
+                items: piece.items,
+                sizeBytes: piece.sizeBytes,
+            });
+    }
+    for (let index = 0; index + 1 < parts.length; index++)
+        parts[index]!.end = parts[index + 1]!.start;
+    // A part with nothing to render, such as history before an attached binding that has none, is not counted.
+    return parts.filter((part) => part.items.length);
+}
+/**
+ * The latest part of a session is keyed by the session, and by the session ID alone when it is
+ * the only part, as before sessions had parts. A closed part is keyed by the entries that bound
+ * it, so a fork that copied it shares its memory.
+ */
+function partId(
+    sessionId: string,
+    root: SessionEntry,
+    part: ConversationPart,
+): string {
+    if (!part.end)
+        return part.start
+            ? `part-${digest(JSON.stringify([sessionId, entryKey(part.start)])).slice(0, 32)}`
+            : sessionId;
+    return `part-${digest(JSON.stringify([entryKey(root), entryKey(part.start), entryKey(part.end)])).slice(0, 32)}`;
+}
+export interface SourceOptions {
+    /** Only parts that belong to this scope; global keeps every part. */
+    expectedScope?: string;
+    /** In a repository scope, only parts the session's own repository binding covers. */
+    requireBinding?: boolean;
+    /** Closed parts that ended earlier are left out; the latest part goes with its file. */
+    oldestPartMs?: number;
+}
+/** The session's parts as sources, latest first. */
+function sessionSources(
     header: SessionHeader,
     file: string,
     maxBytes: number,
     branch: readonly SessionEntry[],
     getEntry: SessionEntryLookup,
     fallbackTimeMs: number,
-    expectedScope?: string,
-    requireBinding = false,
-): RolloutSource | null {
+    options: SourceOptions & {
+        fileSizeBytes?: number;
+        fileModifiedAtMs?: number;
+    } = {},
+): RolloutSource[] {
     // Missing ancestry cannot establish which original evidence is safe to recover.
-    if (!branch.length || branch[0]!.parentId !== null) return null;
-    const bound = sessionRepository(branch),
+    if (!branch.length || branch[0]!.parentId !== null) return [];
+    const binding = sessionBinding(branch),
         observed = observeRepository(header.cwd);
-    // The current checkout only verifies membership; later checkouts must not rewrite session-start provenance.
-    if (bound && observed && bound.scope !== observed.scope) return null;
-    const repository = bound ?? observed;
-    if (requireBinding && expectedScope?.startsWith("repository-") && !bound)
-        return null;
-    if (
-        expectedScope &&
-        expectedScope !== "global" &&
+    // The current checkout only verifies membership; later checkouts must not rewrite recorded provenance.
+    if (binding && observed && binding.repository.scope !== observed.scope)
+        return [];
+    const { expectedScope, requireBinding, oldestPartMs } = options;
+    const isInScope = (repository: RepositoryObservation | undefined) =>
+        !expectedScope ||
+        expectedScope === "global" ||
         sourceScope({
             cwd: header.cwd,
             ...(repository ? { repository } : {}),
-        }) !== expectedScope
-    )
-        return null;
+        }) === expectedScope;
+    const canUseBound = !!binding && isInScope(binding.repository);
+    const canUseUnbound =
+        (!binding || !!binding.attachmentId) &&
+        !(requireBinding && expectedScope?.startsWith("repository-")) &&
+        isInScope(observed);
+    // Nothing is rendered for a session no part of which can belong to the expected scope.
+    if (!canUseBound && !canUseUnbound) return [];
     const projection = extractionProjection(branch);
     const recalledEntries = new Map<string, MemoryExposure>();
     const externalSummaries = externalSummaryIds(branch, getEntry);
@@ -541,39 +700,87 @@ function snapshot(
         )
             recalledEntries.set(entry.id, exposure);
     }
-    const text = renderProjection(projection, maxBytes, recalledEntries);
-    if (!text) return null;
-    const last = [...branch]
-        .reverse()
-        .find(
-            (entry) =>
+    const parts = conversationParts(
+        projection,
+        renderItems(projection, recalledEntries),
+        binding?.attachmentId,
+    );
+    const attachmentIndex = binding?.attachmentId
+        ? projection.entries.findIndex(
+              ({ sourceEntry }) => sourceEntry.id === binding.attachmentId,
+          )
+        : -1;
+    const partIds = parts.map((part) => partId(header.id, branch[0]!, part));
+    const sources: RolloutSource[] = [];
+    parts.forEach((part, index) => {
+        const isBound =
+            !!binding &&
+            (!binding.attachmentId ||
+                attachmentIndex < 0 ||
+                part.from >= attachmentIndex);
+        if (isBound ? !canUseBound : !canUseUnbound) return;
+        let last: SessionEntry | undefined;
+        for (
+            let entryIndex = part.to - 1;
+            entryIndex >= part.from;
+            entryIndex--
+        ) {
+            const entry = projection.entries[entryIndex]!.sourceEntry;
+            if (
                 entry.type === "message" ||
                 entry.type === "context_edit" ||
-                entry.type === "branch_summary",
-        );
-    const leafId = last?.id ?? null;
-    const updatedAtMs = last ? Date.parse(last.timestamp) : fallbackTimeMs;
-    return {
-        id: header.id,
-        cwd: canonicalCwd(header.cwd),
-        file,
-        leafId,
-        updatedAtMs: Number.isFinite(updatedAtMs)
-            ? updatedAtMs
-            : fallbackTimeMs,
-        fingerprint: digest(JSON.stringify({ version: 4, leafId, text })),
-        text,
-        ...(repository ? { repository } : {}),
-    };
+                entry.type === "branch_summary"
+            ) {
+                last = entry;
+                break;
+            }
+        }
+        const leafId = last?.id ?? null;
+        const timeMs = last ? Date.parse(last.timestamp) : fallbackTimeMs;
+        const updatedAtMs = Number.isFinite(timeMs) ? timeMs : fallbackTimeMs;
+        if (
+            part.end &&
+            oldestPartMs !== undefined &&
+            updatedAtMs < oldestPartMs
+        )
+            return;
+        const text = fitItems(part.items, maxBytes);
+        if (!text) return;
+        const repository = isBound ? binding.repository : observed;
+        sources.push({
+            id: partIds[index]!,
+            sessionId: header.id,
+            cwd: canonicalCwd(header.cwd),
+            file,
+            leafId,
+            updatedAtMs,
+            fingerprint: digest(JSON.stringify({ version: 4, leafId, text })),
+            text,
+            ...(parts.length > 1
+                ? { part: { number: index + 1, isLatest: !part.end } }
+                : {}),
+            partIds,
+            ...(options.fileSizeBytes !== undefined &&
+            options.fileModifiedAtMs !== undefined
+                ? {
+                      fileSizeBytes: options.fileSizeBytes,
+                      fileModifiedAtMs: options.fileModifiedAtMs,
+                  }
+                : {}),
+            ...(repository ? { repository } : {}),
+        });
+    });
+    return sources.reverse();
 }
-export function currentSource(
+/** The current session's parts, latest first. */
+export function currentSources(
     manager: ExtensionContext["sessionManager"],
     maxBytes: number,
     nowMs = Date.now(),
-): RolloutSource | null {
+): RolloutSource[] {
     const header = manager.getHeader();
-    if (!header) return null;
-    return snapshot(
+    if (!header) return [];
+    return sessionSources(
         header,
         manager.getSessionFile() ?? "",
         maxBytes,
@@ -582,56 +789,43 @@ export function currentSource(
         nowMs,
     );
 }
-export async function readSource(
+/** The latest part of the current session. */
+export function currentSource(
+    manager: ExtensionContext["sessionManager"],
+    maxBytes: number,
+    nowMs = Date.now(),
+): RolloutSource | null {
+    return currentSources(manager, maxBytes, nowMs)[0] ?? null;
+}
+const KEPT_CUSTOM_TYPES: ReadonlySet<string> = new Set([
+    ORIGIN_ENTRY,
+    RECALL_ENTRY,
+]);
+/** A session file's parts, latest first. */
+export async function readSources(
     path: string,
     maxBytes: number,
     signal: AbortSignal,
-    requireOrigin: boolean,
-    expectedScope?: string,
-    isCwdExcluded?: (cwd: string) => boolean,
-): Promise<RolloutSource | null> {
+    options: SourceOptions & {
+        requireOrigin: boolean;
+        isCwdExcluded?: (cwd: string) => boolean;
+    },
+): Promise<RolloutSource[]> {
     signal.throwIfAborted();
     const stat = await lstat(path);
-    if (
-        !stat.isFile() ||
-        stat.isSymbolicLink() ||
-        stat.size > MAX_SESSION_BYTES
-    )
-        return null;
-    const text = await readFile(path, { encoding: "utf8", signal });
-    // Reject partially written JSONL instead of claiming a truncated snapshot as successful.
-    let values: unknown[];
-    try {
-        values = text
-            .split("\n")
-            .filter((line) => line.trim())
-            .map((line) => JSON.parse(line));
-    } catch {
-        return null;
-    }
-    const header = values[0] as SessionHeader | undefined;
-    if (
-        header?.type !== "session" ||
-        typeof header.id !== "string" ||
-        typeof header.cwd !== "string"
-    )
-        return null;
-    if (isCwdExcluded?.(header.cwd)) return null;
-    const entries = values.slice(1) as SessionEntry[];
-    if (
-        entries.some(
-            (entry) =>
-                !entry ||
-                typeof entry.type !== "string" ||
-                typeof entry.id !== "string",
-        )
-    )
-        return null;
-    const leafId = entries.at(-1)?.id ?? null;
+    if (!stat.isFile() || stat.isSymbolicLink()) return [];
+    const session = await readSessionFile(
+        path,
+        signal,
+        KEPT_CUSTOM_TYPES,
+        (header) => !options.isCwdExcluded?.(header.cwd),
+    );
+    if (!session) return [];
+    const { header, entries } = session;
     signal.throwIfAborted();
     const byId = new Map(entries.map((entry) => [entry.id, entry]));
     const seen = new Set<string>();
-    let current = leafId ? byId.get(leafId) : undefined;
+    let current = entries.at(-1);
     const branch: SessionEntry[] = [];
     while (current && !seen.has(current.id)) {
         seen.add(current.id);
@@ -639,7 +833,7 @@ export async function readSource(
         current = current.parentId ? byId.get(current.parentId) : undefined;
     }
     if (
-        requireOrigin &&
+        options.requireOrigin &&
         !branch.some(
             (entry) =>
                 entry.type === "custom" &&
@@ -648,17 +842,90 @@ export async function readSource(
                     ?.isInteractiveRoot === true,
         )
     )
-        return null;
-    return snapshot(
+        return [];
+    return sessionSources(
         header,
         path,
         maxBytes,
         branch.reverse(),
         (id) => byId.get(id),
         stat.mtimeMs,
-        expectedScope,
-        requireOrigin,
+        {
+            ...options,
+            requireBinding: options.requireBinding ?? options.requireOrigin,
+            // Taken before reading, so content appended meanwhile shows as a change.
+            fileSizeBytes: stat.size,
+            fileModifiedAtMs: stat.mtimeMs,
+        },
     );
+}
+/** The latest part of a session file. */
+export async function readSource(
+    path: string,
+    maxBytes: number,
+    signal: AbortSignal,
+    requireOrigin: boolean,
+    expectedScope?: string,
+    isCwdExcluded?: (cwd: string) => boolean,
+): Promise<RolloutSource | null> {
+    return (
+        (
+            await readSources(path, maxBytes, signal, {
+                requireOrigin,
+                expectedScope,
+                isCwdExcluded,
+            })
+        )[0] ?? null
+    );
+}
+export interface ScannedFile {
+    path: string;
+    sizeBytes: number;
+    modifiedAtMs: number;
+    /** The file's parts that this scan returned, including ones another file also holds. */
+    sources: readonly RolloutSource[];
+}
+/**
+ * Keeps the parts read from each session file until the file changes, so a file whose work is
+ * pending is not parsed again on every scan. Owned by one Pi session's memory runtime.
+ */
+export class SourceCache {
+    readonly #files = new Map<
+        string,
+        {
+            key: string;
+            sizeBytes: number;
+            modifiedAtMs: number;
+            sources: RolloutSource[];
+        }
+    >();
+    get(
+        path: string,
+        key: string,
+        sizeBytes: number,
+        modifiedAtMs: number,
+    ): RolloutSource[] | undefined {
+        const file = this.#files.get(path);
+        return file?.key === key &&
+            file.sizeBytes === sizeBytes &&
+            file.modifiedAtMs === modifiedAtMs
+            ? file.sources
+            : undefined;
+    }
+    set(
+        path: string,
+        key: string,
+        sizeBytes: number,
+        modifiedAtMs: number,
+        sources: RolloutSource[],
+    ): void {
+        this.#files.set(path, { key, sizeBytes, modifiedAtMs, sources });
+    }
+    /** Forgets files the last scan did not consider. */
+    retain(paths: ReadonlySet<string>): void {
+        for (const path of this.#files.keys())
+            if (!paths.has(path)) this.#files.delete(path);
+    }
 }
 export async function scanSources(options: {
     agentDir: string;
@@ -669,10 +936,15 @@ export async function scanSources(options: {
     signal: AbortSignal;
     nowMs: number;
     allowUnmarked?: boolean;
+    /** Also parts no repository binding covers, attributed by the session folder's current repository. */
+    allowUnbound?: boolean;
     sessionDirectories?: readonly string[];
     isCwdExcluded?: (cwd: string) => boolean;
-    /** Skips parsing a session file that cannot have new work, judged from its path and mtime. */
-    shouldRead?: (path: string, mtimeMs: number) => boolean;
+    /** Skips parsing a session file that cannot have new work, judged from its path, mtime and size. */
+    shouldRead?: (path: string, mtimeMs: number, sizeBytes: number) => boolean;
+    /** Reports every session file read or reused from the cache, with the parts it returned. */
+    onFile?: (file: ScannedFile) => void;
+    cache?: SourceCache;
 }): Promise<RolloutSource[]> {
     const { agentDir, sessionDir, scope, settings, signal, nowMs } = options;
     const directories = new Set([
@@ -692,7 +964,11 @@ export async function scanSources(options: {
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
     }
-    const candidates: { path: string; updatedAtMs: number }[] = [];
+    const candidates: {
+        path: string;
+        updatedAtMs: number;
+        sizeBytes: number;
+    }[] = [];
     for (const directory of directories) {
         signal.throwIfAborted();
         try {
@@ -704,34 +980,104 @@ export async function scanSources(options: {
                 const path = join(directory, entry.name);
                 const stat = await lstat(path);
                 if (
-                    stat.size <= MAX_SESSION_BYTES &&
                     isSourceEligible(stat.mtimeMs, nowMs, settings) &&
-                    (options.shouldRead?.(path, stat.mtimeMs) ?? true)
+                    (options.shouldRead?.(path, stat.mtimeMs, stat.size) ??
+                        true)
                 )
-                    candidates.push({ path, updatedAtMs: stat.mtimeMs });
+                    candidates.push({
+                        path,
+                        updatedAtMs: stat.mtimeMs,
+                        sizeBytes: stat.size,
+                    });
             }
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
     }
     candidates.sort((a, b) => b.updatedAtMs - a.updatedAtMs);
+    const maxBytes = settings.maxInputBytes - 8192;
+    const oldestPartMs = nowMs - settings.maxRolloutAgeDays * 86_400_000;
+    const requireOrigin = !options.allowUnmarked;
+    const requireBinding = requireOrigin && !options.allowUnbound;
+    // The cutoff moves only forward, so parts read under an earlier one need only filtering again.
+    const cacheKey = JSON.stringify([
+        scope,
+        requireOrigin,
+        requireBinding,
+        Number.isFinite(oldestPartMs),
+        maxBytes,
+    ]);
     const sources: RolloutSource[] = [];
     const seen = new Set<string>();
+    const considered = new Set<string>();
     for (const candidate of candidates.slice(0, 5000)) {
         signal.throwIfAborted();
-        const source = await readSource(
+        considered.add(candidate.path);
+        let read = options.cache?.get(
             candidate.path,
-            settings.maxInputBytes - 8192,
-            signal,
-            !options.allowUnmarked,
-            scope,
-            options.isCwdExcluded,
+            cacheKey,
+            candidate.sizeBytes,
+            candidate.updatedAtMs,
         );
-        if (!source || seen.has(source.id)) continue;
-        seen.add(source.id);
-        sources.push(source);
+        if (!read) {
+            try {
+                read = await readSources(candidate.path, maxBytes, signal, {
+                    requireOrigin,
+                    requireBinding,
+                    expectedScope: scope,
+                    isCwdExcluded: options.isCwdExcluded,
+                    oldestPartMs,
+                });
+            } catch (error) {
+                // A session deleted after listing has no work.
+                if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+                    throw error;
+                continue;
+            }
+            options.cache?.set(
+                candidate.path,
+                cacheKey,
+                candidate.sizeBytes,
+                candidate.updatedAtMs,
+                read,
+            );
+        }
+        const fileSources = read.filter(
+            (source) =>
+                !source.part ||
+                source.part.isLatest ||
+                source.updatedAtMs >= oldestPartMs,
+        );
+        options.onFile?.({
+            path: candidate.path,
+            sizeBytes: candidate.sizeBytes,
+            modifiedAtMs: candidate.updatedAtMs,
+            sources: fileSources,
+        });
+        for (const source of fileSources) {
+            if (seen.has(source.id)) continue;
+            seen.add(source.id);
+            sources.push(source);
+        }
     }
+    options.cache?.retain(considered);
     return sources;
+}
+/** Whether the session folder's current repository still places the source in the same scope. */
+function hasSameScope(source: RolloutSource): boolean {
+    const observed = observeRepository(source.cwd);
+    const bound =
+        source.repository && source.repository.binding !== "current_location"
+            ? source.repository
+            : undefined;
+    if (bound && observed && bound.scope !== observed.scope) return false;
+    const repository = bound ?? observed;
+    return (
+        sourceScope({
+            cwd: source.cwd,
+            ...(repository ? { repository } : {}),
+        }) === sourceScope(source)
+    );
 }
 export async function isSourceUnchanged(
     source: RolloutSource,
@@ -739,8 +1085,24 @@ export async function isSourceUnchanged(
     maxBytes: number,
 ): Promise<boolean> {
     if (!source.file) return true;
+    const file = resolve(source.file);
+    if (source.fileSizeBytes !== undefined) {
+        signal.throwIfAborted();
+        const stat = await lstat(file);
+        // Session files only grow, so an unchanged size and mtime mean unchanged content.
+        if (
+            stat.isFile() &&
+            !stat.isSymbolicLink() &&
+            stat.size === source.fileSizeBytes &&
+            stat.mtimeMs === source.fileModifiedAtMs
+        )
+            return hasSameScope(source);
+    }
+    const latest = await readSources(file, maxBytes, signal, {
+        requireOrigin: false,
+    });
     return isSameSource(
-        await readSource(resolve(source.file), maxBytes, signal, false),
+        latest.find((item) => item.id === source.id) ?? null,
         source,
     );
 }
