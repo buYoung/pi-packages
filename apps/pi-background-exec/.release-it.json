@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/release-it@21.0.1/schema/release-it.json",
+  "git": {
+    "commit": true,
+    "tag": true,
+    "push": true,
+    "requireBranch": "main",
+    "requireUpstream": true,
+    "tagName": "pi-background-exec-v${version}",
+    "tagMatch": "pi-background-exec-v[0-9]*",
+    "commitsPath": ".",
+    "commitMessage": "chore(background-exec): ${branchName}\n\n1. Bump the package version to ${version} and finalize pending changelog entries"
+  },
+  "npm": {
+    "publish": false,
+    "versionArgs": ["--ignore-scripts", "--package-lock=false", "--workspaces-update=false"]
+  },
+  "github": { "release": false },
+  "gitlab": { "release": false },
+  "hooks": {
+    "before:init": [
+      "node ../../scripts/release/changelog.mjs check",
+      "pnpm run lint",
+      "pnpm run typecheck",
+      "pnpm run test:unit"
+    ],
+    "after:bump": "node ../../scripts/release/changelog.mjs stamp ${version}"
+  }
+}

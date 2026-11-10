@@ -1,0 +1,28 @@
+{
+  "resources": {
+    "extensions": ["src/background-exec.ts", "src/herdr-agent-state.ts"],
+    "skills": ["skills/background-exec/SKILL.md"],
+    "prompts": [],
+    "themes": []
+  },
+  "names": {
+    "tools": ["background_exec", "background_job"],
+    "commands": [],
+    "flags": [],
+    "skills": ["background-exec"],
+    "prompts": [],
+    "themes": []
+  },
+  "requiredFiles": [
+    "package.json",
+    "src/background-exec.ts",
+    "src/background-work.ts",
+    "src/herdr-agent-state.ts",
+    "skills/background-exec/SKILL.md",
+    "README.md",
+    "README.ko.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE"
+  ]
+}
