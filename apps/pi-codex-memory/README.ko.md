@@ -47,8 +47,8 @@ Pi의 화면이 영어이므로 아래에서 굵게 표시한 항목 이름은 �
 
 ### 1. 기억 켜기
 
-1. 기억을 쓸 프로젝트 폴더에서 Pi를 시작하고 `/codex-memory`를 실행합니다. Pi의 `/settings`와 같은 모양으로 **Enabled**, **Memory model**, **Summary model**, **Memory scope**가 나오고, 커서가 있는 줄의 설명이 아래에 나옵니다. 두 모델은 처음에 **Current Pi model**이며, 대화에 쓰는 모델을 따릅니다.
-2. **Memory model**에서 Enter를 누르고 `haiku`를 입력해 `claude-haiku-5-5 [claude-bridge]`를 고릅니다. **Summary model**도 같은 방법으로 고릅니다. 기억 생성 모델은 추론 강도 `low`로 추출하고, 요약 모델은 `medium`으로 통합합니다. 모델이 그 강도를 제공하지 않으면 가장 가까운 강도를 씁니다.
+1. 기억을 쓸 프로젝트 폴더에서 Pi를 시작하고 `/codex-memory`를 실행합니다. Pi의 `/settings`와 같은 모양으로 **Enabled**, **Memory model**, **Summary model**, **Memory scope**가 나오고, 커서가 있는 줄의 설명이 아래에 나옵니다. 두 모델은 처음에 **Current Pi model**이며, 대화에 쓰는 모델과 추론 강도를 따릅니다.
+2. **Memory model**에서 Enter를 누르고 `haiku`를 입력해 `claude-haiku-5-5 [claude-bridge]`를 고른 뒤, 추론 강도 목록에서 **Default (low)**를 고릅니다. **Summary model**도 같은 방법으로 고르고 **Default (medium)**를 고릅니다. **Default**는 기억 생성에 `low`, 요약에 `medium`을 쓰고, 모델이 그 강도를 제공하지 않으면 가장 가까운 강도를 씁니다. 괄호 안에는 그 모델이 실제로 쓸 강도가 나오므로, 추론 강도가 없는 모델은 **Default (off)**로 나옵니다. 다른 강도를 쓰려면 목록에서 고르면 되며, 목록에는 그 모델이 제공하는 강도만 나옵니다. 고르고 나면 각 행에 모델과 실제로 쓰는 강도가 함께 나옵니다.
 3. **Enabled**에서 Enter를 눌러 `on`으로 바꿉니다.
 4. 모델을 보여 주는 **Send conversations to create memories?** 확인 창에서 허용합니다.
 
@@ -109,7 +109,7 @@ Memory: on · 1 cited
 
 | 명령 | 항목 |
 | --- | --- |
-| `/codex-memory` | **Enabled**, **Memory model**, **Summary model**, **Memory scope**, **Saved memories**, 기억이 켜져 있을 때 **Create memories now**(작업 중에는 **Stop current job**) |
+| `/codex-memory` | **Enabled**, **Memory model**과 **Summary model**(각각 모델을 고른 뒤 추론 강도를 고름), **Memory scope**, **Saved memories**, 기억이 켜져 있을 때 **Create memories now**(작업 중에는 **Stop current job**) |
 | `/codex-memory-settings` | **Remember this conversation now**(작업 중에는 **Stop current job**), 실패 뒤에만 보이는 **Show what failed**, **Create memories after**, **Update the summary every**, **Use conversations from the last**, **Delete unused memories after**, **Other repositories**, **Forget all memories in this scope** |
 
 화면을 열어도 진행 중인 작업은 멈추지 않습니다. UI가 없는 실행에서는 두 명령 모두 상태를 JSON으로 출력하며 아무것도 바꾸지 않습니다.
@@ -154,7 +154,7 @@ Memory: on · 1 cited
 
 ## 검증
 
-코드를 바꿀 때마다 모델 없이 테스트 124개, TUI 스모크 검사, 패키지 검사를 실행합니다. 실제 모델로는 16턴 대화에서 정한 사실 6개를 새 세션에서 다시 묻는 시나리오로 확인했습니다. 기억을 켜면 시험한 두 모델(Haiku, Luna) 모두 6개를 답했고, 끄면 하나도 답하지 못했습니다. 실제 Pi 프로세스 여러 개로 한 검사에서는 닫은 대화만 한 번씩 기억이 되었고, 작업을 맡은 프로세스를 강제로 종료하자 다른 세션이 이어받았습니다. 실행 명령과 토큰 사용량, 한계는 [검증 결과](docs/verification.ko.md)에 있습니다.
+코드를 바꿀 때마다 모델 없이 테스트 128개, TUI 스모크 검사, 패키지 검사를 실행합니다. 실제 모델로는 16턴 대화에서 정한 사실 6개를 새 세션에서 다시 묻는 시나리오로 확인했습니다. 기억을 켜면 시험한 두 모델(Haiku, Luna) 모두 6개를 답했고, 끄면 하나도 답하지 못했습니다. 실제 Pi 프로세스 여러 개로 한 검사에서는 닫은 대화만 한 번씩 기억이 되었고, 작업을 맡은 프로세스를 강제로 종료하자 다른 세션이 이어받았습니다. 실행 명령과 토큰 사용량, 한계는 [검증 결과](docs/verification.ko.md)에 있습니다.
 
 의존성을 설치한 뒤 저장소 루트에서 실행합니다.
 

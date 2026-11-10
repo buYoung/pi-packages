@@ -45,8 +45,8 @@ Memory sends masked copies of your conversations to the memory and summary model
 
 ### 1. Turn memory on
 
-1. Start Pi in the project folder where you want memory, and run `/codex-memory`. The page looks like Pi's `/settings`: **Enabled**, **Memory model**, **Summary model** and **Memory scope**, with the highlighted row explained underneath. Both models start as **Current Pi model**, which follows the model selected for the main task.
-2. On **Memory model**, press Enter, type `haiku` and pick `claude-haiku-5-5 [claude-bridge]`. Do the same on **Summary model**. The memory model extracts with `low` reasoning, and the summary model consolidates with `medium`. If a model does not offer that level, the nearest level it offers is used.
+1. Start Pi in the project folder where you want memory, and run `/codex-memory`. The page looks like Pi's `/settings`: **Enabled**, **Memory model**, **Summary model** and **Memory scope**, with the highlighted row explained underneath. Both models start as **Current Pi model**, which follows the model and thinking level selected for the main task.
+2. On **Memory model**, press Enter, type `haiku`, pick `claude-haiku-5-5 [claude-bridge]`, and then pick **Default (low)** from its thinking levels. Do the same on **Summary model** and pick **Default (medium)**. **Default** uses `low` reasoning for memories and `medium` for the summary, or the nearest level the model offers. The parentheses show the level that model will use, so a model without thinking levels shows **Default (off)**. To use another level, pick it instead; the list shows only the levels the model offers. Each row then shows the model and the level it uses.
 3. On **Enabled**, press Enter to change it to `on`.
 4. Approve **Send conversations to create memories?**, which shows the models.
 
@@ -107,7 +107,7 @@ Both commands take no arguments and open a page laid out like Pi's `/settings`. 
 
 | Command | Rows |
 | --- | --- |
-| `/codex-memory` | **Enabled**, **Memory model**, **Summary model**, **Memory scope**, **Saved memories**, and while memory is on **Create memories now** (or **Stop current job** while a job runs) |
+| `/codex-memory` | **Enabled**, **Memory model** and **Summary model** (each picks a model, then its thinking level), **Memory scope**, **Saved memories**, and while memory is on **Create memories now** (or **Stop current job** while a job runs) |
 | `/codex-memory-settings` | **Remember this conversation now** (or **Stop current job** while a job runs), **Show what failed** after a failure, **Create memories after**, **Update the summary every**, **Use conversations from the last**, **Delete unused memories after**, **Other repositories** and **Forget all memories in this scope** |
 
 Opening a page does not stop a running job. Without a UI, both commands print the status as JSON and change nothing.
@@ -152,7 +152,7 @@ For how the defaults were chosen and when to change them, see the [verification 
 
 ## Verification
 
-Every code change runs 124 tests, a TUI smoke check and a package check, all without a model. With real models, a scenario set six facts in a 16-turn conversation and asked for them again in a new session. With memory on, both tested models (Haiku and Luna) answered all six; with memory off, neither answered any. Another check ran several real Pi processes: only closed conversations became memory, each once, and another session took over when the coordinating process was killed. The commands, token use and limits are in the [verification report](docs/verification.md).
+Every code change runs 128 tests, a TUI smoke check and a package check, all without a model. With real models, a scenario set six facts in a 16-turn conversation and asked for them again in a new session. With memory on, both tested models (Haiku and Luna) answered all six; with memory off, neither answered any. Another check ran several real Pi processes: only closed conversations became memory, each once, and another session took over when the coordinating process was killed. The commands, token use and limits are in the [verification report](docs/verification.md).
 
 From the repository root, after installing dependencies:
 

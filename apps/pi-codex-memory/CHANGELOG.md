@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
+### New
+
+- In `/codex-memory`, **Memory model** and **Summary model** pick a model and then its thinking level: **Default** or one of the levels that model offers. Each row shows the level it uses, such as `· high`.
+
+### Improved
+
+- **Use current Pi model** now also follows the Pi session's thinking level, moved to the nearest level the model offers. Before, it always used `low` for memories and `medium` for the summary. When thinking is off in the session, memory runs without reasoning too.
+- Changing only the thinking level no longer asks again for consent to send conversations. Changing a model still does.
+
+### Fixed
+
+- Picking the model already in use no longer removes its thinking level, and the model list now opens on that model even when it has a level set.
+
 ## [0.1.2] - 2026-11-02
 
 ### Improved

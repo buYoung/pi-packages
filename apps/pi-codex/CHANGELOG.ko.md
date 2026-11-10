@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-11-10
+
+### 새로워진 것
+
+- `/codex-memory`의 **Memory model**과 **Summary model**에서 추론 강도도 고르고, **Use current Pi model**은 Pi 세션의 추론 강도를 따릅니다(포함된 `@buyong/pi-codex-memory` 0.2.0).
+
 ## [0.6.4] - 2026-11-07
 
 ### 달라진 것

@@ -17,7 +17,7 @@ import {
     SessionManager,
     SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { CURSOR_MARKER } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { memoryCommand } from "../dist/commands.js";
 import { DEFAULT_SETTINGS } from "../dist/config.js";
 import extension from "../dist/index.js";
@@ -47,7 +47,7 @@ function fakeContext(f, ui = {}) {
         hasUI: false,
         ui: { notify() {}, ...ui },
         sessionManager: SessionManager.inMemory(f.cwd),
-        modelRegistry: { getAvailable: () => [] },
+        modelRegistry: { getAvailable: () => [], find: () => undefined },
         isIdle: () => true,
     };
 }
@@ -373,7 +373,8 @@ test("an option list opened from a focused settings page shows the cursor in its
 test("each stage picks its own model from the current Pi model and /scoped-models; a change while on asks for consent again", async (t) => {
     const f = await directory(t);
     const local = { provider: "fixture", id: "local" },
-        other = { provider: "fixture", id: "other" };
+        other = { provider: "fixture", id: "other" },
+        upper = { provider: "fixture", id: "upper" };
     const store = new MemoryStore(join(f.agentDir, "pi-codex-memory"));
     store.saveSettings(workspaceScope(f.cwd), {
         ...DEFAULT_SETTINGS,
@@ -390,19 +391,19 @@ test("each stage picks its own model from the current Pi model and /scoped-model
             return isAccepted;
         },
     });
-    ctx.scopedModels = [{ model: local }, { model: other }];
-    ctx.modelRegistry = {
-        getAvailable: () => [
-            local,
-            other,
-            { provider: "fixture", id: "hidden" },
-        ],
-    };
+    ctx.scopedModels = [{ model: local }, { model: other }, { model: upper }];
+    ctx.modelRegistry = levelRegistry([
+        local,
+        other,
+        upper,
+        { provider: "fixture", id: "hidden" },
+    ]);
     const runtime = new MemoryRuntime(ctx, f.agentDir);
     ctx.ui.custom = terminalPicker(
         [
             "Memory model",
             { search: "other", pick: "other [fixture]" },
+            "Default (low)",
             undefined,
         ],
         screens,
@@ -410,7 +411,7 @@ test("each stage picks its own model from the current Pi model and /scoped-model
     await memoryCommand(commandOptions(ctx, runtime));
     assert.match(
         screens[1],
-        /Use current Pi model\s+Follow the model selected/,
+        /Use current Pi model\s+Follow the model and thinking level selected/,
     );
     assert.match(screens[1], /local \[fixture\]/);
     assert.match(screens[1], /other \[fixture\]/);
@@ -422,22 +423,57 @@ test("each stage picks its own model from the current Pi model and /scoped-model
     assert.equal(consents, 1);
     assert.equal(runtime.settings().extractModel, null, "declined");
     isAccepted = true;
+    const start = screens.length;
     ctx.ui.custom = terminalPicker(
         [
             "Memory model",
             "other [fixture]",
+            "Default (low)",
             "Summary model",
             "local [fixture]",
+            "Default (off)",
             undefined,
         ],
         screens,
     );
     await memoryCommand(commandOptions(ctx, runtime));
+    const [, , memoryLevels, , , summaryLevels] = screens.slice(start);
+    assert.match(
+        memoryLevels,
+        /Step 2\/2 · Default uses low reasoning or the nearest level the model offers\./,
+    );
+    assert.match(memoryLevels, /Default \(low\)/);
+    assert.match(
+        summaryLevels,
+        /Step 2\/2 · Default uses medium reasoning or the nearest level the model offers\./,
+    );
+    assert.match(
+        summaryLevels,
+        /Default \(off\)/,
+        "the level a model without thinking levels uses",
+    );
     assert.equal(consents, 3);
     assert.deepEqual(runtime.settings().extractModel, other);
     assert.deepEqual(runtime.settings().consolidateModel, local);
-    assert.match(screens.at(-1), /Memory model\s+other \[fixture\]/);
-    assert.match(screens.at(-1), /Summary model\s+local \[fixture\]/);
+    assert.match(screens.at(-1), /Memory model\s+other \[fixture\] · low/);
+    assert.match(
+        screens.at(-1),
+        /Summary model\s+local \[fixture\] · off/,
+        "the level a model without thinking levels uses",
+    );
+    screens.length = 0;
+    ctx.ui.custom = terminalPicker(
+        ["Memory model", "upper [fixture]", "Default (medium)", undefined],
+        screens,
+    );
+    await memoryCommand(commandOptions(ctx, runtime));
+    assert.match(
+        screens[2],
+        /→ {3}Default \(medium\)/,
+        "low moves to the nearest level the model offers",
+    );
+    assert.deepEqual(runtime.settings().extractModel, upper);
+    assert.match(screens.at(-1), /Memory model\s+upper \[fixture\] · medium/);
     ctx.ui.custom = terminalPicker([
         "Memory model",
         "Use current Pi model",
@@ -446,6 +482,253 @@ test("each stage picks its own model from the current Pi model and /scoped-model
     await memoryCommand(commandOptions(ctx, runtime));
     assert.equal(runtime.settings().extractModel, null);
     assert.deepEqual(runtime.settings().consolidateModel, local);
+    await runtime.dispose();
+});
+/** `other` offers low to xhigh, `upper` medium and high; `local` has no thinking levels. */
+function levelRegistry(available) {
+    const levels = {
+        other: {
+            reasoning: true,
+            thinkingLevelMap: { minimal: null, xhigh: "xhigh" },
+        },
+        upper: {
+            reasoning: true,
+            thinkingLevelMap: { minimal: null, low: null },
+        },
+    };
+    return {
+        getAvailable: () => available,
+        find: (provider, id) => ({
+            provider,
+            id,
+            reasoning: false,
+            ...levels[id],
+        }),
+    };
+}
+async function enabledModelPage(t, ui) {
+    const f = await directory(t);
+    const store = new MemoryStore(join(f.agentDir, "pi-codex-memory"));
+    store.saveSettings(workspaceScope(f.cwd), {
+        ...DEFAULT_SETTINGS,
+        useMemories: true,
+        generateMemories: true,
+    });
+    store.close();
+    const models = {
+        local: { provider: "fixture", id: "local" },
+        other: { provider: "fixture", id: "other" },
+    };
+    const state = { consents: 0, notices: [] };
+    const ctx = ui(f, {
+        confirm: async () => {
+            state.consents++;
+            return true;
+        },
+        notify: (text) => state.notices.push(text),
+    });
+    ctx.modelRegistry = levelRegistry([models.local, models.other]);
+    return { ctx, models, state, runtime: new MemoryRuntime(ctx, f.agentDir) };
+}
+test("a picked model's thinking level is a second list of the levels it offers; only a model change asks for consent", async (t) => {
+    const { ctx, models, state, runtime } = await enabledModelPage(
+        t,
+        terminalContext,
+    );
+    const open = async (steps) => {
+        const screens = [];
+        ctx.ui.custom = terminalPicker([...steps, undefined], screens);
+        await memoryCommand(commandOptions(ctx, runtime));
+        return screens;
+    };
+    let screens = await open(["Memory model", "other [fixture]", "high"]);
+    const [, models1, levels1] = screens;
+    assert.match(models1, /✓ Use current Pi model/);
+    assert.match(models1, /Step 1\/2 · Reads closed conversations/);
+    assert.match(levels1, /Thinking level for other \[fixture\]/);
+    assert.match(
+        levels1,
+        /Step 2\/2 · Default uses low reasoning or the nearest level the model offers\./,
+    );
+    for (const row of [
+        /→ {3}Default \(low\)/,
+        /low\s+Light reasoning \(~2k tokens\)/,
+        /medium\s+Moderate reasoning/,
+        /high\s+Deep reasoning \(~16k tokens\)/,
+        /xhigh\s+Extra-high reasoning/,
+    ])
+        assert.match(levels1, row);
+    assert.doesNotMatch(
+        levels1,
+        /No reasoning|Very brief reasoning|Maximum reasoning/,
+        "off, minimal and max are not offered",
+    );
+    assert.doesNotMatch(levels1, /✓/, "another model is stored");
+    assert.equal(state.consents, 1);
+    assert.deepEqual(runtime.settings().extractModel, {
+        ...models.other,
+        reasoning: "high",
+    });
+    assert.match(screens.at(-1), /Memory model\s+other \[fixture\] · high/);
+    assert.equal(state.notices.at(-1), "Memory model: other [fixture] · high.");
+
+    // The stored model and level are marked and highlighted; Esc goes back to the model list.
+    screens = await open([
+        "Memory model",
+        "other [fixture]",
+        undefined,
+        "other [fixture]",
+        "high",
+    ]);
+    assert.match(screens[1], /→ ✓ other \[fixture\]/);
+    assert.match(screens[1], /^ {4}Use current Pi model/m);
+    assert.match(screens[2], /→ ✓ high/);
+    assert.match(screens[3], /Step 1\/2 · /);
+    assert.match(screens[3], /→ ✓ other \[fixture\]/);
+    assert.equal(state.consents, 1);
+    assert.deepEqual(runtime.settings().extractModel, {
+        ...models.other,
+        reasoning: "high",
+    });
+
+    screens = await open(["Memory model", "other [fixture]", "xhigh"]);
+    assert.equal(state.consents, 1, "a level alone needs no consent");
+    assert.deepEqual(runtime.settings().extractModel, {
+        ...models.other,
+        reasoning: "xhigh",
+    });
+    screens = await open(["Memory model", "other [fixture]", "Default (low)"]);
+    assert.match(screens[2], /→ ✓ xhigh/);
+    assert.equal(state.consents, 1);
+    assert.deepEqual(runtime.settings().extractModel, models.other);
+    assert.match(screens.at(-1), /Memory model\s+other \[fixture\] · low/);
+
+    screens = await open([
+        "Memory model",
+        "other [fixture]",
+        undefined,
+        "local [fixture]",
+        "Default (off)",
+    ]);
+    assert.match(screens[2], /→ ✓ Default \(low\)/);
+    assert.match(screens[4], /→ {3}Default \(off\)/);
+    assert.doesNotMatch(
+        screens[4],
+        /reasoning \(~/,
+        "a model without levels offers only the default",
+    );
+    assert.equal(state.consents, 2, "a model change asks again");
+    assert.deepEqual(runtime.settings().extractModel, models.local);
+    assert.match(screens.at(-1), /Memory model\s+local \[fixture\] · off/);
+    await runtime.dispose();
+});
+test("without a terminal, the model and its level are two selectors, and Esc on the level goes back to the models", async (t) => {
+    const picks = [
+        "Memory model",
+        "other [fixture]",
+        undefined,
+        "other [fixture]",
+        "medium",
+        undefined,
+    ];
+    const dialogs = [];
+    const { ctx, models, state, runtime } = await enabledModelPage(
+        t,
+        (f, ui) => ({
+            ...fakeContext(f, {
+                ...ui,
+                select: async (title, options) => {
+                    dialogs.push({ title, options });
+                    return pickRow(options, picks.shift());
+                },
+            }),
+            hasUI: true,
+        }),
+    );
+    await memoryCommand(commandOptions(ctx, runtime));
+    assert.ok(dialogs[0].options.includes("Memory model: Current Pi model"));
+    assert.equal(
+        dialogs[1].title,
+        "Memory model\nStep 1/2 · Reads closed conversations and writes memories.",
+    );
+    assert.deepEqual(dialogs[1].options, [
+        "✓ Use current Pi model — Follow the model and thinking level selected for the main task.",
+        "  local [fixture]",
+        "  other [fixture]",
+    ]);
+    assert.equal(
+        dialogs[2].title,
+        "Thinking level for other [fixture]\nStep 2/2 · Default uses low reasoning or the nearest level the model offers.",
+    );
+    assert.deepEqual(dialogs[2].options, [
+        "  Default (low)",
+        "  low — Light reasoning (~2k tokens)",
+        "  medium — Moderate reasoning (~8k tokens)",
+        "  high — Deep reasoning (~16k tokens)",
+        "  xhigh — Extra-high reasoning (~32k tokens)",
+    ]);
+    assert.deepEqual(dialogs[3], dialogs[1], "Esc goes back to the models");
+    assert.equal(state.consents, 1);
+    assert.deepEqual(runtime.settings().extractModel, {
+        ...models.other,
+        reasoning: "medium",
+    });
+    assert.ok(
+        dialogs[5].options.includes("Memory model: other [fixture] · medium"),
+    );
+    await runtime.dispose();
+});
+test("a held Esc or Enter repeats only in the list where it was pressed; a fresh press steps again", async (t) => {
+    const { ctx, state, runtime } = await enabledModelPage(t, terminalContext);
+    const screens = [];
+    let pages = 0;
+    ctx.ui.custom = (factory) =>
+        new Promise((resolve) => {
+            initTheme();
+            const page = factory(
+                { requestRender() {} },
+                { fg: (_color, text) => text, bold: (text) => text },
+                undefined,
+                resolve,
+            );
+            // A page that opens again means a held key picked something.
+            if (pages++) {
+                resolve(undefined);
+                return;
+            }
+            const press = (...keys) => {
+                for (const key of keys) page.handleInput(key);
+                screens.push(
+                    page
+                        .render(160)
+                        .map((line) => stripTerminalSequences(line))
+                        .join("\n"),
+                );
+            };
+            // Kitty keyboard events: a press, then repeats while the key is held.
+            press("\x1b[B", "\r", "\x1b[13;1:2u");
+            press("\x1b[B", "\x1b[B", "\r", "\x1b[13;1:2u");
+            press("\x1b[B", "\x1b[1;1:2B");
+            press("\x1b[27u", "\x1b[27;1:2u", "\x1b[27;1:2u");
+            press("\x1b[27u");
+            page.handleInput("\x1b");
+        });
+    await memoryCommand(commandOptions(ctx, runtime));
+    assert.equal(pages, 1);
+    assert.match(screens[0], /Step 1\/2 · /, "Enter held on the row");
+    assert.match(screens[0], /→ ✓ Use current Pi model/);
+    assert.match(screens[1], /Step 2\/2 · /, "Enter held on the model");
+    assert.match(
+        screens[2],
+        /→ {3}medium/,
+        "a key pressed in a list repeats there",
+    );
+    assert.match(screens[3], /Step 1\/2 · /, "Esc held on the levels");
+    assert.match(screens[3], /→ {3}other \[fixture\]/);
+    assert.match(screens[4], /Memory model\s+Current Pi model/);
+    assert.doesNotMatch(screens[4], /Step 1\/2/);
+    assert.equal(runtime.settings().extractModel, null);
+    assert.equal(state.consents, 0);
     await runtime.dispose();
 });
 test("settings cycle preset values in place, keep a stored custom value in the cycle, and work without a terminal", async (t) => {

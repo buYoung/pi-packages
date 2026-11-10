@@ -11,6 +11,7 @@ import {
     fuzzyFilter,
     getKeybindings,
     Input,
+    isKeyRepeat,
     type SelectItem,
     SelectList,
     type SelectListLayoutOptions,
@@ -38,6 +39,21 @@ export interface OptionListSettings {
     readonly query?: string;
     readonly layout?: SelectListLayoutOptions;
 }
+/** A titled option list that a settings row opens. */
+export type OptionMenu = {
+    readonly title: string;
+    readonly description?: string;
+    readonly options: readonly Option[];
+} & OptionListSettings;
+/**
+ * Option lists shown one after another, as Pi's /settings does for a model's thinking level. Each
+ * list after the first is made from the value picked in the list before it; undefined means that
+ * value completes the choice.
+ */
+export type OptionSteps = readonly [
+    () => OptionMenu,
+    ...((value: string) => OptionMenu | undefined)[],
+];
 /** One row of a settings page. */
 export interface SettingRow {
     readonly id: string;
@@ -49,11 +65,9 @@ export interface SettingRow {
     /** Saves a cycled value while the page stays open; every row then shows the saved state. */
     readonly apply?: (value: string) => Promise<void>;
     /** Opens an option list in place, as Pi's /settings does for a model. */
-    readonly options?: () => {
-        readonly title: string;
-        readonly description?: string;
-        readonly options: readonly Option[];
-    } & OptionListSettings;
+    readonly options?: () => OptionMenu;
+    /** Opens option lists in place one after another; Esc goes back a list. */
+    readonly steps?: OptionSteps;
 }
 /**
  * A row the user activated or a value they picked; the caller handles it and opens the page again.
@@ -204,10 +218,100 @@ class OptionList extends Container implements Focusable {
     }
 }
 
+/** Pi's "Step 1/2 · " before the description of each list in a sequence. */
+function stepDescription(
+    index: number,
+    count: number,
+    description: string | undefined,
+): string | undefined {
+    if (count < 2) return description;
+    return [`Step ${index + 1}/${count}`, description]
+        .filter(Boolean)
+        .join(" · ");
+}
+/**
+ * Pi's SteppedSubmenu over option lists: a pick opens the next list or completes the choice, and
+ * Esc goes back to the previous list as it was left, or cancels from the first.
+ */
+class SteppedOptionList implements Component, Focusable {
+    readonly #theme: Theme;
+    readonly #steps: OptionSteps;
+    readonly #onSelect: (value: string) => void;
+    readonly #onCancel: () => void;
+    readonly #lists: OptionList[] = [];
+    #isFocused = false;
+    /**
+     * Whether the shown list changed since the last key press. A key held across the change, such
+     * as Esc or Enter, repeats only in the list where it was pressed instead of stepping again.
+     */
+    #isHeldKeyStale = true;
+
+    constructor(
+        theme: Theme,
+        steps: OptionSteps,
+        onSelect: (value: string) => void,
+        onCancel: () => void,
+    ) {
+        this.#theme = theme;
+        this.#steps = steps;
+        this.#onSelect = onSelect;
+        this.#onCancel = onCancel;
+        this.#open(0, steps[0]());
+    }
+    get #list(): OptionList {
+        return this.#lists.at(-1)!;
+    }
+    #open(index: number, menu: OptionMenu): void {
+        const { title, description, options, ...settings } = menu;
+        const list = new OptionList(
+            this.#theme,
+            title,
+            stepDescription(index, this.#steps.length, description),
+            options,
+            settings,
+            (value) => {
+                const next = this.#steps[index + 1]?.(value);
+                if (next) this.#open(index + 1, next);
+                else this.#onSelect(value);
+            },
+            () => {
+                this.#lists.pop();
+                if (!this.#lists.length) {
+                    this.#onCancel();
+                    return;
+                }
+                this.#list.focused = this.#isFocused;
+                this.#isHeldKeyStale = true;
+            },
+        );
+        list.focused = this.#isFocused;
+        this.#lists.push(list);
+        this.#isHeldKeyStale = true;
+    }
+    get focused(): boolean {
+        return this.#isFocused;
+    }
+    set focused(value: boolean) {
+        this.#isFocused = value;
+        this.#list.focused = value;
+    }
+    handleInput(data: string): void {
+        if (!isKeyRepeat(data)) this.#isHeldKeyStale = false;
+        else if (this.#isHeldKeyStale) return;
+        this.#list.handleInput(data);
+    }
+    render(width: number): string[] {
+        return this.#list.render(width);
+    }
+    invalidate(): void {
+        this.#list.invalidate();
+    }
+}
+
 /** A row without values reports Enter to the caller: one value cycles to itself. */
 function rowValues(row: SettingRow): string[] | undefined {
     if (row.values) return [...row.values];
-    return row.options ? undefined : [row.value];
+    return row.options || row.steps ? undefined : [row.value];
 }
 /** Pi's settings page: borders around a SettingsList that explains the highlighted row. */
 class SettingsPage implements Component, Focusable {
@@ -223,7 +327,7 @@ class SettingsPage implements Component, Focusable {
     #saving: Promise<void> = Promise.resolve();
     #isFocused = false;
     /** The open option list, which receives focus so its filter shows the cursor and IME input. */
-    #submenuList: OptionList | undefined;
+    #submenuList: OptionList | SteppedOptionList | undefined;
     /** The filter text of the option list a value was last picked from. */
     #submenuQuery = "";
 
@@ -253,6 +357,7 @@ class SettingsPage implements Component, Focusable {
             description: row.description,
             values: rowValues(row),
             ...(row.options ? { submenu: this.#submenu(row) } : {}),
+            ...(row.steps ? { submenu: this.#steppedSubmenu(row.steps) } : {}),
         }));
         const list = new SettingsList(
             items,
@@ -286,6 +391,23 @@ class SettingsPage implements Component, Focusable {
                 description,
                 options,
                 settings,
+                (value) => close(value),
+                () => close(),
+            );
+            list.focused = this.#isFocused;
+            this.#submenuList = list;
+            return list;
+        };
+    }
+    #steppedSubmenu(steps: OptionSteps): NonNullable<SettingItem["submenu"]> {
+        return (_value, done) => {
+            const close = (value?: string) => {
+                this.#submenuList = undefined;
+                done(value);
+            };
+            const list = new SteppedOptionList(
+                this.#theme,
+                steps,
                 (value) => close(value),
                 () => close(),
             );
@@ -429,6 +551,33 @@ export async function pickOptionWithQuery(
     }
 }
 
+/** Shows stepped option lists as plain selectors; Esc goes back a list, or cancels from the first. */
+async function pickSteps(
+    ctx: ExtensionContext,
+    steps: OptionSteps,
+): Promise<string | undefined> {
+    const menus = [steps[0]()];
+    while (menus.length) {
+        const index = menus.length - 1;
+        const { title, description, options, ...settings } = menus[index]!;
+        const value = await pickOption(
+            ctx,
+            title,
+            stepDescription(index, steps.length, description),
+            options,
+            settings,
+        );
+        if (value === undefined) {
+            menus.pop();
+            continue;
+        }
+        const next = steps[index + 1]?.(value);
+        if (!next) return value;
+        menus.push(next);
+    }
+    return undefined;
+}
+
 /**
  * Shows a settings page. Cycled rows with `apply` save in place; any other change or activated
  * row closes the page and is returned. Esc returns undefined.
@@ -485,5 +634,7 @@ export async function openSettings(
             ),
         };
     }
+    if (row.steps)
+        return { id: row.id, value: await pickSteps(ctx, row.steps) };
     return { id: row.id, value: row.value };
 }

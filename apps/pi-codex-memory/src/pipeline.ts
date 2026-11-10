@@ -3,6 +3,8 @@ import {
     type AssistantMessage,
     clampThinkingLevel,
     getSupportedThinkingLevels,
+    type ModelThinkingLevel,
+    type ThinkingLevel,
 } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { MemorySettings, ModelChoice } from "./config.js";
@@ -53,23 +55,20 @@ export interface MemoryModel {
         signal: AbortSignal;
     }): Promise<ModelReply>;
 }
+/** Codex's level for each stage when none is chosen: low to extract, medium to consolidate. */
+export const STAGE_REASONING: Readonly<
+    Record<"extraction" | "consolidation", ThinkingLevel>
+> = { extraction: "low", consolidation: "medium" };
 /**
- * A configured level, or Codex's level for the stage (low to extract, medium to consolidate)
- * moved to the nearest level the model offers, as Pi does for a session; "off" sends none.
+ * The level a stage uses: the requested level, or the stage's level, moved to the nearest level
+ * the model offers, as Pi does for a session. "off" sends none.
  */
-function stageReasoning(
+export function stageReasoning(
     model: Parameters<typeof clampThinkingLevel>[0],
-    request: {
-        stage: "extraction" | "consolidation";
-        model: ModelChoice | null;
-    },
-) {
-    const level = clampThinkingLevel(
-        model,
-        request.model?.reasoning ??
-            (request.stage === "extraction" ? "low" : "medium"),
-    );
-    return level === "off" ? undefined : level;
+    stage: "extraction" | "consolidation",
+    requested?: ModelThinkingLevel,
+): ModelThinkingLevel {
+    return clampThinkingLevel(model, requested ?? STAGE_REASONING[stage]);
 }
 export function piMemoryModel(ctx: ExtensionContext): MemoryModel {
     const resolveModel = (choice: ModelChoice | null) => {
@@ -95,6 +94,12 @@ export function piMemoryModel(ctx: ExtensionContext): MemoryModel {
         async complete(request) {
             request.signal.throwIfAborted();
             const model = resolveModel(request.model);
+            // The current Pi model comes with the session's level, read from the same context.
+            const reasoning = stageReasoning(
+                model,
+                request.stage,
+                request.model ? request.model.reasoning : ctx.thinkingLevel,
+            );
             let response: AssistantMessage;
             try {
                 response = await ctx.modelRegistry
@@ -117,7 +122,8 @@ export function piMemoryModel(ctx: ExtensionContext): MemoryModel {
                             sessionId: ctx.sessionManager.getSessionId(),
                             cacheRetention: "none",
                             maxTokens: request.maxOutputTokens,
-                            reasoning: stageReasoning(model, request),
+                            reasoning:
+                                reasoning === "off" ? undefined : reasoning,
                         },
                     )
                     .result();

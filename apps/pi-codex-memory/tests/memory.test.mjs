@@ -1206,10 +1206,67 @@ test("model adapter follows the current Pi model for a null choice and fails wit
         signal: new AbortController().signal,
     });
     assert.equal(captured.model.id, "main");
-    assert.equal(captured.options.reasoning, "medium");
+    assert.equal(
+        captured.options.reasoning,
+        "medium",
+        "the stage's level without a session level",
+    );
     ctx.model = undefined;
     await assert.rejects(
         adapter.validate(null),
         (error) => error.code === "model_unavailable",
     );
+});
+test("the current Pi model uses the session's thinking level, moved to one the model offers; a chosen model keeps its own", async () => {
+    const sent = [];
+    const ctx = {
+        // Offers off, low, medium and high.
+        model: {
+            provider: "fixture",
+            id: "main",
+            reasoning: true,
+            thinkingLevelMap: { minimal: null, xhigh: null },
+        },
+        sessionManager: { getSessionId: () => "fixture-session" },
+        modelRegistry: {
+            find: (provider, id) => ({ provider, id, reasoning: true }),
+            streamSimple(model, _context, options) {
+                sent.push(`${model.id} ${options.reasoning}`);
+                return {
+                    async result() {
+                        return {
+                            stopReason: "stop",
+                            content: [{ type: "text", text: "{}" }],
+                        };
+                    },
+                };
+            },
+        },
+    };
+    const adapter = piMemoryModel(ctx);
+    const complete = (model) =>
+        adapter.complete({
+            stage: "extraction",
+            model,
+            system: "instructions",
+            input: "masked",
+            maxOutputTokens: 512,
+            signal: new AbortController().signal,
+        });
+    for (const level of ["high", "minimal", "xhigh", "off", undefined]) {
+        ctx.thinkingLevel = level;
+        await complete(null);
+    }
+    ctx.thinkingLevel = "high";
+    await complete({ provider: "fixture", id: "chosen" });
+    await complete({ provider: "fixture", id: "chosen", reasoning: "medium" });
+    assert.deepEqual(sent, [
+        "main high",
+        "main low",
+        "main high",
+        "main undefined",
+        "main low",
+        "chosen low",
+        "chosen medium",
+    ]);
 });

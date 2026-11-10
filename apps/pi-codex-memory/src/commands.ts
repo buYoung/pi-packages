@@ -1,21 +1,22 @@
+import {
+    getSupportedThinkingLevels,
+    type ThinkingLevel,
+} from "@earendil-works/pi-ai";
 import type {
     ExtensionCommandContext,
     ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
     isMemoryEnabled,
+    MEMORY_REASONING_LEVELS,
     type MemorySettings,
     type ModelChoice,
     parseSettings,
 } from "./config.js";
 import type { MemoryCreationRange } from "./coordinator.js";
 import { MemoryUserError, memoryFailureCode } from "./failure.js";
-import {
-    type Option,
-    type OptionListSettings,
-    openSettings,
-    type SettingRow,
-} from "./menus.js";
+import { type OptionMenu, openSettings, type SettingRow } from "./menus.js";
+import { STAGE_REASONING, stageReasoning } from "./pipeline.js";
 import type { RepositoryCommandContext } from "./repository-commands.js";
 import type { MemoryRuntime } from "./runtime.js";
 import { safeError } from "./safety.js";
@@ -46,37 +47,68 @@ function modelName(model: ModelChoice): string {
     const name = `${model.id} [${model.provider}]`;
     return model.reasoning ? `${name} · ${model.reasoning} reasoning` : name;
 }
+/** Whether two choices send conversations to the same model; a level alone does not change that. */
 function isSameModel(left: ModelChoice | null, right: ModelChoice | null) {
-    return JSON.stringify(left) === JSON.stringify(right);
+    return left?.provider === right?.provider && left?.id === right?.id;
 }
 /** The option and stored null that follow the model selected for the main task, as in Auto Review. */
 const CURRENT_MODEL = "current";
 type ModelStage = "extractModel" | "consolidateModel";
+type ModelRow = (typeof MODEL_ROWS)[number];
 const MODEL_ROWS: readonly {
     readonly key: ModelStage;
+    readonly stage: "extraction" | "consolidation";
     readonly label: string;
     readonly description: string;
     readonly listDescription: string;
 }[] = [
     {
         key: "extractModel",
+        stage: "extraction",
         label: "Memory model",
         description:
             "The model that reads closed conversations and writes memories. Lists the models chosen in /scoped-models.",
-        listDescription:
-            "Reads closed conversations and writes memories, with low reasoning or the nearest level the model offers.",
+        listDescription: "Reads closed conversations and writes memories.",
     },
     {
         key: "consolidateModel",
+        stage: "consolidation",
         label: "Summary model",
         description:
             "The model that merges memories into the summary sent with each request. Lists the models chosen in /scoped-models.",
         listDescription:
-            "Merges memories into the summary sent with each request, with medium reasoning or the nearest level the model offers.",
+            "Merges memories into the summary sent with each request.",
     },
 ];
-function choiceName(choice: ModelChoice | null): string {
-    return choice ? modelName(choice) : "Current Pi model";
+/** Pi's descriptions of thinking levels in /settings. */
+const THINKING_DESCRIPTIONS: Readonly<Record<ThinkingLevel, string>> = {
+    minimal: "Very brief reasoning (~1k tokens)",
+    low: "Light reasoning (~2k tokens)",
+    medium: "Moderate reasoning (~8k tokens)",
+    high: "Deep reasoning (~16k tokens)",
+    xhigh: "Extra-high reasoning (~32k tokens)",
+    max: "Maximum reasoning",
+};
+/** The level a stage uses with a model when none is chosen; the stage's own for an unknown model. */
+function defaultLevel(
+    model: Parameters<typeof stageReasoning>[0] | undefined,
+    row: ModelRow,
+) {
+    return model
+        ? stageReasoning(model, row.stage)
+        : STAGE_REASONING[row.stage];
+}
+/** A row's value: the model with the level it uses, or the current Pi model. */
+function choiceName(
+    ctx: ExtensionContext,
+    row: ModelRow,
+    choice: ModelChoice | null,
+): string {
+    if (!choice) return "Current Pi model";
+    const level =
+        choice.reasoning ??
+        defaultLevel(ctx.modelRegistry.find(choice.provider, choice.id), row);
+    return `${choice.id} [${choice.provider}] · ${level}`;
 }
 /** Where memory sends conversation copies, for confirmations. */
 export function modelText(
@@ -115,21 +147,17 @@ function memoryModels(ctx: ExtensionContext) {
             index,
     );
 }
-/** The option for a stored choice; none when it carries custom reasoning that no option shows. */
-function choiceValue(choice: ModelChoice | null): string | undefined {
-    if (!choice) return CURRENT_MODEL;
-    return choice.reasoning ? undefined : modelKey(choice);
+/** Pi marks the current value of a short list with ✓ and aligns the others. */
+function mark(label: string, isCurrent: boolean): string {
+    return `${isCurrent ? "✓ " : "  "}${label}`;
 }
+/** The first list: the current Pi model, which completes the choice, or a model to pick a level for. */
 function modelOptions(
     ctx: ExtensionContext,
-    row: (typeof MODEL_ROWS)[number],
+    row: ModelRow,
     choice: ModelChoice | null,
-): {
-    title: string;
-    description: string;
-    options: Option[];
-} & OptionListSettings {
-    const current = choiceValue(choice);
+): OptionMenu {
+    const current = choice ? modelKey(choice) : CURRENT_MODEL;
     // Pi's order: the current model first, then by provider, keeping each provider's order.
     const models = [...memoryModels(ctx)].sort((a, b) =>
         modelKey(a) === current
@@ -144,12 +172,13 @@ function modelOptions(
         options: [
             {
                 value: CURRENT_MODEL,
-                label: "Use current Pi model",
-                description: "Follow the model selected for the main task.",
+                label: mark("Use current Pi model", current === CURRENT_MODEL),
+                description:
+                    "Follow the model and thinking level selected for the main task.",
             },
             ...models.map((model) => ({
                 value: modelKey(model),
-                label: model.id,
+                label: mark(model.id, modelKey(model) === current),
                 hint: `[${model.provider}]`,
             })),
         ],
@@ -158,10 +187,56 @@ function modelOptions(
         layout: MODEL_LAYOUT,
     };
 }
-function parseModel(value: string): ModelChoice | null {
-    if (value === CURRENT_MODEL) return null;
+/**
+ * The second list for a picked model: the level it uses by default, then each level it offers. Its
+ * values are whole stored choices.
+ */
+function levelOptions(
+    ctx: ExtensionContext,
+    row: ModelRow,
+    choice: ModelChoice | null,
+    value: string,
+): OptionMenu | undefined {
+    if (value === CURRENT_MODEL) return undefined;
     const slash = value.indexOf("/");
-    return { provider: value.slice(0, slash), id: value.slice(slash + 1) };
+    const picked = {
+        provider: value.slice(0, slash),
+        id: value.slice(slash + 1),
+    };
+    const model = ctx.modelRegistry.find(picked.provider, picked.id);
+    const supported = model ? getSupportedThinkingLevels(model) : [];
+    const levels = MEMORY_REASONING_LEVELS.filter((level) =>
+        supported.includes(level),
+    );
+    const current =
+        choice && isSameModel(choice, picked)
+            ? (choice.reasoning ?? null)
+            : undefined;
+    const option = (level: ThinkingLevel | null) =>
+        JSON.stringify(level ? { ...picked, reasoning: level } : picked);
+    return {
+        title: `Thinking level for ${picked.id} [${picked.provider}]`,
+        description: `Default uses ${STAGE_REASONING[row.stage]} reasoning or the nearest level the model offers.`,
+        options: [
+            {
+                value: option(null),
+                label: mark(
+                    `Default (${defaultLevel(model, row)})`,
+                    current === null,
+                ),
+            },
+            ...levels.map((level) => ({
+                value: option(level),
+                label: mark(level, level === current),
+                description: THINKING_DESCRIPTIONS[level],
+            })),
+        ],
+        preselect: current === undefined ? undefined : option(current),
+    };
+}
+/** A choice from the last list picked: the current Pi model, or a model with its level. */
+function parseModel(value: string): ModelChoice | null {
+    return value === CURRENT_MODEL ? null : (JSON.parse(value) as ModelChoice);
 }
 /** Consent for sending conversation copies; required whenever memory turns on or a model changes. */
 async function confirmSending(
@@ -223,14 +298,16 @@ async function turnOn(
 async function setModel(
     runtime: MemoryRuntime,
     ctx: ExtensionContext,
-    row: (typeof MODEL_ROWS)[number],
+    row: ModelRow,
     value: string,
 ): Promise<void> {
     const settings = runtime.settings();
-    if (value === choiceValue(settings[row.key])) return;
-    const model = parseModel(value);
+    const before = settings[row.key],
+        model = parseModel(value);
+    if (isSameModel(before, model) && before?.reasoning === model?.reasoning)
+        return;
     if (await saveWithConsent(runtime, ctx, { ...settings, [row.key]: model }))
-        ctx.ui.notify(`${row.label}: ${choiceName(model)}.`, "info");
+        ctx.ui.notify(`${row.label}: ${choiceName(ctx, row, model)}.`, "info");
 }
 function scopeLabel(runtime: MemoryRuntime): string {
     if (runtime.scope === "global") return "Personal";
@@ -276,13 +353,24 @@ function memoryRows(
             description:
                 "Turns closed conversations into memories and uses them in later sessions, by sending masked copies to the models below. Off keeps saved memories without using them.",
         },
-        ...MODEL_ROWS.map((row) => ({
-            id: row.key,
-            label: row.label,
-            value: choiceName(settings[row.key]),
-            description: row.description,
-            options: () => modelOptions(ctx, row, runtime.settings()[row.key]),
-        })),
+        ...MODEL_ROWS.map(
+            (row): SettingRow => ({
+                id: row.key,
+                label: row.label,
+                value: choiceName(ctx, row, settings[row.key]),
+                description: row.description,
+                steps: [
+                    () => modelOptions(ctx, row, runtime.settings()[row.key]),
+                    (value) =>
+                        levelOptions(
+                            ctx,
+                            row,
+                            runtime.settings()[row.key],
+                            value,
+                        ),
+                ],
+            }),
+        ),
         {
             id: "scope",
             label: "Memory scope",
