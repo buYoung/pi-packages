@@ -1,6 +1,6 @@
 {
   "name": "@buyong/pi-background-exec",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Background shell jobs for Pi that wake the agent with their results, and Herdr agent state that stays working until those jobs finish.",
   "license": "Apache-2.0",
   "engines": {
