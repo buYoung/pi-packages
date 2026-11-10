@@ -39,6 +39,11 @@ export class DevinLifecycle {
     return Effect.sync(() => structuredClone(this.state));
   }
 
+  /** Whether the session is compacting or summarizing a branch, so its requests are auxiliary. */
+  get isInAuxiliaryPhase(): Effect.Effect<boolean> {
+    return Effect.sync(() => this.isAuxiliary);
+  }
+
   private checkpoint(): Effect.Effect<void, Cancelled> {
     return Effect.suspend(() => {
       if (this.binding && this.binding.getSessionId() !== this.state.sessionId) return Effect.fail(cancelled());
