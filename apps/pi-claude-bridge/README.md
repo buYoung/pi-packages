@@ -64,7 +64,7 @@ Pi's tools are bridged to Claude Code, and you use them in Pi as usual. The brid
 
 The model list comes from pi-ai's Anthropic catalog. When pi-ai adds a new Claude model, it appears in `/model` after you update Pi, which provides pi-ai; no bridge update is needed. Dated snapshot IDs (for example `claude-opus-4-5-20251101`) are not shown.
 
-**1M context:** Fable 5/5.1, Opus 5.5/5/4.8/4.7, Sonnet 5.5/5, and Haiku 5.5 get 1M context. Opus 4.6 gets 1M only on a Max plan or with Extra Usage, and Sonnet 4.6 only with Extra Usage. The bridge detects a Max plan from the Claude Code login on the first request. Set `provider.plan` or `provider.longContextExtraUsage` as described in [Configuration](#configuration) when detection cannot decide or you want to override it.
+**1M context:** Fable 5/5.1/5.2, Opus 5.5/5/4.8/4.7, Sonnet 5.5/5, and Haiku 5.5 get 1M context. Opus 4.6 gets 1M only on a Max plan or with Extra Usage, and Sonnet 4.6 only with Extra Usage. The bridge detects a Max plan from the Claude Code login on the first request. Set `provider.plan` or `provider.longContextExtraUsage` as described in [Configuration](#configuration) when detection cannot decide or you want to override it.
 
 ### Compaction and branch summaries
 

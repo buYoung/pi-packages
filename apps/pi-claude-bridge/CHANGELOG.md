@@ -8,7 +8,7 @@
 
 ### Fixed
 
-- Long conversations with Claude Fable 5.2 no longer stop with `Prompt is too long` before they reach 200K tokens. Claude Code 2.1.319 limited this model to a 200K context window; 2.1.322 serves its 1M window.
+- Claude Fable 5.2 now gets 1M context, like Fable 5.1. Long conversations with it no longer stop with `Prompt is too long` before they reach 200K tokens: Claude Code 2.1.319 limited this model to 200K, and the bridge registered it at 200K.
 
 ## 0.14.3 — 2026-11-07
 
