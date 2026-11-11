@@ -41,7 +41,7 @@
         "prepack": "tsc && node ../../scripts/codex/check-package.mjs ."
     },
     "dependencies": {
-        "@earendil-works/pi-mcp": "1.5.0"
+        "@earendil-works/pi-mcp": "1.5.2"
     },
     "peerDependencies": {
         "@earendil-works/pi-ai": "*",
