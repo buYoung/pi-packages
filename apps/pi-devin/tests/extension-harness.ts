@@ -26,6 +26,8 @@ import type { AuthStateShape } from "../src/pi/features/auth/types.ts";
 import { RemoteCatalog } from "../src/pi/features/catalog/remote.ts";
 import { LoginTransport } from "../src/pi/features/auth/login.ts";
 import { ModelCatalog, ModelCatalogLive } from "../src/pi/features/catalog/service.ts";
+import { ImageCompressor, PiImageCompressor } from "../src/pi/features/inference/image-compressor.ts";
+import type { ImageCompressorShape } from "../src/pi/features/inference/types.ts";
 import type { DevinModel, FusionChoices, FusionSelection, ModelCatalogShape } from "../src/pi/features/catalog/types.ts";
 import { ProviderLifetimeLive } from "../src/pi/features/lifetime/service.ts";
 import type { DevinLifecycle } from "../src/pi/features/runs/lifecycle.ts";
@@ -48,6 +50,8 @@ export interface TestOptions extends TransportChoice {
   loginOptions?: LoginSettings & { fetch?: typeof fetch };
   /** Device values for request fingerprints. Defaults to fixed offline values. */
   deviceIdentity?: Effect.Effect<DeviceIdentity>;
+  /** Replaces Pi's image resizer for requests over Devin's size limits. */
+  imageCompressor?: ImageCompressorShape;
   accountUsage?: UsageStoreShape;
   now?: () => number;
   fusionSettings?: FusionSettingsShape;
@@ -69,6 +73,7 @@ export function testEnvironment(options: TestOptions = {}): Layer.Layer<Extensio
     Layer.succeed(HttpTransport, options.transport ?? transportOf(options)),
     Layer.succeed(LoginTransport, loginFetch ? transportOf({ fetch: loginFetch }) : options.transport ?? transportOf(options)),
     Layer.succeed(DeviceIdentitySource, { collect: options.deviceIdentity ?? Effect.succeed(identity) }),
+    options.imageCompressor ? Layer.succeed(ImageCompressor, options.imageCompressor) : PiImageCompressor,
     Layer.succeed(FusionSettings, options.fusionSettings ?? memoryFusionSettings()),
     Layer.succeed(DisplaySettings, options.devinSettings ?? memoryDisplaySettings()),
     Layer.succeed(UsageStore, options.accountUsage ?? memoryUsageStore()),

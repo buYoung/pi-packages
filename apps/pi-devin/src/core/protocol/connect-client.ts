@@ -8,7 +8,7 @@ import { redactFailure, requestSecrets, safeError } from "../redaction.ts";
 import type { JsonObject } from "../types.ts";
 import { failWith, object } from "../validation.ts";
 import { endpoint } from "./endpoint.ts";
-import { decodeFrames, encodeFrame, MAX_FRAME_BYTES, type Frame } from "./frames.ts";
+import { decodeFrames, encodeFrame, MAX_REQUEST_BYTES, type Frame } from "./frames.ts";
 import { HttpTransport } from "../services/http-transport.ts";
 import { discardResponse, fromHttpClientError, readBoundedBytes, readBoundedJSON, responseChunks } from "./http.ts";
 import { CHAT_METHOD, chatRequestCodec, unaryCodecs } from "./protobuf.ts";
@@ -151,7 +151,7 @@ export function makeConnectClient(options: ConnectClientOptions): Effect.Effect<
       if (isStreaming && method !== CHAT_METHOD) return yield* failWith("Unsupported streaming RPC.");
       const bytes = isStreaming ? yield* chatRequestCodec.encode(body)
         : encoding === "proto" ? yield* Effect.flatMap(unaryCodecs(method), (codecs) => codecs.request.encode(body)) : Buffer.from(JSON.stringify(body));
-      if (bytes.length > MAX_FRAME_BYTES) return yield* failWith("The request body exceeds 8 MiB.");
+      if (bytes.length > MAX_REQUEST_BYTES) return yield* failWith("The request body exceeds Devin's 10 MiB request limit.");
       const isMetered = method === CHAT_METHOD || method === ASSIGN_MODEL_METHOD;
       const sentryTrace = method === CHAT_METHOD ? trace() : undefined;
       let isCompressed = isStreaming && bytes.length >= compressionThresholdBytes;

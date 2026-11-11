@@ -15,15 +15,12 @@ export function imageMimeType(bytes: Uint8Array): Effect.Effect<ImageData["mimeT
   return failWith("Unsupported image. Use a PNG, JPEG, GIF or WebP file.");
 }
 
+/** Checks the Base64 and the actual format. Size limits belong to the caller, which can reduce or leave out an image. */
 export function imageFromBase64(data: string, mimeType: string): Effect.Effect<{ image: ImageData; sizeBytes: number }, DevinError> {
   return Effect.gen(function* () {
-    if (data.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4 || data.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) {
-      return yield* failWith("Invalid image Base64 format or size.");
-    }
+    if (data.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) return yield* failWith("Invalid image Base64 format.");
     const bytes = Buffer.from(data, "base64");
-    if (bytes.length > MAX_IMAGE_BYTES || bytes.toString("base64").replace(/=+$/, "") !== data.replace(/=+$/, "")) {
-      return yield* failWith("Invalid image Base64 format or size.");
-    }
+    if (bytes.toString("base64").replace(/=+$/, "") !== data.replace(/=+$/, "")) return yield* failWith("Invalid image Base64 format.");
     const actualMimeType = yield* imageMimeType(bytes);
     if (mimeType !== actualMimeType) return yield* failWith("The image MIME type does not match its actual format.");
     return { image: { base64Data: data, mimeType: actualMimeType }, sizeBytes: bytes.length };

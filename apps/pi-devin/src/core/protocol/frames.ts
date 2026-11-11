@@ -5,7 +5,13 @@ import type { JsonObject } from "../types.ts";
 import { failWith, object } from "../validation.ts";
 import { chatResponseCodec } from "./protobuf.ts";
 
+/** The largest response frame, before and after decompression. */
 export const MAX_FRAME_BYTES = 8 * 1024 * 1024;
+/**
+ * Devin's front server (nginx) answers a request body over 10 MiB with HTTP 413 before it reaches a model. The margin
+ * covers the Connect envelope and gzip's overhead on data that does not compress, such as images.
+ */
+export const MAX_REQUEST_BYTES = 10 * 1024 * 1024 - 64 * 1024;
 export const MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
 
 export interface Frame {
@@ -16,7 +22,7 @@ export interface Frame {
 export function encodeFrame(bytes: Uint8Array, flags = 0): Effect.Effect<Buffer, DevinError> {
   return Effect.suspend(() => {
     const payload = Buffer.from(bytes);
-    if (payload.length > MAX_FRAME_BYTES) return failWith("The request frame exceeds 8 MiB.");
+    if (payload.length > MAX_REQUEST_BYTES) return failWith("The request frame exceeds Devin's 10 MiB request limit.");
     const header = Buffer.alloc(5);
     header[0] = flags;
     header.writeUInt32BE(payload.length, 1);

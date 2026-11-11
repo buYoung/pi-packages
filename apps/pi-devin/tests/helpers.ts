@@ -1,4 +1,4 @@
-import { gunzipSync } from "node:zlib";
+import { crc32, deflateSync, gunzipSync } from "node:zlib";
 import { Effect, Scope, Stream, type Layer } from "effect";
 import { abortWith, whenAborted } from "../src/core/cancellation.ts";
 import { toDevinFailure } from "../src/core/errors.ts";
@@ -127,3 +127,22 @@ export function statusResponse(restBaseURL?: string): JsonObject {
 }
 /** Lets queued fibers and promise callbacks run. */
 export const settle = async (rounds = 5) => { for (let index = 0; index < rounds; index++) await new Promise((resolve) => setImmediate(resolve)); };
+
+/** A PNG of deterministic noise, which compresses poorly, as photos and busy screenshots do. */
+export function noisePng(width: number, height: number): Buffer {
+  const rows = Buffer.alloc((width * 3 + 1) * height);
+  let seed = 1;
+  for (let index = 0; index < rows.length; index++) {
+    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+    rows[index] = index % (width * 3 + 1) === 0 ? 0 : seed & 0xff;
+  }
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
+    const checksum = Buffer.alloc(4); checksum.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, checksum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 2;
+  return Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), chunk("IHDR", header), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]);
+}

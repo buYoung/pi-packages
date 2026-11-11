@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getCurrentSystemPrompt, getCurrentTools, type AssistantMessage, type TranscriptContext } from "@earendil-works/pi-ai";
 import { Effect, Predicate } from "effect";
 import { DevinError } from "../../../core/errors.ts";
-import { imageFromBase64, MAX_IMAGES_BYTES } from "../../../core/inference/images.ts";
+import { imageFromBase64 } from "../../../core/inference/images.ts";
 import type { ChatMessage, ChatTool, ModelInfo } from "../../../core/types.ts";
 import { failWith, object, requiredString } from "../../../core/validation.ts";
 import { DEVIN_API } from "../../features/catalog/constants.ts";
@@ -124,14 +124,14 @@ function assistantMessage(message: Extract<ContextMessage, { role: "assistant" }
   });
 }
 
-/** A user message or tool result with its images, within the per-message image budget. */
+/** A user message or tool result with its images. Image size limits are applied to the whole request later. */
 function inputMessage(message: Exclude<ContextMessage, { role: "assistant" | "system" }>, model: ModelInfo): Effect.Effect<ChatMessage, DevinError> {
   return Effect.gen(function* () {
     const result: ChatMessage = {
       messageId: randomUUID(), source: message.role === "toolResult" ? "CHAT_MESSAGE_SOURCE_TOOL" : "CHAT_MESSAGE_SOURCE_USER", prompt: "",
       ...(message.role === "toolResult" ? { toolCallId: message.toolCallId, toolResultIsError: message.isError } : {}),
     };
-    let imageBytes = 0, isAfterPlaceholder = false;
+    let isAfterPlaceholder = false;
     const content = typeof message.content === "string" ? [{ type: "text" as const, text: message.content }] : message.content;
     for (const block of content) {
       if (block.type === "text") {
@@ -141,10 +141,7 @@ function inputMessage(message: Exclude<ContextMessage, { role: "assistant" | "sy
         if (!isAfterPlaceholder) result.prompt += message.role === "toolResult" ? NON_VISION_TOOL_IMAGE_PLACEHOLDER : NON_VISION_USER_IMAGE_PLACEHOLDER;
         isAfterPlaceholder = true;
       } else {
-        const converted = yield* imageFromBase64(block.data, block.mimeType);
-        imageBytes += converted.sizeBytes;
-        if (imageBytes > MAX_IMAGES_BYTES) return yield* failWith(`Images in one message must total at most ${MAX_IMAGES_BYTES} bytes.`);
-        (result.images ??= []).push(converted.image);
+        (result.images ??= []).push((yield* imageFromBase64(block.data, block.mimeType)).image);
       }
     }
     return result;

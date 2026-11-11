@@ -9,6 +9,7 @@ import { AuthStateLive } from "../features/auth/state.ts";
 import { RemoteCatalogLive } from "../features/catalog/remote.ts";
 import { ModelCatalogLive } from "../features/catalog/service.ts";
 import { DevinClientsLive } from "../features/clients/service.ts";
+import type { ImageCompressor } from "../features/inference/image-compressor.ts";
 import { InferenceLive } from "../features/inference/service.ts";
 import { ProviderLifetimeLive } from "../features/lifetime/service.ts";
 import { RunsLive } from "../features/runs/service.ts";
@@ -19,7 +20,7 @@ import { UsageChangesLive } from "../features/usage/changes.ts";
 import type { ExtensionConfig } from "./config.ts";
 
 /** What the entry point provides for the provider: its values and external I/O. */
-export type ProviderEnvironment = ExtensionConfig | HttpTransport | LoginTransport | DeviceIdentitySource | FusionSettings | DisplaySettings | UsageStore;
+export type ProviderEnvironment = ExtensionConfig | HttpTransport | LoginTransport | DeviceIdentitySource | ImageCompressor | FusionSettings | DisplaySettings | UsageStore;
 /** The provider environment plus what the extension's host features need. */
 export type ExtensionEnvironment = ProviderEnvironment | SidekickLauncher | FileSystem.FileSystem;
 
