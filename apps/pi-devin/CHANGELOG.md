@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Improved
+
+- Long sessions with screenshots use fewer tokens. An image a tool returned is sent for 5 model responses and then replaced with a note. For an image opened with `read`, the note gives the file path so the model can read it again. Images you attach are still sent every time, and Pi's history keeps every image.
+
+### Fixed
+
+- Conversations with many images, such as screenshots opened with `read`, keep working. When a request would be larger than 8 MiB, images are made smaller, oldest first, and then left out with a note, oldest first. An image over 4 MiB and images over 5 MiB in one message are handled the same way. Before, the request failed with "The request body exceeds 8 MiB." and every later request in the session failed the same way. A request that is still too large without images now fails as a context overflow, so Pi compacts the conversation.
+
 ## [0.1.15] - 2026-11-11
 
 ### Fixed

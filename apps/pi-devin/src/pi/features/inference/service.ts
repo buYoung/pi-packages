@@ -7,6 +7,7 @@ import { DevinClients } from "../clients/service.ts";
 import { onDefaultScheduler } from "../default-scheduler.ts";
 import { ProviderLifetime } from "../lifetime/service.ts";
 import { Runs } from "../runs/service.ts";
+import { ImageCompressor } from "./image-compressor.ts";
 import { prepareRequest, type InferenceDependencies } from "./request.ts";
 import type { InferenceShape } from "./types.ts";
 
@@ -18,7 +19,7 @@ export class Inference extends Context.Service<Inference, InferenceShape>()("pi-
 
 export const InferenceLive = Layer.effect(Inference, Effect.gen(function* () {
   const deps: InferenceDependencies = {
-    auth: yield* AuthState, guard: yield* CredentialGuard, catalog: yield* ModelCatalog, accounts: yield* Accounts,
+    images: yield* ImageCompressor, auth: yield* AuthState, guard: yield* CredentialGuard, catalog: yield* ModelCatalog, accounts: yield* Accounts,
     clients: yield* DevinClients, runs: yield* Runs, lifetime: yield* ProviderLifetime,
   };
   const requests = yield* FiberSet.make<void, never>();

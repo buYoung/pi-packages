@@ -5,6 +5,7 @@ import { NodeHttpTransport, nodeTransport } from "../../core/services/http-trans
 import { NodePlatformLayer } from "../../core/services/platform.ts";
 import { accountUsagePath, devinSettingsPath, DisplaySettingsFile, fusionSettingsPath, FusionSettingsFile, UsageStoreFile } from "../adapters/storage/files.ts";
 import { LoginTransport } from "../features/auth/login.ts";
+import { PiImageCompressor } from "../features/inference/image-compressor.ts";
 import { DisplaySettings, FusionSettings, memoryDisplaySettings, memoryFusionSettings } from "../features/settings/service.ts";
 import { NodeSidekickLauncher } from "../features/sidekick/launcher.ts";
 import { ExtensionConfig } from "./config.ts";
@@ -23,6 +24,7 @@ export function productionEnvironment(options: { isFusionChild: boolean }): Laye
     Layer.succeed(ExtensionConfig, { isFusionChild: options.isFusionChild, now: Date.now, login: {}, agentDir: getAgentDir }),
     NodeHttpTransport(),
     Layer.succeed(LoginTransport, nodeTransport()),
+    PiImageCompressor,
     settings,
     UsageStoreFile(accountUsagePath(agentDir)),
     NodeSidekickLauncher,

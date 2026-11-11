@@ -8,9 +8,9 @@ import { ChatAccumulator } from "../../../core/inference/accumulator.ts";
 import { chatRequest } from "../../../core/inference/request.ts";
 import type { BackendModelSelection, EffectiveThinkingLevel } from "../../../core/models/variants.ts";
 import { endpoint } from "../../../core/protocol/endpoint.ts";
-import { CHAT_METHOD } from "../../../core/protocol/protobuf.ts";
+import { CHAT_METHOD, chatRequestCodec } from "../../../core/protocol/protobuf.ts";
 import { safeError } from "../../../core/redaction.ts";
-import type { Credential, JsonObject } from "../../../core/types.ts";
+import type { ChatMessage, Credential, JsonObject } from "../../../core/types.ts";
 import { failWith, object, requiredString, tokenCount } from "../../../core/validation.ts";
 import { DevinResponseStream } from "../../adapters/pi/response-stream.ts";
 import { toDevinTranscript } from "../../adapters/pi/transcript.ts";
@@ -23,9 +23,13 @@ import type { DevinClientsShape } from "../clients/types.ts";
 import type { ProviderLifetimeShape } from "../lifetime/types.ts";
 import type { DevinLifecycle } from "../runs/lifecycle.ts";
 import { FUSION_LEAD_GUIDANCE } from "../sidekick/prompts.ts";
+import { withoutOldToolImages } from "./image-age.ts";
+import { fitImages } from "./image-budget.ts";
+import type { ImageCompressorShape } from "./types.ts";
 
 /** Services one request uses, resolved once when the inference service is built. */
 export interface InferenceDependencies {
+  images: ImageCompressorShape;
   auth: AuthStateShape;
   guard: CredentialGuardShape;
   catalog: ModelCatalogShape;
@@ -138,7 +142,8 @@ export const prepareRequest = (deps: InferenceDependencies, model: Model<DevinAP
     yield* assertCanInfer(account.status);
 
     const lease = yield* Effect.acquireRelease(deps.runs.acquire(account.ownerHash), (acquired) => acquired.release);
-    const transcript = yield* toDevinTranscript(context, selected.model);
+    const sent = withoutOldToolImages(context);
+    const transcript = yield* toDevinTranscript(sent, selected.model);
     if (isFusionModelID(model.id)) transcript.systemPrompt = [transcript.systemPrompt, FUSION_LEAD_GUIDANCE].filter(Boolean).join("\n\n");
     const requested = requestOptions.maxTokens === undefined ? selected.model.maxOutputTokens : yield* tokenCount(requestOptions.maxTokens, "maxTokens");
     const maximum = outputLimitForContext(model, context, requested);
@@ -147,11 +152,16 @@ export const prepareRequest = (deps: InferenceDependencies, model: Model<DevinAP
       onRequest: (attempt) => attempt.isMetered ? lease.assertAttempt : Effect.void,
     });
     yield* lease.addCleanup(client.close);
-    const request = chatRequest({ metadata: yield* client.metadata(), model: selected.uid, ...transcript, maxTokens: maximum,
+    const metadata = yield* client.metadata();
+    const requestWith = (messages: ChatMessage[]) => chatRequest({ metadata, model: selected.uid, ...transcript, messages, maxTokens: maximum,
       cascadeId: lease.cascadeId, trajectoryId: lease.trajectoryId, stepIndex: lease.stepIndex,
       executionId: lease.executionId, clientSessionId: requestOptions.sessionId ?? lease.sessionId,
       isAuxiliary: lease.isAuxiliary, isRecovery: lease.isRecovery, includeContext: false,
     });
+    const request = requestWith(yield* fitImages(transcript.messages, {
+      compressor: deps.images,
+      measure: (messages) => Effect.map(chatRequestCodec.encode(requestWith(messages)), (bytes) => bytes.byteLength),
+    }));
     if (requestOptions.temperature !== undefined) {
       if (!Number.isFinite(requestOptions.temperature) || requestOptions.temperature < 0) return yield* failWith("temperature must be a finite value of 0 or more.");
       (yield* object(request.configuration, "configuration")).temperature = requestOptions.temperature;
@@ -176,7 +186,7 @@ export const prepareRequest = (deps: InferenceDependencies, model: Model<DevinAP
           // An exact UID hidden from the list is re-resolved at that UID's level when the current catalog has it.
           if (!(yield* deps.catalog.exactLevel(actualUID))) return yield* failWith("A payload hook selected an unavailable model UID.");
           selected = yield* deps.catalog.resolveUID(actualUID, current);
-          yield* toDevinTranscript(context, selected.model); // A model change re-checks existing image and tool limits.
+          yield* toDevinTranscript(sent, selected.model); // A model change re-checks existing image and tool limits.
           yield* assertCacheRetention(selected);
         }
         const outputLimit = yield* tokenCount((yield* object(finalPayload.configuration, "configuration")).maxTokens, "maxTokens");

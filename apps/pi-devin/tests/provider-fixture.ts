@@ -25,6 +25,7 @@ export async function providerFixture(options: {
   /** Replaces the nth account status response (1-based); undefined keeps the normal response. */
   statusFailure?: (index: number) => Response | Promise<Response> | undefined;
   catalog?: JsonObject;
+  imageCompressor?: TestOptions["imageCompressor"];
 } = {}) {
   const requests: CapturedProviderRequest[] = [];
   let chatCalls = 0, statusCalls = 0, fingerprintCollections = 0;
@@ -48,6 +49,7 @@ export async function providerFixture(options: {
   const dependencies = { fetch: fetchImpl,
     loginOptions: { apiServerURL: providerCredential.apiServerURL, webappURL: "https://example.invalid" },
     deviceIdentity: Effect.sync(() => { fingerprintCollections++; return identity; }),
+    imageCompressor: options.imageCompressor,
   } satisfies TestOptions;
   const testProvider = makeTestProvider(dependencies);
   const { provider } = testProvider;

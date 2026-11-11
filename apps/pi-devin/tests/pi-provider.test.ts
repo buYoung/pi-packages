@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vitest";
-import { normalizeContext, type AssistantMessageEvent, type Context } from "@earendil-works/pi-ai";
+import { normalizeContext, type AssistantMessage, type AssistantMessageEvent, type Context } from "@earendil-works/pi-ai";
+import { isContextOverflow } from "@earendil-works/pi-ai/utils/overflow";
 import { isRetryableAssistantError } from "@earendil-works/pi-ai/utils/retry";
 import { CHAT_METHOD } from "../src/core/protocol/protobuf.ts";
 import { Effect } from "effect";
@@ -92,6 +93,56 @@ test("current system/tool changes and user and tool-result images are kept in th
     expect((prompts[2].images as JsonObject[])[0].base64Data).toBe(image.data);
     expect((prompts[1].toolCalls as JsonObject[])[0].id).toBe("keep-tool-id"); expect(prompts[2].toolCallId).toBe("keep-tool-id");
     expect(prompts.every((prompt) => prompt.promptCacheOptions === undefined)).toBe(true);
+  } finally { fixture.shutdown(); }
+});
+
+test("images over Devin's request limit are reduced oldest first, and a request too large without them is a context overflow", async () => {
+  const MiB = 1024 * 1024;
+  // 2.25 MiB of PNG-signed bytes is 3 MiB of Base64; four of them are more than the 8 MiB request limit.
+  const large = (index: number) => { const bytes = Buffer.alloc(2.25 * MiB, index); Buffer.from("89504e470d0a1a0a", "hex").copy(bytes); return bytes.toString("base64"); };
+  const small = { base64Data: "iVBORw0KGgo=", mimeType: "image/png" as const };
+  const reduced: string[] = [];
+  const fixture = await providerFixture({ imageCompressor: { reduce: (image) => Effect.sync(() => {
+    reduced.push(image.base64Data);
+    return { image: small, originalWidth: 2000, originalHeight: 1500, width: 1000, height: 750 };
+  }) } });
+  const images = [1, 2, 3, 4].map(large);
+  try {
+    const history = normalizeContext({ messages: images.map((data, index) => ({ role: "user" as const, content: [{ type: "text" as const, text: `shot ${index}` }, { type: "image" as const, mimeType: "image/png", data }], timestamp: index })) });
+    const { result } = await collect(fixture.provider.streamSimple(fixture.model, history, { apiKey: providerCredential.sessionToken, reasoning: "medium" }));
+    expect(result.stopReason).toBe("stop");
+    expect(reduced).toStrictEqual(images.slice(0, 2));
+    const prompts = fixture.requests.find((request) => request.method === CHAT_METHOD)!.body.chatMessagePrompts as JsonObject[];
+    expect(prompts.map((prompt) => (prompt.images as JsonObject[])[0].base64Data)).toStrictEqual([small.base64Data, small.base64Data, images[2], images[3]]);
+    expect(prompts[0].prompt).toMatch(/^shot 0\n\[Image scaled from 2000x1500 to 1000x750 /);
+    expect(prompts[2].prompt).toBe("shot 2");
+
+    const tooLarge = normalizeContext({ messages: [{ role: "user", content: "x".repeat(9 * MiB), timestamp: 1 }] });
+    const failed = await collect(fixture.provider.streamSimple(fixture.model, tooLarge, { apiKey: providerCredential.sessionToken, reasoning: "medium" }));
+    expect(failed.result.stopReason).toBe("error");
+    expect(isContextOverflow(failed.result)).toBe(true);
+    expect(fixture.chatCalls()).toBe(1);
+  } finally { fixture.shutdown(); }
+});
+
+test("a read image older than five responses reaches Devin as a note with its path", async () => {
+  const fixture = await providerFixture();
+  const done = (content: AssistantMessage["content"]): AssistantMessage => ({ role: "assistant", content, api: "devin-connect", provider: "devin", model: fixture.model.id, timestamp: 1,
+    stopReason: content.some((block) => block.type === "toolCall") ? "toolUse" : "stop",
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } });
+  try {
+    const history = normalizeContext({ messages: [
+      { role: "user", content: "look", timestamp: 1 },
+      done([{ type: "toolCall", id: "read_1", name: "read", arguments: { path: "/work/shot.png" } }]),
+      { role: "toolResult", toolCallId: "read_1", toolName: "read", content: [{ type: "text", text: "Read image file [image/png]" }, { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" }], isError: false, timestamp: 1 },
+      ...Array.from({ length: 5 }, () => done([{ type: "text", text: "ok" }])),
+      { role: "user", content: "next", timestamp: 1 },
+    ] });
+    await collect(fixture.provider.streamSimple(fixture.model, history, { apiKey: providerCredential.sessionToken, reasoning: "medium" }));
+    const prompts = fixture.requests.find((request) => request.method === CHAT_METHOD)!.body.chatMessagePrompts as JsonObject[];
+    const read = prompts.find((prompt) => prompt.toolCallId === "read_1")!;
+    expect(read.images).toBe(undefined);
+    expect(read.prompt).toBe("Read image file [image/png](image omitted after 5 responses to save tokens: /work/shot.png. Read the file again to see it.)");
   } finally { fixture.shutdown(); }
 });
 
