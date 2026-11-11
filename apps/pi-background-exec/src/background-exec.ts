@@ -233,11 +233,11 @@ export default function (pi: ExtensionAPI) {
     name: "background_exec",
     label: "Background exec",
     description:
-      "Run long non-agent shell jobs (build/test/simulation), not agent delegation: use subagent. Explicit CLI tests are allowed. Completion wakes this session with status and up to 1 KiB/12 log lines. Session switch/reload/quit cancels jobs. TUI/RPC only.",
-    promptSnippet: "Run long non-agent commands with automatic completion notifications",
+      "Run builds, test suites, typechecks, lint runs, dependency installs, and simulations instead of bash. Completion wakes this session in a later turn with status and up to 1 KiB/12 log lines. Session switch/reload/quit cancels jobs. TUI/RPC only. Not for agent delegation: use subagent; explicit CLI tests are allowed.",
+    promptSnippet: "Run builds, tests, and other long commands instead of bash; completion wakes you in a later turn",
     promptGuidelines: [
+      "Use background_exec, not bash, for builds, test suites, typechecks, lint runs, dependency installs, and simulations, including a first run to see what fails. Use bash for quick inspection such as ls, cat, grep, git status, or one focused test. Write the background_exec command to run in the foreground (no nohup or trailing &), then end the turn or do independent work; the completion message wakes you. Never sleep, poll, or call background_job or bg_wait to wait for it.",
       "Agent delegation must use subagent, never background_exec or bash with agent CLIs/SDK wrappers. If subagent is unavailable or fails, stop and report; do not substitute another execution path. Only explicit user-requested CLI tests are exempt.",
-      "Run non-agent commands in the foreground through background_exec, then do independent work or end the turn. Never sleep, poll, or call bg_wait for these jobs.",
       "Use background_job for requested inspection/cancellation. Reuse the completion log tail; read missing evidence only. Batch independent artifact reads. Individual job completion is progress, not overall task completion; check remainingJobs.",
     ],
     parameters: Type.Object({
