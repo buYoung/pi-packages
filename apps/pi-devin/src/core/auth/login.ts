@@ -10,7 +10,7 @@ import type { Credential } from "../types.ts";
 import { failWith, requiredString } from "../validation.ts";
 import { startCallbackServer } from "./callback-server.ts";
 import { codeForExchange, createPKCE, isAuthorizationCode, matchesState, PKCE_CODE_PREFIX } from "./pkce.ts";
-import { exchangeBrowserCode } from "./rest-exchange.ts";
+import { exchangeCLIAuthorizationCode } from "./rest-exchange.ts";
 
 export const DEFAULT_API_SERVER_URL = "https://server.codeium.com";
 export const DEFAULT_WEBAPP_URL = "https://app.devin.ai";
@@ -34,7 +34,10 @@ export interface LoginOptions {
   flow?: LoginFlow;
 }
 
-/** The new account UI defaults to the REST browser flow. An explicit encoding keeps the legacy Connect path. Code exchanges go through `HttpTransport`. */
+/**
+ * The new account UI defaults to the REST browser flow. An explicit encoding keeps the legacy Connect path. Code exchanges go through `HttpTransport`.
+ * The manual flow shares the browser authorization page and REST exchange; only a `wspkce$` code goes to Connect.
+ */
 export function loginAccount(options: LoginOptions): Effect.Effect<Credential, DevinFailure, HttpTransport> {
   return login({ ...options, flow: options.flow ?? (options.encoding === undefined ? "browser" : "legacy-connect") });
 }
@@ -43,7 +46,7 @@ function validate(options: LoginOptions, flow: LoginFlow): Effect.Effect<void, D
   if (!["browser", "manual", "legacy-connect"].includes(flow)) return failWith("Unsupported login flow.");
   if (options.encoding !== undefined && options.encoding !== "proto" && options.encoding !== "json") return failWith("The login encoding must be proto or json.");
   if (flow === "browser" && options.encoding !== undefined) return failWith("A Connect encoding cannot be used with the REST browser login.");
-  if (flow !== "browser" && options.devinAPIURL !== undefined) return failWith("The Devin REST login server can only be set for the REST browser flow.");
+  if (flow === "legacy-connect" && options.devinAPIURL !== undefined) return failWith("The Devin REST login server cannot be set for the legacy Connect flow.");
   if (flow === "manual" && !options.promptCode) return failWith("Manual login requires an authorization code prompt.");
   return Effect.void;
 }
@@ -95,12 +98,13 @@ export function login(options: LoginOptions): Effect.Effect<Credential, DevinFai
             Deferred.doneUnsafe(code, Exit.fail(new DevinError({ message: "OAuth login was denied." })));
           },
         });
-        const authorizationURL = new URL(flow === "manual" ? "/devin/account/login" : "/auth/cli/continue", webappURL);
+        // The manual flow omits the redirect URI, as the Devin CLI does.
+        const authorizationURL = new URL("/auth/cli/continue", webappURL);
         authorizationURL.search = new URLSearchParams({
-          redirect_uri: flow === "manual" ? "chisel-show-auth-token" : redirectURL!,
-          state: pkce.state,
-          ...(flow === "manual" ? {} : { prompt: "select_account" }),
+          ...(redirectURL === undefined ? {} : { redirect_uri: redirectURL }),
+          state: pkce.state, prompt: "select_account",
           code_challenge: pkce.challenge, code_challenge_method: "S256",
+          ...(flow === "legacy-connect" ? {} : { cli_pkce_marker: "1" }),
         }).toString();
         yield* options.onURL(authorizationURL.href);
         // Typed input races the browser callback; the first valid code wins and the other wait is stopped.
@@ -120,8 +124,8 @@ export function login(options: LoginOptions): Effect.Effect<Credential, DevinFai
         }).pipe(Effect.catch((error) => hasAcceptedCode ? Effect.void : Deferred.fail(code, error)))) : undefined;
         const accepted = yield* Deferred.await(code);
         if (input) yield* Fiber.interrupt(input);
-        const sessionToken = flow === "browser"
-          ? yield* exchangeBrowserCode({ origin: devinAPIURL, code: accepted, verifier: pkce.verifier })
+        const sessionToken = flow === "browser" || (flow === "manual" && !accepted.startsWith(PKCE_CODE_PREFIX))
+          ? yield* exchangeCLIAuthorizationCode({ origin: devinAPIURL, code: accepted, verifier: pkce.verifier })
           : yield* connectExchange(apiServerURL, accepted, pkce.verifier, options);
         return { version: 1, sessionToken, apiServerURL, createdAt: new Date().toISOString() } satisfies Credential;
       }));

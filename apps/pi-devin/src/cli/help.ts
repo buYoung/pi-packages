@@ -30,7 +30,7 @@ Options:
   --api-server-url URL login RPC server (default https://server.codeium.com)
   --webapp-url URL     login web app (default https://app.devin.ai)
   --login-api-url URL  REST code exchange server (default https://api.devin.ai)
-  --force-manual-token-flow manual code flow (Connect exchange, not an API key prompt)
+  --force-manual-token-flow manual code flow (not an API key prompt)
   --no-browser        Shows the URL without opening a browser
   --login-encoding MODE Selects the legacy Connect flow when set: proto or json
 

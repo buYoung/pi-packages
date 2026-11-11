@@ -17,6 +17,7 @@ test("the default account login exchanges browser PKCE once over REST JSON", asy
       expect(url.href.startsWith("https://app.devin.ai/auth/cli/continue?")).toBe(true);
       expect(url.searchParams.get("prompt")).toBe("select_account");
       expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+      expect(url.searchParams.get("cli_pkce_marker")).toBe("1");
       expect(url.searchParams.get("state")!).toMatch(/^[0-9a-f-]{36}$/);
       challenge = url.searchParams.get("code_challenge")!;
       const callback = callbackFor(url); callbackURL = callback.origin;
@@ -49,27 +50,50 @@ test("the default account login exchanges browser PKCE once over REST JSON", asy
   await expect(fetch(callbackURL)).rejects.toThrow();
 });
 
-for (const prefix of ["", "wspkce$"]) test(`native manual code ${prefix || "plain"}: URL, PKCE and Connect consumption`, async () => {
-  const method = prefix ? "exa.seat_management_pb.SeatManagementService/ExchangePKCEAuthorizationCode" : "exa.seat_management_pb.SeatManagementService/ExchangeDevinCLIPKCECode";
+function manualURL(value: string): string {
+  const url = new URL(value);
+  expect(url.href.startsWith("https://app.devin.ai/auth/cli/continue?")).toBe(true);
+  expect(url.searchParams.has("redirect_uri")).toBe(false);
+  expect(url.searchParams.get("prompt")).toBe("select_account");
+  expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+  expect(url.searchParams.get("cli_pkce_marker")).toBe("1");
+  expect(url.searchParams.get("state")!).toMatch(/^[0-9a-f-]{36}$/);
+  return url.searchParams.get("code_challenge")!;
+}
+
+test("native manual code plain: the browser authorization page without a redirect URI, then one REST exchange", async () => {
+  let challenge = "", calls = 0;
+  const result = await run(accountLogin({
+    flow: "manual", devinAPIURL: "https://login.example.invalid",
+    onURL: (value) => fromAsync(() => { challenge = manualURL(value); }),
+    promptCode: fromAsync(() => "manual-code"),
+    fetch: async (url, init) => {
+      calls++; expect(String(url)).toBe("https://login.example.invalid/auth/cli/token");
+      const body = JSON.parse(init!.body as string);
+      expect(Object.keys(body).sort()).toStrictEqual(["code", "code_verifier"]);
+      expect(body.code).toBe("manual-code");
+      expect(createHash("sha256").update(body.code_verifier).digest("base64url")).toBe(challenge);
+      return Response.json({ token: "fake.manual.session" });
+    },
+  }));
+  expect(result.sessionToken).toBe("devin-session-token$fake.manual.session");
+  expect(calls).toBe(1);
+});
+
+test("native manual code wspkce$: the same authorization page, then Connect consumption without the prefix", async () => {
+  const method = "exa.seat_management_pb.SeatManagementService/ExchangePKCEAuthorizationCode";
   let challenge = "", calls = 0;
   const result = await run(accountLogin({
     flow: "manual",
-    onURL: (value) => fromAsync(() => {
-      const url = new URL(value);
-      expect(url.pathname).toBe("/devin/account/login");
-      expect(url.searchParams.get("redirect_uri")).toBe("chisel-show-auth-token");
-      expect(url.searchParams.has("prompt")).toBe(false);
-      expect(url.searchParams.get("state")!).toMatch(/^[0-9a-f-]{36}$/);
-      challenge = url.searchParams.get("code_challenge")!;
-    }),
-    promptCode: fromAsync(() => prefix + "manual-code"),
+    onURL: (value) => fromAsync(() => { challenge = manualURL(value); }),
+    promptCode: fromAsync(() => "wspkce$manual-code"),
     fetch: async (url, init) => {
       calls++; expect(String(url)).toBe("https://server.codeium.com/" + method);
       const body = requestBody(method, init!);
-      expect(body[prefix ? "authorizationCode" : "code"]).toBe("manual-code");
+      expect(body.authorizationCode).toBe("manual-code");
       expect(createHash("sha256").update(body.codeVerifier as string).digest("base64url")).toBe(challenge);
       expect(new Headers(init!.headers).get("content-type")).toBe("application/proto");
-      return unaryResponse(method, { [prefix ? "apiKey" : "sessionToken"]: credential.sessionToken });
+      return unaryResponse(method, { apiKey: credential.sessionToken });
     },
   }));
   expect(result.sessionToken).toBe(credential.sessionToken);
@@ -116,14 +140,17 @@ test("flow/encoding conflicts are rejected before opening any UI", async () => {
   let opens = 0;
   const onURL = () => fromAsync(() => { opens++; });
   await expect(run(accountLogin({ flow: "browser", encoding: "proto", onURL }))).rejects.toThrow(/encoding/);
-  await expect(run(accountLogin({ flow: "manual", devinAPIURL: "https://example.invalid", promptCode: fromAsync(() => "code"), onURL }))).rejects.toThrow(/REST login server/);
+  await expect(run(accountLogin({ encoding: "proto", devinAPIURL: "https://example.invalid", onURL }))).rejects.toThrow(/REST login server/);
   expect(opens).toBe(0);
 });
 
 test("an explicit JSON option uses the legacy Connect path in account login too", async () => {
   let calls = 0;
   await run(accountLogin({ encoding: "json",
-    onURL: (url) => fromAsync(async () => { await fetch(callbackFor(new URL(url))); }),
+    onURL: (url) => fromAsync(async () => {
+      expect(new URL(url).searchParams.has("cli_pkce_marker")).toBe(false);
+      await fetch(callbackFor(new URL(url)));
+    }),
     fetch: async (url, init) => {
       calls++; expect(new URL(String(url)).pathname.endsWith("/ExchangeDevinCLIPKCECode")).toBe(true);
       expect(JSON.parse(init!.body as string).code).toBe("browser-code");
