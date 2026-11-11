@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-11
+
 ### Improved
 
 - The `background_exec` guidance tells the model to use it instead of `bash` for builds, test suites, typechecks, lint runs, dependency installs, and simulations, including a first run to see what fails, and to keep `bash` for quick inspection. Before, it never said when to choose `background_exec` over `bash`, so models often ran long tests with `bash` unless an AGENTS.md line told them to read the `background-exec` skill.

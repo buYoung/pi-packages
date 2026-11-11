@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-11
+
 ### 달라진 것
 
 - `background_exec` 안내가 빌드, 테스트 묶음, 타입 검사, lint, 의존성 설치, 시뮬레이션에는 무엇이 실패하는지 처음 확인하는 실행까지 `bash` 대신 `background_exec`를 쓰고, 짧게 살펴보는 명령에만 `bash`를 쓰라고 모델에게 알려 줍니다. 이전에는 언제 `bash` 대신 `background_exec`를 골라야 하는지 말하지 않아서, AGENTS.md에서 `background-exec` 스킬을 읽으라고 지시하지 않으면 모델이 긴 테스트도 `bash`로 실행하는 일이 많았습니다.
