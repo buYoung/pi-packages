@@ -10,7 +10,9 @@ const response = (stopReason: AssistantMessage["stopReason"] = "toolUse", calls:
 });
 const result = (toolCallId: string, toolName: string, content: ToolResultMessage["content"]): ToolResultMessage => ({ role: "toolResult", toolCallId, toolName, content, isError: false, timestamp: 1 });
 const responses = (count: number, stopReason?: AssistantMessage["stopReason"]) => Array.from({ length: count }, () => response(stopReason));
-const sent = (messages: Message[]) => withoutOldToolImages(normalizeContext({ messages })).messages;
+/** A later system message, as Pi adds when instructions or tools change. */
+const instruction = (content: string): Message => ({ role: "system", content, timestamp: 1 });
+const sent = (messages: Message[]) => withoutOldToolImages(normalizeContext({ systemPrompt: "base", messages })).messages;
 const toolResultContent = (messages: Message[], toolCallId: string) => (messages.find((message) => message.role === "toolResult" && message.toolCallId === toolCallId) as ToolResultMessage).content;
 
 const readShot: Message[] = [
@@ -18,22 +20,48 @@ const readShot: Message[] = [
   response("toolUse", [{ id: "read_1", name: "read", path: "/work/shot.png" }]),
   result("read_1", "read", [{ type: "text", text: "Read image file [image/png]" }, image("SHOT")]),
 ];
+const OMITTED_READ = { type: "text", text: "(image omitted after 5 responses to save tokens: /work/shot.png. Read the file again to see it.)" };
 
-test(`a read image is sent for ${TOOL_IMAGE_RESPONSES} responses, then replaced with a note that keeps its path`, () => {
+test("without a change of the system prompt or tools, images stay however many responses follow", () => {
   expect(TOOL_IMAGE_RESPONSES).toBe(5);
-  const recent = [...readShot, ...responses(TOOL_IMAGE_RESPONSES - 1)];
-  expect(toolResultContent(sent(recent), "read_1")).toStrictEqual(readShot[2].content);
-  const old = [...readShot, ...responses(TOOL_IMAGE_RESPONSES)];
-  expect(toolResultContent(sent(old), "read_1")).toStrictEqual([
-    { type: "text", text: "Read image file [image/png]" },
-    { type: "text", text: "(image omitted after 5 responses to save tokens: /work/shot.png. Read the file again to see it.)" },
-  ]);
+  const context = normalizeContext({ systemPrompt: "base", messages: [...readShot, ...responses(40)] });
+  expect(withoutOldToolImages(context)).toBe(context);
+});
+
+test(`at a prompt change, a read image with ${TOOL_IMAGE_RESPONSES} responses before it becomes a note with its path`, () => {
+  const old = [...readShot, ...responses(TOOL_IMAGE_RESPONSES), instruction("new rule")];
+  expect(toolResultContent(sent(old), "read_1")).toStrictEqual([{ type: "text", text: "Read image file [image/png]" }, OMITTED_READ]);
   // Pi's own history keeps the image.
   expect((readShot[2] as ToolResultMessage).content[1]).toStrictEqual(image("SHOT"));
+  // Fewer responses before the change: the image stays, also after many more responses.
+  const recent = [...readShot, ...responses(TOOL_IMAGE_RESPONSES - 1), instruction("new rule"), ...responses(30)];
+  expect(toolResultContent(sent(recent), "read_1")[1]).toStrictEqual(image("SHOT"));
+});
+
+test("a system message that changes neither the prompt nor the tools leaves images in place", () => {
+  const same = [...readShot, ...responses(TOOL_IMAGE_RESPONSES), { role: "system", content: [], timestamp: 1 } as Message];
+  expect(toolResultContent(sent(same), "read_1")[1]).toStrictEqual(image("SHOT"));
+});
+
+test("between prompt changes, every request leaves out the same images, so earlier messages never change", () => {
+  // The image ages past five responses, then a change comes, then the conversation keeps going.
+  const history = [...readShot, ...responses(3), instruction("first"), ...responses(3), instruction("second"), ...responses(6)];
+  const states: string[] = [];
+  for (let length = readShot.length; length <= history.length; length++) {
+    const content = toolResultContent(sent(history.slice(0, length)), "read_1");
+    states.push(content.some((block) => block.type === "image") ? "image" : "note");
+  }
+  // Only at the second change (after six responses) does the image become a note, and it never comes back.
+  const first = states.indexOf("note");
+  const second = history.findIndex((message) => message.role === "system" && message.content === "second");
+  // states[k] is the request with the first readShot.length + k messages; the change is in it from length second + 1.
+  expect(first).toBe(second + 1 - readShot.length);
+  expect(states.slice(first).every((state) => state === "note")).toBe(true);
+  expect(states.slice(0, first).every((state) => state === "image")).toBe(true);
 });
 
 test("failed and aborted responses are not counted, because they are not sent", () => {
-  const messages = [...readShot, ...responses(TOOL_IMAGE_RESPONSES - 1), response("error"), response("aborted")];
+  const messages = [...readShot, ...responses(TOOL_IMAGE_RESPONSES - 1), response("error"), response("aborted"), instruction("new rule")];
   expect(toolResultContent(sent(messages), "read_1")[1]).toStrictEqual(image("SHOT"));
 });
 
@@ -42,16 +70,11 @@ test("other tools' images get a note without a path, several images become one n
     { role: "user", content: [{ type: "text", text: "match this" }, image("USER")], timestamp: 1 },
     response("toolUse", [{ id: "shot_1", name: "screenshot" }]),
     result("shot_1", "screenshot", [image("A"), { type: "text", text: "two screens" }, image("B")]),
-    ...responses(TOOL_IMAGE_RESPONSES),
+    ...responses(TOOL_IMAGE_RESPONSES), instruction("new rule"),
   ];
   const fitted = sent(messages);
   expect(toolResultContent(fitted, "shot_1")).toStrictEqual([
     { type: "text", text: "(image omitted after 5 responses to save tokens)" }, { type: "text", text: "two screens" },
   ]);
   expect(fitted.find((message) => message.role === "user")).toStrictEqual(messages[0]);
-});
-
-test("a history without old tool images is returned as it is", () => {
-  const context = normalizeContext({ messages: [...readShot, ...responses(2)] });
-  expect(withoutOldToolImages(context)).toBe(context);
 });

@@ -9,14 +9,25 @@ import type { ImageCompressorShape, ReducedImage } from "./types.ts";
 /** In words Pi's context overflow check matches, so Pi compacts the conversation and sends it again. */
 export const REQUEST_TOO_LARGE_MESSAGE = `Context length exceeded: the Devin request is larger than ${MAX_FRAME_BYTES / (1024 * 1024)} MiB even without images.`;
 export const OMITTED_IMAGE_NOTE = "(image omitted: Devin request size limit)";
+const MiB = 1024 * 1024;
 /**
- * The request is measured again only after a step frees at least this much. Step boundaries then depend only on the images
- * before them, so the reduced and omitted part stays put while the conversation grows, and the cached prefix with it.
+ * An image is reduced when the request up to and including it would be larger than this. Only what precedes an image
+ * decides, and history only grows at the end, so an image keeps the form it was first sent in and the cached prefix stays
+ * the same. Requests below this size are sent unchanged.
  */
-const STEP_BASE64_BYTES = 1024 * 1024;
+export const REDUCE_AFTER_BYTES = 4 * MiB;
+/** Below this estimate the request certainly fits, so it is not encoded once more to measure it. */
+const UNMEASURED_BYTES = 6 * MiB;
+/**
+ * When sent images must change, each step frees at least this much before measuring again. The steps fall at the same
+ * images in every request, so once the request fits it keeps fitting until about this much more has been added.
+ */
+const STEP_BASE64_BYTES = 4 * MiB;
 
 export interface ImageBudget {
   readonly compressor: ImageCompressorShape;
+  /** The request's bytes before its messages, such as the system prompt and tools. */
+  readonly headerBytes: number;
   /** The encoded size of the request with these messages. */
   readonly measure: (messages: ChatMessage[]) => Effect.Effect<number, DevinError>;
 }
@@ -29,6 +40,10 @@ interface Slot {
   current: ImageData;
   note?: string;
 }
+
+/** A message's size without its images, from its content alone: the per-request message ID is left out. */
+const textBytes = (message: ChatMessage) => Buffer.byteLength(JSON.stringify(message, (key, value) =>
+  key === "messageId" || key === "promptCacheOptions" || key === "images" ? undefined : value));
 
 const decodedBytes = (image: ImageData) => {
   const data = image.base64Data;
@@ -44,9 +59,10 @@ function scaleNote(reduced: ReducedImage): string | undefined {
 }
 
 /**
- * Fits the images into Devin's limits: 4 MiB per image, 5 MiB per message and 8 MiB per encoded request. Older images give
- * way first. For the request limit every image is reduced before any is left out, so recent images stay longest; a
- * request that is still too large without images fails in words Pi treats as a context overflow.
+ * Fits the images into Devin's limits: 4 MiB per image, 5 MiB per message and 8 MiB per encoded request. Each decision
+ * depends only on the image, its message, or what precedes it, so images already sent stay as they were and a new image is
+ * at most reduced, never left out. Only when the request is still too large do sent images change, oldest first: all are
+ * reduced before any is left out. A request still too large without images fails in words Pi treats as a context overflow.
  */
 export function fitImages(messages: readonly ChatMessage[], budget: ImageBudget): Effect.Effect<ChatMessage[], DevinError> {
   return Effect.gen(function* () {
@@ -90,7 +106,15 @@ export function fitImages(messages: readonly ChatMessage[], budget: ImageBudget)
       for (const slot of own) { if (total() <= MAX_IMAGES_BYTES) break; yield* reduce(slot); }
       for (const slot of own) { if (total() <= MAX_IMAGES_BYTES) break; yield* omit(slot); }
     }
-    if (yield* fits) return build();
+    let before = budget.headerBytes;
+    for (const [messageIndex, message] of messages.entries()) {
+      before += textBytes(message);
+      for (const slot of byMessage.get(messageIndex) ?? []) {
+        if (slot.state !== "omitted" && before + slot.current.base64Data.length > REDUCE_AFTER_BYTES) yield* reduce(slot);
+        if (slot.state !== "omitted") before += slot.current.base64Data.length;
+      }
+    }
+    if (before <= UNMEASURED_BYTES || (yield* fits)) return build();
     for (const step of [reduce, omit]) {
       let freed = 0;
       for (const [index, slot] of slots.entries()) {

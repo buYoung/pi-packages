@@ -160,6 +160,7 @@ export const prepareRequest = (deps: InferenceDependencies, model: Model<DevinAP
     });
     const request = requestWith(yield* fitImages(transcript.messages, {
       compressor: deps.images,
+      headerBytes: Buffer.byteLength(transcript.systemPrompt) + Buffer.byteLength(JSON.stringify(transcript.tools)),
       measure: (messages) => Effect.map(chatRequestCodec.encode(requestWith(messages)), (bytes) => bytes.byteLength),
     }));
     if (requestOptions.temperature !== undefined) {
