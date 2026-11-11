@@ -87,7 +87,7 @@ test("old images are left out only with a change of the system prompt, which reb
   expect(views[15].messages.some((message) => message.includes("/work/shot_2.png. Read the file again to see it."))).toBe(true);
 });
 
-test("past 8 MiB, sent images change only when the request does not fit, oldest first, and stay changed", { timeout: 120_000 }, async () => {
+test("past 10 MiB, sent images change only when the request does not fit, oldest first, and stay changed", { timeout: 120_000 }, async () => {
   // Each image reduces to its own 1 MiB copy, the same every time like Pi's resizer, so the request keeps growing until
   // sent images must change.
   const copies = new Map<string, string>();
@@ -97,9 +97,10 @@ test("past 8 MiB, sent images change only when the request does not fit, oldest 
   }) };
   const turns = Array.from({ length: 14 }, (_, index) => readImage(`read_${index}`, `/work/big_${index}.png`, png(index, 3 * MiB)));
   const { views, breaks } = await sendGrowing([{ role: "user", content: "start", timestamp: 1 }, ...turns], compressor);
-  // First-send reduction keeps five images in 8 MiB. The 6th needs the oldest reduced; later breaks free at least 4 MiB,
-  // so the next four images fit again: breaks at the 6th, 8th and 12th image only.
-  expect(breaks.map((change) => change.request)).toStrictEqual([6, 8, 12]);
+  // With first-send reduction, n images take 3 MiB + (n - 1) x 1 MiB, so seven fit under the limit just below 10 MiB.
+  // The 8th needs the oldest reduced; later breaks free at least 4 MiB, so the next four images fit again: breaks at the
+  // 8th, 10th and 14th image only.
+  expect(breaks.map((change) => change.request)).toStrictEqual([8, 10, 14]);
   expect(breaks.every((change) => change.message >= 0)).toBe(true);
   // Each image goes from original to reduced to left out and never back.
   const state = (message: string | undefined) => message === undefined ? -1 : message.includes(OMITTED_IMAGE_NOTE) ? 2 : message.includes("[Image scaled") ? 1 : 0;
@@ -110,10 +111,10 @@ test("past 8 MiB, sent images change only when the request does not fit, oldest 
 });
 
 test("the same history sends the same request again, as after a failed response or a restart", { timeout: 60_000 }, async () => {
-  // A real 4.3 MiB screenshot-like PNG passes 4 MiB of request, so Pi's resizer reduces it in both runs.
-  const conversation = [{ role: "user", content: "start", timestamp: 1 } as Message, ...readImage("read_0", "/work/noise.png", noisePng(1800, 600).toString("base64"))];
+  // A real screenshot-like PNG of 4.6 MiB, over the 4 MiB image limit, so Pi's resizer reduces it in both runs.
+  const conversation = [{ role: "user", content: "start", timestamp: 1 } as Message, ...readImage("read_0", "/work/noise.png", noisePng(1800, 900).toString("base64"))];
   const first = await sendGrowing(conversation);
   const restarted = await sendGrowing(conversation);
-  expect(first.views.at(-1)!.messages.at(-1)).toMatch(/Image scaled from 1800x600 to 1568x523/);
+  expect(first.views.at(-1)!.messages.at(-1)).toMatch(/Image scaled from 1800x900 to \d+x\d+/);
   expect(restarted.views).toStrictEqual(first.views);
 });

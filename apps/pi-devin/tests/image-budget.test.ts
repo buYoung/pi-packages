@@ -44,9 +44,10 @@ test("a request within the limits is sent as it is, without compressing anything
 // Reduced copies are a little under 1 MiB, so the notes added to the prompts still fit.
 const NEARLY_MiB = MiB - 1024;
 
-test("once the request passes 4 MiB, each new image is reduced when first sent and earlier images stay as they were", async () => {
+test("once the request passes 6 MiB, each new image is reduced when first sent and earlier images stay as they were", async () => {
   const { compressor, calls } = fakeCompressor(NEARLY_MiB);
-  // Six 3 MiB images: the first fits under 4 MiB; every later one would pass it and is reduced to about 1 MiB.
+  // Six 3 MiB images: the first two would reach exactly 6 MiB, so with the message text the second already passes it.
+  // It and every later image are reduced to about 1 MiB.
   const messages = Array.from({ length: 6 }, (_, index) => user(`m${index + 1}`, image(`i${index + 1}`, 3 * MiB)));
   const fitted = await fit(messages, compressor);
   expect(calls).toStrictEqual(["i2", "i3", "i4", "i5", "i6"]);
@@ -74,21 +75,23 @@ async function grow(messages: ChatMessage[], compressor: ImageCompressorShape) {
   return { results, changes };
 }
 
-test("while a conversation grows past 8 MiB, sent images change only when the request does not fit, oldest first and never back", async () => {
+test("while a conversation grows past 10 MiB, sent images change only when the request does not fit, oldest first and never back", async () => {
   const { compressor } = fakeCompressor(NEARLY_MiB);
   const messages = Array.from({ length: 12 }, (_, index) => user(`m${index + 1}`, image(`i${"abcdefghijkl"[index]}`, 3 * MiB)));
   const { results, changes } = await grow(messages, compressor);
-  // Up to six images fit through first-send reduction. The 7th needs the oldest image reduced. The 9th leaves out the five
-  // oldest, which frees at least 4 MiB, so the next images fit again without changing anything sent.
-  expect(changes).toStrictEqual([{ request: 7, message: 0 },
-    { request: 9, message: 0 }, { request: 9, message: 1 }, { request: 9, message: 2 }, { request: 9, message: 3 }, { request: 9, message: 4 }]);
+  // With first-send reduction, n images take 3 MiB + (n - 1) x 1 MiB. Up to seven fit under the limit just below 10 MiB.
+  // The 8th needs the oldest image reduced. The 10th leaves out the five oldest (the first step that frees 4 MiB), so the
+  // next images fit again without changing anything sent.
+  expect(changes).toStrictEqual([{ request: 8, message: 0 },
+    { request: 10, message: 0 }, { request: 10, message: 1 }, { request: 10, message: 2 }, { request: 10, message: 3 }, { request: 10, message: 4 }]);
   expect(labels(results.at(-1)!)).toStrictEqual(["", "", "", "", "", "rf", "rg", "rh", "ri", "rj", "rk", "rl"]);
   expect(results.at(-1)![0].prompt).toBe(`m1\n${OMITTED_IMAGE_NOTE}`);
 });
 
 test("a long conversation with growing text keeps every sent message as it was", async () => {
   const { compressor } = fakeCompressor(MiB / 4);
-  // Text and half-MiB images alternate up to about 7 MiB; first-send reduction keeps it under 8 MiB without changing anything sent.
+  // Text and half-MiB images alternate. Images past 6 MiB are reduced when first sent, so the request ends near 7.75 MiB
+  // without changing anything sent.
   const messages = Array.from({ length: 24 }, (_, index) => index % 2 ? user(`m${index}`, image(`i${index % 10}`, MiB / 2)) : user("t".repeat(MiB / 4)));
   const { results, changes } = await grow(messages, compressor);
   expect(changes).toStrictEqual([]);
@@ -106,16 +109,17 @@ test("an image over 4 MiB is reduced even when the request fits, and left out wh
 
 test("images over 5 MiB in one message are reduced oldest first within that message", async () => {
   const { compressor, calls } = fakeCompressor(MiB);
-  // Three 2.4 MiB Base64 images decode to 5.4 MiB in one message, so the first is reduced. The third also passes 4 MiB of
-  // request and is reduced when first sent.
+  // Three 2.4 MiB Base64 images decode to 5.4 MiB in one message, so the first is reduced. The request then stays under
+  // 6 MiB, so the others are sent as they are.
   const fitted = await fit([user("a", image("i1", 2.4 * MiB), image("i2", 2.4 * MiB), image("i3", 2.4 * MiB))], compressor);
-  expect(calls).toStrictEqual(["i1", "i3"]);
-  expect(labels(fitted)).toStrictEqual(["r1,i2,r3"]);
+  expect(calls).toStrictEqual(["i1"]);
+  expect(labels(fitted)).toStrictEqual(["r1,i2,i3"]);
 });
 
 test("a request still too large without images fails in words Pi treats as a context overflow", async () => {
   const { compressor } = fakeCompressor(MiB);
-  await expect(fit([user("t".repeat(7 * MiB), image("i1", 2 * MiB)), user("t".repeat(2 * MiB))], compressor)).rejects.toThrow(REQUEST_TOO_LARGE_MESSAGE);
+  // 10 MiB of text alone is over the limit just below 10 MiB.
+  await expect(fit([user("t".repeat(8 * MiB), image("i1", 2 * MiB)), user("t".repeat(2 * MiB))], compressor)).rejects.toThrow(REQUEST_TOO_LARGE_MESSAGE);
   const failed = { role: "assistant", content: [], api: "devin-connect", provider: "devin", model: "m", stopReason: "error", errorMessage: REQUEST_TOO_LARGE_MESSAGE, timestamp: 1,
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } } satisfies AssistantMessage;
   expect(isContextOverflow(failed)).toBe(true);

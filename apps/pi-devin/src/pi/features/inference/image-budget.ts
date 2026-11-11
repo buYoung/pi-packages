@@ -1,13 +1,13 @@
 import { Effect } from "effect";
 import type { DevinError } from "../../../core/errors.ts";
 import { MAX_IMAGE_BYTES, MAX_IMAGES_BYTES } from "../../../core/inference/images.ts";
-import { MAX_FRAME_BYTES } from "../../../core/protocol/frames.ts";
+import { MAX_REQUEST_BYTES } from "../../../core/protocol/frames.ts";
 import type { ChatMessage, ImageData } from "../../../core/types.ts";
 import { failWith } from "../../../core/validation.ts";
 import type { ImageCompressorShape, ReducedImage } from "./types.ts";
 
 /** In words Pi's context overflow check matches, so Pi compacts the conversation and sends it again. */
-export const REQUEST_TOO_LARGE_MESSAGE = `Context length exceeded: the Devin request is larger than ${MAX_FRAME_BYTES / (1024 * 1024)} MiB even without images.`;
+export const REQUEST_TOO_LARGE_MESSAGE = "Context length exceeded: the Devin request is over its 10 MiB limit even without images.";
 export const OMITTED_IMAGE_NOTE = "(image omitted: Devin request size limit)";
 const MiB = 1024 * 1024;
 /**
@@ -15,9 +15,9 @@ const MiB = 1024 * 1024;
  * decides, and history only grows at the end, so an image keeps the form it was first sent in and the cached prefix stays
  * the same. Requests below this size are sent unchanged.
  */
-export const REDUCE_AFTER_BYTES = 4 * MiB;
+export const REDUCE_AFTER_BYTES = 6 * MiB;
 /** Below this estimate the request certainly fits, so it is not encoded once more to measure it. */
-const UNMEASURED_BYTES = 6 * MiB;
+const UNMEASURED_BYTES = 8 * MiB;
 /**
  * When sent images must change, each step frees at least this much before measuring again. The steps fall at the same
  * images in every request, so once the request fits it keeps fitting until about this much more has been added.
@@ -59,7 +59,7 @@ function scaleNote(reduced: ReducedImage): string | undefined {
 }
 
 /**
- * Fits the images into Devin's limits: 4 MiB per image, 5 MiB per message and 8 MiB per encoded request. Each decision
+ * Fits the images into the limits: 4 MiB per image, 5 MiB per message and Devin's 10 MiB per request. Each decision
  * depends only on the image, its message, or what precedes it, so images already sent stay as they were and a new image is
  * at most reduced, never left out. Only when the request is still too large do sent images change, oldest first: all are
  * reduced before any is left out. A request still too large without images fails in words Pi treats as a context overflow.
@@ -78,7 +78,7 @@ export function fitImages(messages: readonly ChatMessage[], budget: ImageBudget)
       const notes = own.flatMap((slot) => slot.state === "omitted" ? [OMITTED_IMAGE_NOTE] : slot.note ? [slot.note] : []);
       return { ...rest, prompt: [message.prompt, ...notes].filter(Boolean).join("\n"), ...(kept.length ? { images: kept } : {}) };
     });
-    const fits = Effect.suspend(() => budget.measure(build())).pipe(Effect.map((bytes) => bytes <= MAX_FRAME_BYTES));
+    const fits = Effect.suspend(() => budget.measure(build())).pipe(Effect.map((bytes) => bytes <= MAX_REQUEST_BYTES));
 
     /** Returns the Base64 bytes it freed. */
     const reduce = (slot: Slot) => Effect.gen(function* () {

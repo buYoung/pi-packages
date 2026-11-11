@@ -96,9 +96,9 @@ test("current system/tool changes and user and tool-result images are kept in th
   } finally { fixture.shutdown(); }
 });
 
-test("images past 4 MiB of request are reduced when first sent, and a request too large without them is a context overflow", async () => {
+test("images past 6 MiB of request are reduced when first sent, and a request too large without them is a context overflow", async () => {
   const MiB = 1024 * 1024;
-  // 2.25 MiB of PNG-signed bytes is 3 MiB of Base64; four of them are more than the 8 MiB request limit.
+  // 2.25 MiB of PNG-signed bytes is 3 MiB of Base64; four of them are more than Devin's 10 MiB request limit.
   const large = (index: number) => { const bytes = Buffer.alloc(2.25 * MiB, index); Buffer.from("89504e470d0a1a0a", "hex").copy(bytes); return bytes.toString("base64"); };
   const small = { base64Data: "iVBORw0KGgo=", mimeType: "image/png" as const };
   const reduced: string[] = [];
@@ -111,14 +111,15 @@ test("images past 4 MiB of request are reduced when first sent, and a request to
     const history = normalizeContext({ messages: images.map((data, index) => ({ role: "user" as const, content: [{ type: "text" as const, text: `shot ${index}` }, { type: "image" as const, mimeType: "image/png", data }], timestamp: index })) });
     const { result } = await collect(fixture.provider.streamSimple(fixture.model, history, { apiKey: providerCredential.sessionToken, reasoning: "medium" }));
     expect(result.stopReason).toBe("stop");
-    // The first image fits under 4 MiB; each later one would pass it and is reduced, so the request fits without changing the first.
+    // The first image fits under 6 MiB; the second would reach it with the message text, so it and each later one are
+    // reduced, and the request fits without changing the first.
     expect(reduced).toStrictEqual(images.slice(1));
     const prompts = fixture.requests.find((request) => request.method === CHAT_METHOD)!.body.chatMessagePrompts as JsonObject[];
     expect(prompts.map((prompt) => (prompt.images as JsonObject[])[0].base64Data)).toStrictEqual([images[0], small.base64Data, small.base64Data, small.base64Data]);
     expect(prompts[0].prompt).toBe("shot 0");
     expect(prompts[1].prompt).toMatch(/^shot 1\n\[Image scaled from 2000x1500 to 1000x750 /);
 
-    const tooLarge = normalizeContext({ messages: [{ role: "user", content: "x".repeat(9 * MiB), timestamp: 1 }] });
+    const tooLarge = normalizeContext({ messages: [{ role: "user", content: "x".repeat(11 * MiB), timestamp: 1 }] });
     const failed = await collect(fixture.provider.streamSimple(fixture.model, tooLarge, { apiKey: providerCredential.sessionToken, reasoning: "medium" }));
     expect(failed.result.stopReason).toBe("error");
     expect(isContextOverflow(failed.result)).toBe(true);

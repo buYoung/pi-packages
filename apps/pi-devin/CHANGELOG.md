@@ -8,7 +8,7 @@
 
 ### Fixed
 
-- Conversations with many images, such as screenshots opened with `read`, keep working. Once a request passes 4 MiB, each new image is made smaller when it is first sent, and images already sent stay the same, so the prompt cache keeps working. A request still over 8 MiB makes the oldest images smaller and then leaves them out with a note. An image over 4 MiB and images over 5 MiB in one message are made smaller the same way. Before, the request failed with "The request body exceeds 8 MiB." and every later request in the session failed the same way. A request that is still too large without images now fails as a context overflow, so Pi compacts the conversation.
+- Conversations with many images, such as screenshots opened with `read`, keep working. Requests up to 10 MiB, the limit of Devin's server, are sent. Once a request passes 6 MiB, each new image is made smaller when it is first sent, and images already sent stay the same, so the prompt cache keeps working. A request still over 10 MiB makes the oldest images smaller and then leaves them out with a note. An image over 4 MiB and images over 5 MiB in one message are made smaller the same way. Before, the request failed with "The request body exceeds 8 MiB." and every later request in the session failed the same way. A request that is still too large without images now fails as a context overflow, so Pi compacts the conversation.
 
 ## [0.1.15] - 2026-11-11
 

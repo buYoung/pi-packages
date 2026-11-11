@@ -9,7 +9,7 @@ export class ImageCompressor extends Context.Service<ImageCompressor, ImageCompr
 
 /** The longest edge many vision models work at; their services scale larger images down anyway. */
 export const REDUCED_MAX_EDGE = 1568;
-/** Each reduced image's Base64 stays under this, so several fit in one 8 MiB request. */
+/** Each reduced image's Base64 stays under this, so several fit in one 10 MiB request. */
 export const REDUCED_MAX_BASE64_BYTES = 1024 * 1024;
 /** Reduced copies kept per runtime, so an image is reduced once and sends the same bytes in later requests. */
 const CACHE_BASE64_BYTES = 64 * 1024 * 1024;
