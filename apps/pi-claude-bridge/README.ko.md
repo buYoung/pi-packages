@@ -64,7 +64,7 @@ Pi의 도구는 Claude Code에 연결되며, Pi에서는 평소처럼 사용합�
 
 모델 목록은 pi-ai의 Anthropic 카탈로그에서 가져옵니다. pi-ai에 새 Claude 모델이 추가되면 pi-ai를 제공하는 Pi를 업데이트한 뒤 `/model`에 나타나며, 브리지를 따로 업데이트할 필요는 없습니다. 날짜가 붙은 스냅샷 ID(예: `claude-opus-4-5-20251101`)는 표시하지 않습니다.
 
-**1M 컨텍스트:** Fable 5/5.1, Opus 5.5/5/4.8/4.7, Sonnet 5.5/5, Haiku 5.5는 1M 컨텍스트를 씁니다. Opus 4.6은 Max 요금제이거나 Extra Usage를 쓸 때만, Sonnet 4.6은 Extra Usage를 쓸 때만 1M을 씁니다. 브리지는 첫 요청 때 Claude Code 로그인에서 Max 요금제인지 판별합니다. 판별할 수 없거나 판별 결과를 바꾸려면 [설정](#설정)에 따라 `provider.plan`이나 `provider.longContextExtraUsage`를 지정하세요.
+**1M 컨텍스트:** Fable 5/5.1/5.2, Opus 5.5/5/4.8/4.7, Sonnet 5.5/5, Haiku 5.5는 1M 컨텍스트를 씁니다. Opus 4.6은 Max 요금제이거나 Extra Usage를 쓸 때만, Sonnet 4.6은 Extra Usage를 쓸 때만 1M을 씁니다. 브리지는 첫 요청 때 Claude Code 로그인에서 Max 요금제인지 판별합니다. 판별할 수 없거나 판별 결과를 바꾸려면 [설정](#설정)에 따라 `provider.plan`이나 `provider.longContextExtraUsage`를 지정하세요.
 
 ### 압축과 브랜치 요약
 

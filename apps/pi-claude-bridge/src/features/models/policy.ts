@@ -83,10 +83,15 @@ export function getBridgeModels() {
 // verified by 05-haiku55-window). New models are registered conservatively at
 // 200K until someone measures one (diag/context-size.mjs) and adds it
 // here. Known exception unrelated to long context: fable-5 is not included
-// with Pro account without Extra Usage.
+// with Pro account without Extra Usage. fable-5-2 was measured on Max with
+// Claude Code 2.1.322 by a prompt over 200K tokens. Under Claude Code 2.1.319
+// its bare id stopped locally with "Prompt is too long" before 200K tokens
+// even though a one-turn probe's modelUsage reported 1M, so a short probe
+// alone does not prove a 1M window.
 const MEASURED_ONE_M = new Set([
 	"claude-fable-5",
 	"claude-fable-5-1",
+	"claude-fable-5-2",
 	"claude-opus-5-5",
 	"claude-opus-5",
 	"claude-opus-4-8",
