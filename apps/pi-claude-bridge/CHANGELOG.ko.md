@@ -2,6 +2,16 @@
 
 0.12.0까지의 변경 이력은 영문 [CHANGELOG.md](CHANGELOG.md)에만 있습니다.
 
+## UNRELEASED
+
+### 달라진 것
+
+- 브리지가 Claude Code 2.1.322(Agent SDK `^0.3.322`)를 사용합니다.
+
+### 해결된 것
+
+- Claude Fable 5.2와의 긴 대화가 200K 토큰에 이르기 전에 `Prompt is too long`으로 멈추지 않습니다. Claude Code 2.1.319는 이 모델의 컨텍스트 창을 200K로 제한했고, 2.1.322는 1M 창을 사용합니다.
+
 ## 0.14.3 — 2026-11-07
 
 ### 달라진 것
