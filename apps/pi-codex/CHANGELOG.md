@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-11
+
+### New
+
+- In `/codex-memory-settings`, **Stop a model call after** sets how long one memory or summary request may run, 10 minutes by default (included `@buyong/pi-codex-memory` 0.3.0).
+
+### Improved
+
+- **BREAKING:** The memory database moves to version 2, and earlier versions of the memory extension refuse to open it. After updating, restart every open Pi session or run `/reload` in it (included `@buyong/pi-codex-memory` 0.3.0).
+- A conversation too long for one model call is split at its compactions into parts, and each part becomes its own memory (included `@buyong/pi-codex-memory` 0.3.0).
+
+### Fixed
+
+- Session files larger than 16 MiB, such as long conversations with many screenshots, now become memory, and the summary reflects every memory instead of only those that fit in one model call (included `@buyong/pi-codex-memory` 0.3.0).
+
 ## [0.6.5] - 2026-11-10
 
 ### New
