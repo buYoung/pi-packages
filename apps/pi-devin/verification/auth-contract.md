@@ -7,14 +7,14 @@ The CLI and Pi both use `loginAccount()` in `src/core/auth/login.ts`. Pi provide
 | Choice | Web app path and redirect | Code exchange | Encoding |
 |---|---|---|---|
 | Default browser | `/auth/cli/continue`, `http://127.0.0.1:<port>/callback` | `POST https://api.devin.ai/auth/cli/token`, `{code, code_verifier}` | REST JSON |
-| CLI manual code | `/devin/account/login`, `chisel-show-auth-token` | Plain code: `ExchangeDevinCLIPKCECode`; `wspkce$`: `ExchangePKCEAuthorizationCode` without the prefix | Connect protobuf by default |
-| Explicit legacy path | `/auth/cli/continue`, loopback callback | The two Connect RPCs above | `--login-encoding proto` or `json` |
+| Manual code | `/auth/cli/continue`, no redirect URI | Plain code: the same REST exchange; `wspkce$`: `ExchangePKCEAuthorizationCode` without the prefix | REST JSON; Connect protobuf by default for `wspkce$` |
+| Explicit legacy path | `/auth/cli/continue`, loopback callback | Plain code: `ExchangeDevinCLIPKCECode`; `wspkce$`: `ExchangePKCEAuthorizationCode` without the prefix | `--login-encoding proto` or `json` |
 
-- The default browser flow passes `prompt=select_account`, the state and an S256 challenge. The manual flow uses a UUID state and S256.
+- The browser and manual flows pass `prompt=select_account`, a UUID state, an S256 challenge and `cli_pkce_marker=1`; the manual flow omits the redirect URI. The legacy path does not send `cli_pkce_marker`.
 - In the CLI, `--force-manual-token-flow` selects the manual code flow and `--no-browser` skips opening the browser automatically. Input is not echoed.
 - `--api-server-url` is the target of later RPCs and the Connect exchange server. The REST exchange server is set separately with `--login-api-url`. A single loopback option does not change every remote target.
-- An explicit `--login-encoding` keeps the legacy Connect path. Specifying the REST flow together with a Connect encoding, or a REST exchange server for the manual flow, is rejected before the URL is shown.
-- The flow is decided first; the code prefix alone never moves between REST and Connect. On an exchange failure, the one-time code is not resent to another endpoint or encoding.
+- An explicit `--login-encoding` keeps the legacy Connect path. Specifying the browser flow together with a Connect encoding, or a REST exchange server for the legacy path, is rejected before the URL is shown.
+- The flow, and in the manual flow the `wspkce$` prefix, decide the exchange before it is sent. On an exchange failure, the one-time code is not resent to another endpoint or encoding.
 - Only the path that first submits a valid code, callback or manual input, wins. The callback checks the state, path and method; a pasted callback URL is also checked for origin, path and state. API key and session token input is rejected.
 - The overall login limit is 300000ms and the code exchange limit 30000ms. Caller cancellation applies too, and the input, the callback server and the owned transport are cleaned up.
 
@@ -22,7 +22,7 @@ The CLI and Pi both use `loginAccount()` in `src/core/auth/login.ts`. Pi provide
 
 The default browser contract is pinned to the URL, loopback and REST code exchange contract of Cognition's public `@cognitionai/opencode-devin@0.3.0` [`dist/auth.js`](https://unpkg.com/@cognitionai/opencode-devin@0.3.0/dist/auth.js). It is recorded separately from the earlier finding that the REST functions exist in the real CLI. The 10-minute callback limit used by the public client was not copied; the existing CLI's 5-minute limit was kept.
 
-The manual flow follows the plain and prefixed manual-code observations in the preserved retry records. The Connect default contract of the existing `login()` and the 93 extracted baseline cases remain unchanged. The new UI's default REST choice is verified by additional cases.
+The manual flow follows Devin CLI 3000.12.43 on macOS arm64: the URL that `devin auth login --force-manual-token-flow` prints and the REST exchange in its debug log. The earlier `/devin/account/login` URL with `redirect_uri=chisel-show-auth-token` returned a 404 page (issue #81). A real account login through the new manual flow was not run. The Connect default contract of the existing `login()` and the 93 extracted baseline cases remain unchanged. The new UI's default REST choice is verified by additional cases.
 
 **This task neither ran the default browser flow nor re-verified a real account login.** Local verification of the default REST flow is not turned into measured parity with the CLI's default path or live-service success. The earlier A03/A04/A05 findings and observation limits are unchanged.
 

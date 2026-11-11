@@ -6,6 +6,7 @@
 
 ### 해결된 것
 
+- Manual authorization code 로그인이 Devin CLI와 같은 로그인 페이지를 열고, 같은 방식으로 코드를 교환합니다. 이전에는 로그인 URL이 404 페이지를 보여 줘서 로그인을 끝낼 수 없었습니다.
 - Claude 모델이 한 응답에서 도구를 여러 개 부를 수 있습니다. 이전에는 이런 응답이 "Cannot attach a delta without a tool ID to a specific call."로 실패했습니다.
 - 결과가 없는 도구 호출이 기록에 남은 세션도 다시 동작합니다. 예를 들어 `/tree`로 다른 지점으로 옮긴 뒤 이런 기록이 생깁니다. Pi의 기본 공급자처럼 그 호출에 "No result provided" 오류 결과를 붙입니다. 이전에는 그 세션의 모든 Devin 요청이 `invalid_argument`로 실패했습니다.
 - Pi의 기본 공급자처럼 출력 한도를 모델의 컨텍스트 창에서 입력을 뺀 만큼으로 줄입니다. 이제 컨텍스트가 가득 차면 응답이 `length`로 끝나고, Pi가 compact로 복구합니다. 이전에는 창보다 큰 입력을 계속 보낼 수 있었습니다.

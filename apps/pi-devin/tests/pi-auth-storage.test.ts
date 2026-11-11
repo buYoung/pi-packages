@@ -93,7 +93,7 @@ test("coding-agent public ModelRuntime real file storage is bounded and Pi logou
   await writeFile(cliPath, cliBytes, { mode: 0o600 });
   let queries = 0;
   const opened = makeTestProvider({
-    loginOptions: { fetch: async (url) => unaryResponse(new URL(String(url)).pathname.slice(1), { sessionToken: "file-backed-fake-token" }) },
+    loginOptions: { fetch: async () => Response.json({ token: "file-backed-fake-token" }) },
     fetch: async () => { queries++; return unaryResponse(STATUS_METHOD, statusResponse()); },
   });
   const provider: Provider = {

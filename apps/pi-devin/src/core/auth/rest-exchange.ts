@@ -11,8 +11,8 @@ const TOKEN_PREFIX = "devin-session-token$";
 const EXCHANGE_TIMEOUT_MS = 30_000;
 const RESPONSE_BYTES = 64 * 1024;
 
-/** REST authorization code exchange, same as the public client. Never resends or creates a refresh grant. */
-export function exchangeBrowserCode(options: { origin: string; code: string; verifier: string }): Effect.Effect<string, DevinFailure, HttpTransport> {
+/** REST authorization code exchange of the browser and manual flows, same as the public client. Never resends or creates a refresh grant. */
+export function exchangeCLIAuthorizationCode(options: { origin: string; code: string; verifier: string }): Effect.Effect<string, DevinFailure, HttpTransport> {
   return Effect.scoped(Effect.gen(function* () {
     const origin = yield* endpoint(options.origin);
     const deadline = yield* startDeadline(EXCHANGE_TIMEOUT_MS);

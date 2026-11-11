@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Manual authorization code sign-in opens the same Devin sign-in page and exchanges the code the same way as the Devin CLI. Before, the sign-in URL showed a 404 page, so the sign-in could not finish.
 - Claude models can call several tools in one response. Before, such a response failed with "Cannot attach a delta without a tool ID to a specific call."
 - A session whose history has a tool call without a result, for example after moving to another point with `/tree`, works again. Like Pi's own providers, the call gets the error result "No result provided"; before, every Devin request in that session failed with `invalid_argument`.
 - The output limit leaves room for the input in the model's context window, as in Pi's own providers. A full context now ends the reply with a `length` stop, which Pi recovers from by compacting; before, the session could keep sending input larger than the window.

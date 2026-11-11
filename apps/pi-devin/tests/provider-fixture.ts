@@ -7,7 +7,10 @@ import { makeTestProvider, type TestOptions } from "./extension-harness.ts";
 import { finalFrames, identity, MODELS_METHOD, requestBody, STATUS_METHOD, statusResponse, streamResponse, unaryResponse } from "./helpers.ts";
 
 export const TEAM_METHOD = "exa.seat_management_pb.SeatManagementService/GetCliTeamSettings";
-export const providerCredential: Credential = { version: 1, sessionToken: "mock-pi-provider-token", apiServerURL: "https://example.invalid", createdAt: "2026-01-01T00:00:00.000Z" };
+/** REST exchange of browser and manual sign-in codes. */
+export const LOGIN_TOKEN_URL = "https://api.devin.ai/auth/cli/token";
+/** The session token form the REST code exchange returns. */
+export const providerCredential: Credential = { version: 1, sessionToken: "devin-session-token$mock-pi-provider-token", apiServerURL: "https://example.invalid", createdAt: "2026-01-01T00:00:00.000Z" };
 export const providerHostCredential = { type: "oauth" as const, access: providerCredential.sessionToken, refresh: "", expires: 0,
   devin: { version: 1, apiServerURL: providerCredential.apiServerURL, createdAt: providerCredential.createdAt } };
 const allModels = JSON.parse(await readFile(new URL("./fixtures/model-catalog.json", import.meta.url), "utf8"));
@@ -27,6 +30,10 @@ export async function providerFixture(options: {
   let chatCalls = 0, statusCalls = 0, fingerprintCollections = 0;
   const fetchImpl: typeof fetch = async (url, init) => {
     const method = new URL(String(url)).pathname.slice(1);
+    if (String(url) === LOGIN_TOKEN_URL) {
+      requests.push({ method, body: JSON.parse(init!.body as string), headers: new Headers(init!.headers), signal: init!.signal!, init: init! });
+      return Response.json({ token: providerCredential.sessionToken });
+    }
     const captured = { method, body: requestBody(method, init!), headers: new Headers(init!.headers), signal: init!.signal!, init: init! };
     requests.push(captured);
     if (method.endsWith("/ExchangeDevinCLIPKCECode")) return unaryResponse(method, { sessionToken: providerCredential.sessionToken });

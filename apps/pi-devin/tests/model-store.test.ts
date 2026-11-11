@@ -10,7 +10,7 @@ import { makeTestCatalog, makeTestProvider } from "./extension-harness.ts";
 import { parseModelCatalog } from "../src/core/models/catalog.ts";
 import type { JsonObject } from "../src/core/types.ts";
 import { credential, MODELS_METHOD, run, runSync, STATUS_METHOD, statusResponse, unaryResponse } from "./helpers.ts";
-import { providerCredential, providerFixture } from "./provider-fixture.ts";
+import { LOGIN_TOKEN_URL, providerCredential, providerFixture } from "./provider-fixture.ts";
 
 const raw = JSON.parse(await readFile(new URL("./fixtures/model-catalog.json", import.meta.url), "utf8"));
 
@@ -77,7 +77,7 @@ test("signing in again to the same account lists the stored catalog at once; ano
   // Every sign-in issues a new session token, as a real re-login does.
   const loginFetch: typeof fetch = async (url, init) => {
     const method = new URL(String(url)).pathname.slice(1);
-    if (method.endsWith("/ExchangeDevinCLIPKCECode")) return unaryResponse(method, { sessionToken: `fake-session-${++sessions}` });
+    if (String(url) === LOGIN_TOKEN_URL) return Response.json({ token: `fake-session-${++sessions}` });
     if (method.endsWith("/ExchangePKCEAuthorizationCode")) return unaryResponse(method, { apiKey: `fake-session-${++sessions}`, apiServerUrl: providerCredential.apiServerURL });
     return fixture.dependencies.fetch(url, init);
   };

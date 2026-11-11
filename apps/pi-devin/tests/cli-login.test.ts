@@ -153,7 +153,8 @@ test("CLI default and manual login use the shared exchange and a separate store,
     expect((await stat(file)).mode & 0o777).toBe(0o600);
     expect((await stat(state)).mode & 0o777).toBe(0o700);
     await run(["login", "--no-browser", "--force-manual-token-flow", "--webapp-url", origin, "--api-server-url", origin], async (url, send) => {
-      expect(url.pathname).toBe("/devin/account/login");
+      expect(url.pathname).toBe("/auth/cli/continue");
+      expect(url.searchParams.has("redirect_uri")).toBe(false);
       expectedChallenge = url.searchParams.get("code_challenge")!;
       send("wspkce$cli-manual-code");
     });
