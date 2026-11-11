@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-11-11
+
 ### Improved
 
 - Long sessions with screenshots use fewer tokens. When the system prompt or tools change, which rebuilds the prompt cache anyway, images that tools returned at least 5 model responses earlier are replaced with a note. For an image opened with `read`, the note gives the file path so the model can read it again. Images you attach are still sent every time, and Pi's history keeps every image.
