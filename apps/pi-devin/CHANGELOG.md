@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-11-11
+
 ### Fixed
 
 - Manual authorization code sign-in opens the same Devin sign-in page and exchanges the code the same way as the Devin CLI. Before, the sign-in URL showed a 404 page, so the sign-in could not finish.
