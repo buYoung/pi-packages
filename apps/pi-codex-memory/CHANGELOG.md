@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-11
+
 ### New
 
 - In a clone of the repository, `pnpm --filter @buyong/pi-codex-memory create-memory <session-file>` turns one session file into memory with the settings and models of its memory scope, whether memory is on or off there.

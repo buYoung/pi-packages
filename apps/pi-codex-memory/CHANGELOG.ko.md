@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-11
+
 ### 새로워진 것
 
 - 저장소 사본에서 `pnpm --filter @buyong/pi-codex-memory create-memory <세션 파일>`로 세션 파일 하나를 그 기억 범위의 설정과 모델로 기억으로 만듭니다. 그 범위의 기억이 꺼져 있어도 실행됩니다.
