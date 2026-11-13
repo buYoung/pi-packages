@@ -1,5 +1,11 @@
 # Changelog
 
+## UNRELEASED
+
+### Fixed
+
+- A turn no longer stays on "Working" until you abort it when Claude Code's response stream stalls before the reply starts. Claude Code then asks again without streaming, and the bridge dropped that reply, so its tool calls never reached Pi.
+
 ## 0.14.4 — 2026-11-11
 
 ### Improved

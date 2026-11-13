@@ -8,6 +8,10 @@
  * skipped the fallback as "already streamed". Its tool calls never reached pi, CC
  * waited in the MCP handler for results that never came, and the turn sat on
  * "Working" until the user aborted it.
+ *
+ * A stream that stalls before message_start leaves only the pings Claude Code
+ * sends while it waits. Those set turnSawStreamEvent too, with no message id to
+ * compare, so the fallback was dropped the same way.
  */
 import { describe, expect, it } from "vitest";
 import { QueryContext } from "../src/features/query/state.js";
@@ -83,6 +87,15 @@ describe("non-streaming assistant and result fallback", () => {
 		},
 	);
 
+	it("uses result text when the stream only pinged", async () => {
+		const c = makeCtx();
+		await consume(c, [
+			streamEvent({ type: "ping" }),
+			{ type: "result", subtype: "success", is_error: false, result: "Only answer" },
+		]);
+		expect(c.turnOutput.content).toStrictEqual([{ type: "text", text: "Only answer" }]);
+	});
+
 	it("uses a result-only response after resetting a previous assistant turn", async () => {
 		const c = makeCtx();
 		await consume(c, [{ type: "assistant", message: { id: "msg_first", content: [{ type: "text", text: "First" }] } }]);
@@ -100,6 +113,19 @@ describe("non-streaming fallback after a stalled stream", () => {
 
 		const toolCalls = c.turnOutput.content.filter((b) => b.type === "toolCall");
 		expect(toolCalls.map((b) => b.id)).toStrictEqual(["toolu_a", "toolu_b"]);
+		expect(c.turnToolCallIds).toStrictEqual(["toolu_a", "toolu_b"]);
+		expect(c.turnOutput.stopReason).toBe("toolUse");
+		expect(c.currentPiStream).toBe(null);
+		expect(stream.events.at(-2)?.type).toStrictEqual("done");
+		expect(stream.events.at(-1)?.type).toStrictEqual("end");
+	});
+
+	it("delivers the fallback's tool calls when the stalled stream only pinged", async () => {
+		const c = makeCtx();
+		const stream = c.currentPiStream;
+		await consume(c, [streamEvent({ type: "ping" }), streamEvent({ type: "ping" }), fallbackMessage("msg_fallback")]);
+
+		expect(c.turnOutput.content.map((b) => b.type)).toStrictEqual(["thinking", "text", "toolCall", "toolCall"]);
 		expect(c.turnToolCallIds).toStrictEqual(["toolu_a", "toolu_b"]);
 		expect(c.turnOutput.stopReason).toBe("toolUse");
 		expect(c.currentPiStream).toBe(null);

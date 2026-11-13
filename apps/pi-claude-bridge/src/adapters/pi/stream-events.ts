@@ -142,8 +142,13 @@ export function createStreamEvents({ diagnostics, tools }: StreamEventsDependenc
 		c: QueryContext,
 	): void {
 		if (!c.currentPiStream || !c.turnOutput) return;
-		c.turnSawStreamEvent = true;
 		const event = (message as SDKMessage & { event: any }).event;
+		// A keep-alive is not streamed output. Claude Code pings while a request waits
+		// for its first event, so a stream that stalls before message_start leaves only
+		// pings. Counted as output, they left no message id to compare, and
+		// processAssistantMessage dropped the non-streaming fallback as a repeat.
+		if (event?.type === "ping") return;
+		c.turnSawStreamEvent = true;
 
 		if (event?.type === "message_start") {
 			// A broken HTTP stream can get synthetic block/message stops without a
@@ -257,7 +262,7 @@ export function createStreamEvents({ diagnostics, tools }: StreamEventsDependenc
 			return;
 		}
 
-		if (event?.type !== "message_stop" && event?.type !== "ping") {
+		if (event?.type !== "message_stop") {
 			diagnostics.debug("processStreamEvent: unhandled event type", event?.type);
 		}
 	}
