@@ -60,7 +60,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.3.322",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "cc-session-io": "^0.4.1",
-    "effect": "4.1.2"
+    "effect": "4.1.4"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
