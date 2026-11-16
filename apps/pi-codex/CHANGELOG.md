@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-17
+
 ### Improved
 
 - Computer Use uses `@earendil-works/pi-mcp` 1.5.2, and memory declares tool schemas as plain JSON Schema without the `typebox` peer dependency.
