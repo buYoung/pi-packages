@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-17
+
 ### Improved
 
 - Declare tool schemas as plain JSON Schema and remove the `typebox` peer dependency.
