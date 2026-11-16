@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-17
+
 ### Improved
 
 - Update `@earendil-works/pi-mcp` to 1.5.2 and remove the unused `typebox` peer dependency.

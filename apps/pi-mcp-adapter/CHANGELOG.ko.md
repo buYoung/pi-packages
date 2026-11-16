@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-17
+
 ### 달라진 것
 
 - `@earendil-works/pi-mcp`를 1.5.2로 업데이트하고 쓰지 않던 `typebox` peer 의존성을 제거했습니다.
