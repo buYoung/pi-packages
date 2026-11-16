@@ -27,7 +27,6 @@ import {
     SessionManager,
     SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
 import { DEFAULT_SETTINGS } from "../dist/config.js";
 import { MemoryUserError } from "../dist/failure.js";
 import extension from "../dist/index.js";
@@ -2746,7 +2745,11 @@ test("real SDK records external catalogs and listings from an empty current scop
         name: "fixture_check",
         label: "Fixture check",
         description: "Run a synthetic local check.",
-        parameters: Type.Object({ command: Type.String() }),
+        parameters: {
+            type: "object",
+            properties: { command: { type: "string" } },
+            required: ["command"],
+        },
         async execute(_id, params) {
             checks.push(params.command);
             return {

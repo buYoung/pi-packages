@@ -7,12 +7,13 @@ import type { JsonValue } from "@earendil-works/pi-ai";
 import type { ToolAnnotations, ToolDefinition, ToolNamespace } from "@earendil-works/pi-coding-agent";
 import type { CallToolResult, McpRequestOptions, Tool as McpTool } from "@earendil-works/pi-mcp";
 import { Effect } from "effect";
-import type { TSchema } from "typebox";
 import { isMaxOutputBytes, type McpExposure, toToolExposure } from "../config/schema.ts";
 import type { ToolMeta } from "./meta.ts";
 import { convertMcpResult, type McpToolDetails } from "./output.ts";
 import { createMcpToolRenderers } from "./render.ts";
 import { READ_MCP_RESOURCE_TOOL } from "./resources.ts";
+
+export type ToolSchema = ToolDefinition["parameters"];
 
 /**
  * Key in the `_meta` of a tool's `tools/list` entry with the bytes of model-facing text the tool's
@@ -24,7 +25,7 @@ const MAX_OUTPUT_BYTES_META_KEY = "pi/maxOutputBytes";
  * A registered MCP tool. `meta` is not sent to the model; it is the `_meta` of the tool's `tools/list`
  * entry, for other extensions (see meta.ts).
  */
-export type McpToolDefinition = ToolDefinition<TSchema, McpToolDetails> & { meta?: ToolMeta };
+export type McpToolDefinition = ToolDefinition<ToolSchema, McpToolDetails> & { meta?: ToolMeta };
 
 export interface McpToolCaller {
   callTool(
@@ -101,7 +102,7 @@ function relocateSchema(schema: unknown, pointer: string): unknown {
  * Output schema of every MCP tool: the `CallToolResult` scripts receive (without `_meta`, which
  * {@link convertMcpResult} drops), with the tool's own output schema as `structuredContent`.
  */
-function createMcpResultSchema(structuredContentSchema: Record<string, unknown> | undefined): TSchema {
+function createMcpResultSchema(structuredContentSchema: Record<string, unknown> | undefined): ToolSchema {
   return {
     type: "object",
     properties: {
@@ -115,19 +116,19 @@ function createMcpResultSchema(structuredContentSchema: Record<string, unknown> 
     required: ["content"],
     // Fields newer protocol versions add.
     additionalProperties: true,
-  } as unknown as TSchema;
+  } as unknown as ToolSchema;
 }
 
 /**
  * Tool input schemas must be objects. MCP servers may omit `type`, and some providers reject object
  * schemas without `properties`.
  */
-function toParameters(schema: Record<string, unknown>): TSchema {
+function toParameters(schema: Record<string, unknown>): ToolSchema {
   return {
     ...schema,
     type: schema.type ?? "object",
     ...(schema.properties === undefined ? { properties: {} } : {}),
-  } as unknown as TSchema;
+  } as unknown as ToolSchema;
 }
 
 const ANNOTATION_HINTS = ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"] as const;

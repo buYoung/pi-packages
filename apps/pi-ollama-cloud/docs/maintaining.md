@@ -13,7 +13,7 @@
 
 Pi는 TypeScript 소스를 직접 로드하므로 별도 빌드는 없습니다. `package.json`의 `files`는 `src/`와 배포 문서만 포함합니다. 루트 `.ts` 파일과 generated 재노출 파일은 제거했으며, 직접 import하는 소비자는 `src/`의 구현 경로를 사용합니다. 개발 스크립트와 검증 코드를 `src/`로 옮기지 않습니다.
 
-Pi 호스트 패키지와 `typebox`는 `peerDependencies: "*"`, 개발 의존성은 `catalog:`로 선언합니다. `effect`(`4.0.6`)와 `proper-lockfile`은 생산 의존성이고 Inquirer·tsx·검증 라이브러리는 개발 전용입니다. 공통 TypeScript 설정은 개발 의존성으로만 참조합니다. 배포용 archive는 `pnpm pack`으로 만들어 `workspace:`와 `catalog:`가 해석되게 합니다.
+Pi 호스트 패키지는 `peerDependencies: "*"`, 개발 의존성은 `catalog:`로 선언합니다. `effect`(`4.0.6`)와 `proper-lockfile`은 생산 의존성이고 Inquirer·tsx·검증 라이브러리는 개발 전용입니다. 공통 TypeScript 설정은 개발 의존성으로만 참조합니다. 배포용 archive는 `pnpm pack`으로 만들어 `workspace:`와 `catalog:`가 해석되게 합니다.
 
 ## 키 없이 검증
 

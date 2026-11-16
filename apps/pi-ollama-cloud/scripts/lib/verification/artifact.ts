@@ -11,7 +11,6 @@ const hosts = new Set([
   "@earendil-works/pi-agent-core",
   "@earendil-works/pi-coding-agent",
   "@earendil-works/pi-tui",
-  "typebox",
 ]);
 interface Manifest {
   name: string;

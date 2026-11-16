@@ -50,15 +50,13 @@
     "themes": []
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*",
-    "typebox": "*"
+    "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",
-    "typebox": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

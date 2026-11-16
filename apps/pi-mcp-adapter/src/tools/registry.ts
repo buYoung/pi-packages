@@ -8,9 +8,8 @@ import { createHash } from "node:crypto";
 import type { ToolDefinition, ToolInfo } from "@earendil-works/pi-coding-agent";
 import type { Tool as McpTool } from "@earendil-works/pi-mcp";
 import { Context, Effect, Layer } from "effect";
-import type { TSchema } from "typebox";
 import { getMcpToolExposure, type McpExposure, type McpServerConfig, mcpNamespace } from "../config/schema.ts";
-import { createMcpToolDefinition, type McpToolDefinition, type ToolTarget } from "./definition.ts";
+import { createMcpToolDefinition, type McpToolDefinition, type ToolSchema, type ToolTarget } from "./definition.ts";
 import type { McpToolDetails } from "./output.ts";
 import { createMcpResourceToolDefinitions, type McpResourceServer } from "./resources.ts";
 
@@ -32,7 +31,7 @@ function createMcpToolName(server: string, tool: string, isTaken: (name: string)
 
 /** Pi's tool registry, as far as MCP tools use it. */
 export interface ToolHostShape {
-  readonly registerTool: (definition: ToolDefinition<TSchema, McpToolDetails>) => Effect.Effect<void>;
+  readonly registerTool: (definition: ToolDefinition<ToolSchema, McpToolDetails>) => Effect.Effect<void>;
   readonly allTools: Effect.Effect<readonly ToolInfo[]>;
   /** The tools declared to the model. */
   readonly activeTools: Effect.Effect<readonly string[]>;

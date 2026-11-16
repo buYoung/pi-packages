@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 달라진 것
+
+- Computer Use가 `@earendil-works/pi-mcp` 1.5.2를 사용하며, 메모리 확장이 `typebox` peer 의존성 없이 일반 JSON Schema로 도구 스키마를 선언합니다.
+
 ## [0.7.0] - 2026-11-11
 
 ### 새로워진 것

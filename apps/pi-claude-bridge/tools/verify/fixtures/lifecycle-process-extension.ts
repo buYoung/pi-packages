@@ -1,7 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { Type } from "typebox";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import bridge, { testBridge } from "../fixture-entry.js";
 import { withLiveRunner } from "../live.js";
 import { MODEL_ID } from "../policy.js";
@@ -154,7 +153,7 @@ export default async function (pi: ExtensionAPI) {
 	});
 	pi.registerTool({
 		name: "bridge_verify_wait", label: "Verification wait", description: "Wait until the verification caller cancels. Call only when explicitly requested.",
-		parameters: Type.Object({}),
+		parameters: { type: "object", properties: {} } as unknown as ToolDefinition["parameters"],
 		async execute(_id, _params, signal) {
 			return new Promise<never>((_resolve, reject) => {
 				const abort = () => {

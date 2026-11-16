@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Query, query } from "@anthropic-ai/claude-agent-sdk";
-import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
-import { Type } from "typebox";
+import type { AssistantMessage, Message, Tool } from "@earendil-works/pi-ai";
 import { forgetSessionCwd, rememberSessionCwd } from "../../src/adapters/pi/session-cwd.js";
 import { createHarness, fixtureUser } from "./harness.js";
 import { expect, type CheckContext, type Facts } from "./types.js";
@@ -42,7 +41,7 @@ export const assistantText = (text: string): AssistantMessage => ({
 });
 export const toolResult = (id: string): Message => ({ role: "toolResult", toolCallId: id, toolName: "read", content: [{ type: "text", text: "fixture file" }], isError: false, timestamp: 0 });
 // The bridge only turns a tool_use into a pi tool call for a tool the context serves.
-const tools = [{ name: "read", description: "Read a verification fixture.", parameters: Type.Object({ path: Type.String() }) }];
+const tools: Tool[] = [{ name: "read", description: "Read a verification fixture.", parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } }];
 
 function installScriptedQueries(harness: Harness) {
 	const scripts: ScriptedQuery[] = [];
