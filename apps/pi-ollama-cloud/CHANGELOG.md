@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.15.6] - 2026-11-17
+
 ### Improved
 
 - Declare web tool schemas as plain JSON Schema and remove the `typebox` peer dependency.
