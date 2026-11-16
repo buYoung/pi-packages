@@ -106,7 +106,7 @@ pi -e ./apps/pi-ollama-cloud        # load an app in Pi for one session
 ## 앱 작성 규칙
 
 - npm으로 배포합니다. `pi install git:`으로는 이 작업 공간의 앱 하나를 설치할 수 없습니다([패키지 고르기](#패키지-고르기) 참고).
-- Pi 호스트 패키지(`@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, `typebox`)는 `peerDependencies`에 `"*"`로, `devDependencies`에 `catalog:`로 선언합니다. `dependencies`에는 절대 넣지 마세요. 사본이 하나 더 생기면 Pi의 클래스와 레지스트리가 나뉩니다.
+- Pi 호스트 패키지(`@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`)는 `peerDependencies`에 `"*"`로, `devDependencies`에 `catalog:`로 선언합니다. `dependencies`에는 절대 넣지 마세요. 사본이 하나 더 생기면 Pi의 클래스와 레지스트리가 나뉩니다.
 - Pi는 설치한 패키지마다 별도의 모듈 루트로 로드합니다. `packages/`의 공용 패키지는 사용하는 앱마다 따로 복사되므로 타입·상수·순수 함수는 담을 수 있지만 공유 상태는 담을 수 없습니다. 런타임에 서로 조율해야 하는 앱은 `globalThis[Symbol.for(...)]`를 씁니다.
 - Pi는 TypeScript 소스를 직접 실행합니다. 예외는 pi-codex 계열, `pi-redact`, `redact`로, `dist/`의 `tsc` 출력을 배포합니다(빌드 방법은 [개발](#개발) 참고).
 - 앱이 런타임에 import하는 공용 패키지는 npm에 따로 게시하거나 앱의 압축 파일에 묶어야 합니다. 새 공용 패키지를 추가할 때 어느 쪽으로 할지 먼저 정하세요. `redact`는 따로 게시하며, 이를 설치하는 앱보다 먼저 배포합니다.

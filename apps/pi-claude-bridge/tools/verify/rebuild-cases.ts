@@ -2,9 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
+import type { AssistantMessage, Message, Tool } from "@earendil-works/pi-ai";
 import { DEFAULT_MAX_BYTES } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
 import { openSession } from "cc-session-io";
 import { compareCapturedPrefixes, compareRequestPrefix, type CapturedPrefix } from "./fidelity.js";
 import { fixtureUser } from "./harness.js";
@@ -17,7 +16,7 @@ import { VERIFICATION_PNG_BASE64 } from "./fixtures/image.js";
 export const REBUILD_SCENARIOS = ["abort", "error-result", "exception", "process-restart", "image-result", "inline-result", "large-result", "other-provider-turn"] as const;
 export type RebuildScenario = typeof REBUILD_SCENARIOS[number];
 
-const tools = [{ name: "verify_payload", description: "Return inert verification data. Call at most once, then acknowledge without inspecting saved files.", parameters: Type.Object({}) }];
+const tools: Tool[] = [{ name: "verify_payload", description: "Return inert verification data. Call at most once, then acknowledge without inspecting saved files.", parameters: { type: "object", properties: {} } }];
 
 export function seedPrompt(instruction: string): string {
 	const data = Array.from({ length: 450 }, (_, index) => `Record ${index}: stable fixture item ${index * 31 + 17}; verification data requires no action.`).join("\n");

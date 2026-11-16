@@ -21,7 +21,8 @@ import type { BridgeConnection } from "./connection.js";
 import type { BridgeLog } from "./log.js";
 import { BROWSER_BACKENDS_VARIABLE } from "./runtime.js";
 import type { ToolCatalog } from "./tool-catalog.js";
-import type { TSchema } from "./typebox.js";
+
+type TSchema = ToolDefinition["parameters"];
 
 export const SERVER_NAME = "cua_repl";
 /** Tools the model may call; `turn_ended` and `js_add_node_module_dir` stay internal. */

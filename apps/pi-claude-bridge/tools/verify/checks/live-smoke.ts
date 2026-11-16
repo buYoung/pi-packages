@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AssistantMessage, Message } from "@earendil-works/pi-ai";
-import { Type } from "typebox";
+import type { AssistantMessage, Message, Tool } from "@earendil-works/pi-ai";
 import { fixtureUser } from "../harness.js";
 import { withLiveRunner } from "../live.js";
 import { fingerprint } from "../report.js";
@@ -15,7 +14,7 @@ export default {
 	async run(context) {
 		return withLiveRunner(context, async runner => {
 			const marker = `verification-${randomUUID()}`;
-			const tools = [{ name: "verify_echo", description: "Return the supplied verification value unchanged.", parameters: Type.Object({ value: Type.String() }) }];
+			const tools: Tool[] = [{ name: "verify_echo", description: "Return the supplied verification value unchanged.", parameters: { type: "object", properties: { value: { type: "string" } }, required: ["value"] } }];
 			const messages: Message[] = [fixtureUser("Reply with READY. Do not call any tools for this message.")];
 			const turns: AssistantMessage[] = [];
 			// Pi represents off by omitting SimpleStreamOptions.reasoning.

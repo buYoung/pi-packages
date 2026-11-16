@@ -22,10 +22,11 @@ import type {
   ResourceTemplate,
 } from "@earendil-works/pi-mcp";
 import { Data, Effect } from "effect";
-import type { TSchema } from "typebox";
 import { type McpExposure, toToolExposure } from "../config/schema.ts";
 import { errorMessage } from "../shared/effects.ts";
 import { limitMcpContent, type McpToolDetails, toModelContent } from "./output.ts";
+
+type TSchema = ToolDefinition["parameters"];
 
 const LIST_MCP_RESOURCES_TOOL = "list_mcp_resources";
 const LIST_MCP_RESOURCE_TEMPLATES_TOOL = "list_mcp_resource_templates";

@@ -10,7 +10,6 @@ const peers = new Map(
         "@earendil-works/pi-coding-agent",
         "@earendil-works/pi-ai",
         "@earendil-works/pi-tui",
-        "typebox",
     ].map((name) => [name, import.meta.resolve(name)]),
 );
 registerHooks({

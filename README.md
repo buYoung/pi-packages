@@ -106,7 +106,7 @@ Shared CI adds a latest-Pi compatibility check and a live-service check for this
 ## Rules for apps
 
 - Distribute through npm; `pi install git:` cannot install one app from this workspace (see [Choose a package](#choose-a-package)).
-- Declare the Pi host packages (`@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox`) in `peerDependencies` with `"*"`, and in `devDependencies` with `catalog:`. Never put them in `dependencies`: a second copy splits Pi's classes and registries.
+- Declare the Pi host packages (`@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`, `@earendil-works/pi-coding-agent`, and `@earendil-works/pi-tui`) in `peerDependencies` with `"*"`, and in `devDependencies` with `catalog:`. Never put them in `dependencies`: a second copy splits Pi's classes and registries.
 - Pi loads each installed package with its own module root. A shared package from `packages/` is a separate copy in every app that uses it, so it can hold types, constants, and pure functions, but not shared state. Apps that coordinate at runtime do it through `globalThis[Symbol.for(...)]`.
 - Pi runs the TypeScript sources directly. The pi-codex family, `pi-redact`, and `redact` are the exception: they publish `tsc` output from `dist/` (see [Develop](#develop) for building them).
 - A shared package that an app imports at runtime must either be published to npm on its own or bundled into the app's archive; decide which before adding a new shared package. `redact` is published on its own and released before the apps that install it.

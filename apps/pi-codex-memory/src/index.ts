@@ -3,9 +3,9 @@ import {
     type ExtensionAPI,
     type ExtensionContext,
     getAgentDir,
+    type ToolDefinition,
     VERSION,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
 import { type CommandOptions, memoryCommand } from "./commands.js";
 import { isMemoryEnabled } from "./config.js";
 import {
@@ -351,14 +351,14 @@ export default function codexMemory(
                 : undefined,
         };
     };
-    const repositoryParameter = Type.Optional(
-        Type.String({
-            minLength: 1,
-            maxLength: 4096,
-            description:
-                "Registered repository ID, unique name, or registered root path. Cross-repository reads require confirmation or a saved read connection.",
-        }),
-    );
+    type ToolSchema = ToolDefinition["parameters"];
+    const repositoryParameter = {
+        type: "string",
+        minLength: 1,
+        maxLength: 4096,
+        description:
+            "Registered repository ID, unique name, or registered root path. Cross-repository reads require confirmation or a saved read connection.",
+    } as const;
     const readonlyAnnotations = {
         readOnlyHint: true,
         destructiveHint: false,
@@ -374,17 +374,22 @@ export default function codexMemory(
         label: "Codex memory list",
         description:
             "List memory files in the current scope, or an explicitly selected repository. repositories=true lists the currently readable repository catalog, not memory contents. Foreign paths are repository-qualified; use returned paths and cursors unchanged.",
-        parameters: Type.Object({
-            repository: repositoryParameter,
-            repositories: Type.Optional(Type.Boolean()),
-            path: Type.Optional(Type.String()),
-            cursor: Type.Optional(Type.String()),
-            max_results: Type.Optional(
-                Type.Integer({ minimum: 1, maximum: 100 }),
-            ),
-        }),
+        parameters: {
+            type: "object",
+            properties: {
+                repository: repositoryParameter,
+                repositories: { type: "boolean" },
+                path: { type: "string" },
+                cursor: { type: "string" },
+                max_results: { type: "integer", minimum: 1, maximum: 100 },
+            },
+        } as unknown as ToolSchema,
         annotations: readonlyAnnotations,
-        async execute(_id, params, signal, _update, ctx) {
+        async execute(_id, rawParams, signal, _update, ctx) {
+            const params = rawParams as Omit<
+                Parameters<MemoryRuntime["reader"]["list"]>[0],
+                "scope"
+            > & { repository?: string; repositories?: boolean };
             signal?.throwIfAborted();
             if (params.repositories) {
                 if (
@@ -429,19 +434,23 @@ export default function codexMemory(
         promptGuidelines: recallGuidelines,
         description:
             "Read a memory file with 1-based line offsets. Historical memory is not proof of current code or fresh authorization. Cite only evidence actually used.",
-        parameters: Type.Object({
-            repository: repositoryParameter,
-            path: Type.String(),
-            line_offset: Type.Optional(Type.Integer({ minimum: 1 })),
-            max_lines: Type.Optional(
-                Type.Integer({ minimum: 1, maximum: 1000 }),
-            ),
-            max_bytes: Type.Optional(
-                Type.Integer({ minimum: 256, maximum: 16384 }),
-            ),
-        }),
+        parameters: {
+            type: "object",
+            properties: {
+                repository: repositoryParameter,
+                path: { type: "string" },
+                line_offset: { type: "integer", minimum: 1 },
+                max_lines: { type: "integer", minimum: 1, maximum: 1000 },
+                max_bytes: { type: "integer", minimum: 256, maximum: 16384 },
+            },
+            required: ["path"],
+        } as unknown as ToolSchema,
         annotations: readonlyAnnotations,
-        async execute(_id, params, signal, _update, ctx) {
+        async execute(_id, rawParams, signal, _update, ctx) {
+            const params = rawParams as Omit<
+                Parameters<MemoryRuntime["reader"]["read"]>[0],
+                "scope"
+            > & { repository?: string };
             const target = await readTarget(
                 ctx,
                 params.repository,
@@ -466,35 +475,67 @@ export default function codexMemory(
         promptGuidelines: recallGuidelines,
         description:
             "Search memory literally using any, all_on_same_line, or all_within_lines matching. Batch independent queries; normalized matching ignores punctuation. Results include source lines and pagination.",
-        parameters: Type.Object({
-            repository: repositoryParameter,
-            queries: Type.Array(Type.String({ minLength: 1, maxLength: 256 }), {
-                minItems: 1,
-                maxItems: 8,
-            }),
-            match_mode: Type.Optional(
-                Type.Union([
-                    Type.Object({ type: Type.Literal("any") }),
-                    Type.Object({ type: Type.Literal("all_on_same_line") }),
-                    Type.Object({
-                        type: Type.Literal("all_within_lines"),
-                        line_count: Type.Integer({ minimum: 1, maximum: 100 }),
-                    }),
-                ]),
-            ),
-            path: Type.Optional(Type.String()),
-            cursor: Type.Optional(Type.String()),
-            context_lines: Type.Optional(
-                Type.Integer({ minimum: 0, maximum: 10 }),
-            ),
-            case_sensitive: Type.Optional(Type.Boolean()),
-            normalized: Type.Optional(Type.Boolean()),
-            max_results: Type.Optional(
-                Type.Integer({ minimum: 1, maximum: 100 }),
-            ),
-        }),
+        parameters: {
+            type: "object",
+            properties: {
+                repository: repositoryParameter,
+                queries: {
+                    type: "array",
+                    items: { type: "string", minLength: 1, maxLength: 256 },
+                    minItems: 1,
+                    maxItems: 8,
+                },
+                match_mode: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            properties: {
+                                type: { type: "string", const: "any" },
+                            },
+                            required: ["type"],
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                type: {
+                                    type: "string",
+                                    const: "all_on_same_line",
+                                },
+                            },
+                            required: ["type"],
+                        },
+                        {
+                            type: "object",
+                            properties: {
+                                type: {
+                                    type: "string",
+                                    const: "all_within_lines",
+                                },
+                                line_count: {
+                                    type: "integer",
+                                    minimum: 1,
+                                    maximum: 100,
+                                },
+                            },
+                            required: ["type", "line_count"],
+                        },
+                    ],
+                },
+                path: { type: "string" },
+                cursor: { type: "string" },
+                context_lines: { type: "integer", minimum: 0, maximum: 10 },
+                case_sensitive: { type: "boolean" },
+                normalized: { type: "boolean" },
+                max_results: { type: "integer", minimum: 1, maximum: 100 },
+            },
+            required: ["queries"],
+        } as unknown as ToolSchema,
         annotations: readonlyAnnotations,
-        async execute(_id, params, signal, _update, ctx) {
+        async execute(_id, rawParams, signal, _update, ctx) {
+            const params = rawParams as Omit<
+                Parameters<MemoryRuntime["reader"]["search"]>[0],
+                "scope"
+            > & { repository?: string };
             const target = await readTarget(
                 ctx,
                 params.repository,
@@ -519,22 +560,26 @@ export default function codexMemory(
         label: "Codex memory note",
         description:
             "Append a scoped memory note only when the user explicitly asks to remember something. Requires user confirmation. For corrections or forgetting, point the user to Saved memories in /codex-memory; never edit generated memory files directly.",
-        parameters: Type.Object(
-            {
-                filename: Type.String({
+        parameters: {
+            type: "object",
+            properties: {
+                filename: {
+                    type: "string",
                     pattern: "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,100}\\.md$",
-                }),
-                note: Type.String({ minLength: 1, maxLength: 9000 }),
+                },
+                note: { type: "string", minLength: 1, maxLength: 9000 },
             },
-            { additionalProperties: false },
-        ),
+            required: ["filename", "note"],
+            additionalProperties: false,
+        } as unknown as ToolSchema,
         annotations: {
             readOnlyHint: false,
             destructiveHint: false,
             idempotentHint: false,
             openWorldHint: false,
         },
-        async execute(_id, params, signal, _update, ctx) {
+        async execute(_id, rawParams, signal, _update, ctx) {
+            const params = rawParams as { filename: string; note: string };
             signal?.throwIfAborted();
             const memory = await get(ctx);
             if (!memory.settings().useMemories)

@@ -1,5 +1,4 @@
-import type { Message } from "@earendil-works/pi-ai";
-import { Type } from "typebox";
+import type { Message, Tool } from "@earendil-works/pi-ai";
 import { fixtureUser } from "../harness.js";
 import { withLiveRunner } from "../live.js";
 import { requestElements } from "../fidelity.js";
@@ -34,7 +33,7 @@ export default {
 		const cases: Facts[] = [];
 		for (const kind of ["text", "empty", "error"]) {
 			const observed = await withLiveRunner(context, async runner => {
-				const tools = [{ name: "verify_shape", description: "Return a fixed fixture. Call exactly once and acknowledge even if empty or failed.", parameters: Type.Object({}) }];
+				const tools: Tool[] = [{ name: "verify_shape", description: "Return a fixed fixture. Call exactly once and acknowledge even if empty or failed.", parameters: { type: "object", properties: {} } }];
 				const messages: Message[] = [fixtureUser("Call verify_shape exactly once, then reply only READY, even if the result is empty or an error. Never repeat the call.")];
 				const call = await runner.turn({ messages, tools });
 				messages.push(call);

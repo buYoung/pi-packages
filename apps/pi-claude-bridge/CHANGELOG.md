@@ -1,5 +1,11 @@
 # Changelog
 
+## UNRELEASED
+
+### Improved
+
+- The bridge now uses Claude Code 2.1.325 (Agent SDK `^0.3.325`).
+
 ## 0.14.5 — 2026-11-13
 
 ### Fixed

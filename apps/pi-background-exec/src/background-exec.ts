@@ -11,32 +11,52 @@ import {
   createLocalBashOperations,
   type ExtensionAPI,
   type ExtensionContext,
+  type ToolDefinition,
   truncateTail,
 } from "@earendil-works/pi-coding-agent";
-import { type Static, Type } from "typebox";
 import { trackBackgroundWork } from "./background-work.ts";
 
-const jobSchema = Type.Object({
-  jobId: Type.String(),
-  sessionId: Type.String(),
-  command: Type.String(),
-  cwd: Type.String(),
-  status: Type.Union([
-    Type.Literal("running"),
-    Type.Literal("succeeded"),
-    Type.Literal("failed"),
-    Type.Literal("cancelled"),
-    Type.Literal("timed_out"),
-  ]),
-  exitCode: Type.Union([Type.Number(), Type.Null()]),
-  startedAt: Type.String(),
-  finishedAt: Type.Optional(Type.String()),
-  logPath: Type.String(),
-  resultPath: Type.String(),
-  error: Type.Optional(Type.String()),
-});
+type ToolSchema = ToolDefinition["parameters"];
 
-export type BackgroundJobResult = Static<typeof jobSchema>;
+export interface BackgroundJobResult {
+  jobId: string;
+  sessionId: string;
+  command: string;
+  cwd: string;
+  status: "running" | "succeeded" | "failed" | "cancelled" | "timed_out";
+  exitCode: number | null;
+  startedAt: string;
+  finishedAt?: string;
+  logPath: string;
+  resultPath: string;
+  error?: string;
+}
+
+const jobSchema = {
+  type: "object",
+  properties: {
+    jobId: { type: "string" },
+    sessionId: { type: "string" },
+    command: { type: "string" },
+    cwd: { type: "string" },
+    status: {
+      anyOf: [
+        { type: "string", const: "running" },
+        { type: "string", const: "succeeded" },
+        { type: "string", const: "failed" },
+        { type: "string", const: "cancelled" },
+        { type: "string", const: "timed_out" },
+      ],
+    },
+    exitCode: { anyOf: [{ type: "number" }, { type: "null" }] },
+    startedAt: { type: "string" },
+    finishedAt: { type: "string" },
+    logPath: { type: "string" },
+    resultPath: { type: "string" },
+    error: { type: "string" },
+  },
+  required: ["jobId", "sessionId", "command", "cwd", "status", "exitCode", "startedAt", "logPath", "resultPath"],
+} as unknown as ToolSchema;
 
 interface Job {
   result: BackgroundJobResult;
@@ -240,17 +260,26 @@ export default function (pi: ExtensionAPI) {
       "Agent delegation must use subagent, never background_exec or bash with agent CLIs/SDK wrappers. If subagent is unavailable or fails, stop and report; do not substitute another execution path. Only explicit user-requested CLI tests are exempt.",
       "Use background_job for requested inspection/cancellation. Reuse the completion log tail; read missing evidence only. Batch independent artifact reads. Individual job completion is progress, not overall task completion; check remainingJobs.",
     ],
-    parameters: Type.Object({
-      command: Type.String({
-        minLength: 1,
-        description: "Non-agent command, or explicit CLI test, to run in the current working directory",
-      }),
-      timeout: Type.Optional(
-        Type.Number({ exclusiveMinimum: 0, maximum: 2147483.647, description: "Execution timeout in seconds" }),
-      ),
-    }),
+    parameters: {
+      type: "object",
+      properties: {
+        command: {
+          type: "string",
+          minLength: 1,
+          description: "Non-agent command, or explicit CLI test, to run in the current working directory",
+        },
+        timeout: {
+          type: "number",
+          exclusiveMinimum: 0,
+          maximum: 2147483.647,
+          description: "Execution timeout in seconds",
+        },
+      },
+      required: ["command"],
+    } as unknown as ToolSchema,
     outputSchema: jobSchema,
-    async execute(_toolCallId, { command, timeout }, signal, _onUpdate, ctx) {
+    async execute(_toolCallId, rawParams, signal, _onUpdate, ctx) {
+      const { command, timeout } = rawParams as { command: string; timeout?: number };
       signal?.throwIfAborted();
       if (ctx.mode !== "tui" && ctx.mode !== "rpc") {
         throw new Error("background_exec requires a long-lived interactive or RPC session");
@@ -291,12 +320,22 @@ export default function (pi: ExtensionAPI) {
     label: "Background job",
     description:
       "Inspect or cancel a background_exec job owned by this session. Do not poll: completion is delivered automatically. Logs and terminal results remain readable after a session reload.",
-    parameters: Type.Object({
-      jobId: Type.String({ pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" }),
-      action: Type.Union([Type.Literal("status"), Type.Literal("cancel")]),
-    }),
+    parameters: {
+      type: "object",
+      properties: {
+        jobId: { type: "string", pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+        action: {
+          anyOf: [
+            { type: "string", const: "status" },
+            { type: "string", const: "cancel" },
+          ],
+        },
+      },
+      required: ["jobId", "action"],
+    } as unknown as ToolSchema,
     outputSchema: jobSchema,
-    async execute(_toolCallId, { jobId, action }, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, rawParams, _signal, _onUpdate, ctx) {
+      const { jobId, action } = rawParams as { jobId: string; action: "status" | "cancel" };
       const job = jobs.get(jobId);
       if (job && job.result.sessionId === ctx.sessionManager.getSessionId()) {
         if (action === "cancel" && job.result.status === "running") {

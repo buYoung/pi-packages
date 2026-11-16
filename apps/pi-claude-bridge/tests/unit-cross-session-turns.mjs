@@ -21,7 +21,6 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { getSessionPath } from "cc-session-io";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Type } from "typebox";
 
 // Before importing the module: the bridge resolves config and CC paths at import
 // time, and the fake model below exercises claudeCodeModelId's pricing lookup —
@@ -79,7 +78,7 @@ const call = (sessionId, messages) => streamSimple(model, { messages, tools: [] 
 const settle = () => new Promise((r) => setTimeout(r, 20));
 // A served tool: only then does a scripted tool_use end pi's stream at the tool
 // boundary, leaving the query parked until pi delivers the result.
-const tools = [{ name: "read", description: "Read a fixture file.", parameters: Type.Object({ path: Type.String() }) }];
+const tools = [{ name: "read", description: "Read a fixture file.", parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } }];
 const callWithTool = (sessionId, messages, signal) => streamSimple(model, { messages, tools }, { sessionId, signal });
 const settled = async (sessionId) => {
 	for (let i = 0; i < 400 && [...testBridge.activeQueryContexts].some((c) => c.piSessionId === sessionId); i++) await new Promise((r) => setTimeout(r, 5));

@@ -48,15 +48,14 @@
     "themes": []
   },
   "dependencies": {
-    "@earendil-works/pi-mcp": "1.5.0",
+    "@earendil-works/pi-mcp": "1.5.2",
     "effect": "4.1.2",
     "proper-lockfile": "^4.1.2"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "typebox": "*"
+    "@earendil-works/pi-tui": "*"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
@@ -66,7 +65,6 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/proper-lockfile": "catalog:",
-    "typebox": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
