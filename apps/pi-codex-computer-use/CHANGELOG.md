@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-11-21
+
 ### Improved
 
 - Update `@earendil-works/pi-mcp` to 1.6.0.
