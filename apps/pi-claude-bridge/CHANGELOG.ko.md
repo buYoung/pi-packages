@@ -2,6 +2,12 @@
 
 0.12.0까지의 변경 이력은 영문 [CHANGELOG.md](CHANGELOG.md)에만 있습니다.
 
+## UNRELEASED
+
+### 달라진 것
+
+- 브리지가 Claude Code 2.1.329(Agent SDK `^0.3.329`)를 사용합니다.
+
 ## 0.14.7 — 2026-11-19
 
 ### 달라진 것

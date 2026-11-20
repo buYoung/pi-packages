@@ -22,7 +22,7 @@ export function createRenderResult() {
       invalidate: () => void;
       lastComponent: Component | undefined;
       isError: boolean;
-      state: { cachedWidth?: number; cachedOutput?: string; cachedLines?: string[]; cachedSkipped?: number };
+      state: { cachedWidth?: number; cachedOutput?: string; cachedLines?: readonly string[]; cachedSkipped?: number };
     },
   ) => {
     const state = context.state;
