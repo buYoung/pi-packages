@@ -300,7 +300,7 @@ class SteppedOptionList implements Component, Focusable {
         else if (this.#isHeldKeyStale) return;
         this.#list.handleInput(data);
     }
-    render(width: number): string[] {
+    render(width: number): readonly string[] {
         return this.#list.render(width);
     }
     invalidate(): void {

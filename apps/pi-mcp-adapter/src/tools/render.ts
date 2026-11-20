@@ -103,7 +103,7 @@ class VisualLinePreview implements Component {
   private readonly maxVisualLines: number;
   private readonly formatHint: (hidden: number) => string;
   private cachedWidth: number | undefined;
-  private cachedLines: string[] | undefined;
+  private cachedLines: readonly string[] | undefined;
 
   constructor(text: string, maxVisualLines: number, formatHint: (hidden: number) => string) {
     this.text = text;
@@ -111,7 +111,7 @@ class VisualLinePreview implements Component {
     this.formatHint = formatHint;
   }
 
-  render(width: number): string[] {
+  render(width: number): readonly string[] {
     if (this.cachedLines === undefined || this.cachedWidth !== width) {
       const lines = this.text ? new Text(this.text, 0, 0).render(width) : [];
       const hidden = lines.length - this.maxVisualLines;
