@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-11-21
+
 ### Improved
 
 - Computer Use uses `@earendil-works/pi-mcp` 1.6.0.
