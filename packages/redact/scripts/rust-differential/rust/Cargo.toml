@@ -8,7 +8,7 @@ publish = false
 # the source. run.mjs refuses to run when the source lock file pins different versions.
 [dependencies]
 regex = "=1.13.1"
-regex-automata = "=0.4.18"
+regex-automata = "=0.4.19"
 regex-syntax = "=0.8.11"
 aho-corasick = "=1.1.5"
 memchr = "=2.8.3"
