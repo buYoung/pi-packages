@@ -77,13 +77,15 @@ test("sessions sharing a model runtime: each session's requests, compaction incl
     host.session.dispose(); await rm(directory, { recursive: true, force: true });
   }
 });
-test("a session that joins a shared model runtime can use Devin before Pi restored its instance's model list, also when models.json configures devin", { timeout: 30_000 }, async () => {
+/**
+ * A shared model runtime with a signed-in host session. With `modelsJson`, models.json configures devin, so Pi composes the
+ * provider and checks its model list before each call.
+ */
+async function sharedRuntime({ modelsJson }: { modelsJson: boolean }) {
   const directory = await mkdtemp(join(tmpdir(), "pi-devin-shared-"));
   const fixture = await providerFixture({ chat: () => streamResponse(finalFrames("done")) });
   fixture.shutdown();
-  // A models.json entry for devin makes Pi compose the provider, and the composed provider only sends a request to the
-  // registered one when the registered one's list holds a model of the request's API.
-  await writeFile(join(directory, "models.json"), JSON.stringify({ providers: { devin: { modelOverrides: { [fixture.model.id]: { contextWindow: 100_000 } } } } }));
+  if (modelsJson) await writeFile(join(directory, "models.json"), JSON.stringify({ providers: { devin: { modelOverrides: { [fixture.model.id]: { contextWindow: 100_000 } } } } }));
   const runtime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: join(directory, "models.json"),
     modelsStore: new InMemoryModelsStore(), refreshOnCreate: false, allowModelNetwork: false });
   const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", enableInstallTelemetry: false, cacheWarming: "off",
@@ -101,24 +103,50 @@ test("a session that joins a shared model runtime can use Devin before Pi restor
     await session.bindExtensions({ mode: "print", onError: (error) => { errors.push(error.error); } });
     return session;
   };
-  try {
+  /** The first session, signed in, with the catalog fetched and one answered request. */
+  const openHost = async () => {
     const host = await open();
     await runtime.login("devin", "oauth", { notify: () => {}, prompt: async (prompt) => prompt.type === "select" ? "manual" : "ordinary-shared-code" });
     expect((await runtime.refresh({ providers: ["devin"], allowNetwork: true, force: true })).errors.size).toBe(0);
     await host.prompt("first");
     expect(host.getLastAssistantText()).toBe("done");
-
-    const subagent = await open();
-    expect(runtime.getRegisteredNativeProvider("devin")).toBe(extensions[1].provider);
-    // The subagent's instance has no list until Pi's refresh restores it; the registered provider still lists the host's.
-    expect(extensions[1].provider.getModels().length).toBeGreaterThan(0);
-    await Promise.all([subagent.prompt("hi"), host.prompt("second")]);
-    expect(errors).toStrictEqual([]);
-    expect(subagent.getLastAssistantText()).toBe("done");
-    expect(host.getLastAssistantText()).toBe("done");
-  } finally {
+    return host;
+  };
+  const close = async () => {
     for (const extension of extensions) extension.shutdown();
     for (const session of sessions) session.dispose();
     await rm(directory, { recursive: true, force: true });
+  };
+  return { runtime, extensions, errors, open, openHost, close };
+}
+
+test("a session that joins a shared model runtime can use Devin before Pi restored its instance's model list, also when models.json configures devin", { timeout: 30_000 }, async () => {
+  const shared = await sharedRuntime({ modelsJson: true });
+  try {
+    const host = await shared.openHost();
+    const subagent = await shared.open();
+    expect(shared.runtime.getRegisteredNativeProvider("devin")).toBe(shared.extensions[1].provider);
+    // The subagent's instance has no list until Pi's refresh restores it; the registered provider still lists the host's.
+    expect(shared.extensions[1].provider.getModels().length).toBeGreaterThan(0);
+    await Promise.all([subagent.prompt("hi"), host.prompt("second")]);
+    expect(shared.errors).toStrictEqual([]);
+    expect(subagent.getLastAssistantText()).toBe("done");
+    expect(host.getLastAssistantText()).toBe("done");
+  } finally {
+    await shared.close();
+  }
+});
+
+test("sessions that join a shared model runtime together all get their model list, also the ones whose provider Pi replaced before its refresh", { timeout: 15_000 }, async () => {
+  const shared = await sharedRuntime({ modelsJson: false });
+  try {
+    await shared.openHost();
+    // Pi refreshes the provider registered last, so of two sessions registering together only the second one is refreshed by Pi.
+    const subagents = await Promise.all([shared.open(), shared.open()]);
+    await Promise.all(subagents.map((subagent, index) => subagent.prompt(`hi ${index}`)));
+    expect(shared.errors).toStrictEqual([]);
+    expect(subagents.map((subagent) => subagent.getLastAssistantText())).toStrictEqual(["done", "done"]);
+  } finally {
+    await shared.close();
   }
 });

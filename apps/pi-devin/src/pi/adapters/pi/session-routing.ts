@@ -32,9 +32,13 @@ interface Route {
   attachOrder: number;
 }
 
+type RefreshContext = Parameters<DevinProvider["refreshModels"]>[0];
+
 interface RouteTable {
   readonly routes: Set<WeakRef<Route>>;
   attaches: number;
+  /** The newest refresh inputs Pi gave any instance, with the newest stored list, for the instances it never refreshed. */
+  latestRefresh?: Pick<RefreshContext, "credential" | "stored" | "baseUrl">;
 }
 
 function routeTable(): RouteTable {
@@ -76,6 +80,15 @@ export function makeSessionRouting(own: DevinProvider, isAuxiliary: () => boolea
     const auxiliary = sharing.filter((route) => route.isAuxiliary());
     return auxiliary.length === 1 ? auxiliary[0] : owner();
   };
+  // Pi refreshes only the provider registered last, after an await, so an instance another one replaced before that refresh
+  // never gets its first one: it never sees the OAuth session and never ends its wait for the first refresh. Such an instance
+  // restores its list offline, for itself only, from the newest refresh inputs Pi gave any instance.
+  const restoreIfNeverRefreshed = (route: Route) => {
+    const latest = table.latestRefresh;
+    if (!latest?.stored?.models.length || route.provider.getModels().length > 0) return;
+    void route.provider.refreshModels({ ...latest, allowNetwork: false, force: false, signal: new AbortController().signal,
+      publish: async (publication) => { publication.update?.(); return true; } }).catch(() => {});
+  };
   const oauth = own.auth.oauth!;
   const provider: DevinProvider = {
     ...own,
@@ -99,7 +112,18 @@ export function makeSessionRouting(own: DevinProvider, isAuxiliary: () => boolea
       return own;
     },
     filterModels: (models, credential) => owner().provider.filterModels!(models, credential),
-    refreshModels: (context) => owner().provider.refreshModels(context),
+    refreshModels: async (context) => {
+      // The stored entry is the list before this refresh; a list this refresh persists replaces it.
+      const stored = context.stored?.models.length ? context.stored : table.latestRefresh?.stored;
+      table.latestRefresh = { credential: context.credential, stored, baseUrl: context.baseUrl };
+      const publish: RefreshContext["publish"] = async (publication) => {
+        const accepted = await context.publish(publication);
+        if (accepted && publication.persist?.models.length) table.latestRefresh = { ...table.latestRefresh, stored: publication.persist };
+        return accepted;
+      };
+      try { await owner().provider.refreshModels({ ...context, publish }); }
+      finally { for (const route of sharingRoutes(table, provider)) if (route !== owner()) restoreIfNeverRefreshed(route); }
+    },
     stream: (model, context, options) => forSession(options?.sessionId).provider.stream(model, context, options),
     streamSimple: (model, context, options) => forSession(options?.sessionId).provider.streamSimple(model, context, options),
   };
@@ -108,6 +132,7 @@ export function makeSessionRouting(own: DevinProvider, isAuxiliary: () => boolea
     provider,
     attach: (sessionId, registry) => {
       Object.assign(self, { sessionId, registry, isShutDown: false, attachOrder: ++table.attaches });
+      restoreIfNeverRefreshed(self);
     },
     detach: () => { self.isShutDown = true; },
   };
