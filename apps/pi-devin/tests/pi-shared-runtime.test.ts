@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
@@ -75,5 +75,50 @@ test("sessions sharing a model runtime: each session's requests, compaction incl
   } finally {
     for (const extension of extensions) extension.shutdown();
     host.session.dispose(); await rm(directory, { recursive: true, force: true });
+  }
+});
+test("a session that joins a shared model runtime can use Devin before Pi restored its instance's model list, also when models.json configures devin", { timeout: 30_000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), "pi-devin-shared-"));
+  const fixture = await providerFixture({ chat: () => streamResponse(finalFrames("done")) });
+  fixture.shutdown();
+  // A models.json entry for devin makes Pi compose the provider, and the composed provider only sends a request to the
+  // registered one when the registered one's list holds a model of the request's API.
+  await writeFile(join(directory, "models.json"), JSON.stringify({ providers: { devin: { modelOverrides: { [fixture.model.id]: { contextWindow: 100_000 } } } } }));
+  const runtime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: join(directory, "models.json"),
+    modelsStore: new InMemoryModelsStore(), refreshOnCreate: false, allowModelNetwork: false });
+  const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", enableInstallTelemetry: false, cacheWarming: "off",
+    compaction: { enabled: false, keepRecentTokens: 1 }, retry: { enabled: false } });
+  const agentDir = join(directory, "agent"), errors: string[] = [], sessions: { dispose(): void }[] = [];
+  const extensions: ReturnType<typeof registerTestExtension>[] = [];
+  const open = async () => {
+    const loader = new DefaultResourceLoader({ cwd: directory, agentDir, settingsManager: settings,
+      noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
+      extensionFactories: [(pi) => { extensions.push(registerTestExtension(pi, fixture.dependencies)); }] });
+    await loader.reload();
+    const { session } = await createAgentSession({ cwd: directory, agentDir, modelRuntime: runtime, model: fixture.model, thinkingLevel: "medium",
+      settingsManager: settings, sessionManager: SessionManager.inMemory(directory), resourceLoader: loader, noTools: "all" });
+    sessions.push(session);
+    await session.bindExtensions({ mode: "print", onError: (error) => { errors.push(error.error); } });
+    return session;
+  };
+  try {
+    const host = await open();
+    await runtime.login("devin", "oauth", { notify: () => {}, prompt: async (prompt) => prompt.type === "select" ? "manual" : "ordinary-shared-code" });
+    expect((await runtime.refresh({ providers: ["devin"], allowNetwork: true, force: true })).errors.size).toBe(0);
+    await host.prompt("first");
+    expect(host.getLastAssistantText()).toBe("done");
+
+    const subagent = await open();
+    expect(runtime.getRegisteredNativeProvider("devin")).toBe(extensions[1].provider);
+    // The subagent's instance has no list until Pi's refresh restores it; the registered provider still lists the host's.
+    expect(extensions[1].provider.getModels().length).toBeGreaterThan(0);
+    await Promise.all([subagent.prompt("hi"), host.prompt("second")]);
+    expect(errors).toStrictEqual([]);
+    expect(subagent.getLastAssistantText()).toBe("done");
+    expect(host.getLastAssistantText()).toBe("done");
+  } finally {
+    for (const extension of extensions) extension.shutdown();
+    for (const session of sessions) session.dispose();
+    await rm(directory, { recursive: true, force: true });
   }
 });

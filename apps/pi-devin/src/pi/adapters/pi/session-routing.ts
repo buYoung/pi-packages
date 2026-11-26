@@ -87,7 +87,17 @@ export function makeSessionRouting(own: DevinProvider, isAuxiliary: () => boolea
         toAuth: (credential) => owner().provider.auth.oauth!.toAuth(credential),
       },
     },
-    getModels: () => owner().provider.getModels(),
+    // A new instance has no list until Pi's refresh restores it, and Pi may check the list before it sends a call, so the list
+    // of another attached instance stands in until then.
+    getModels: () => {
+      const own = owner().provider.getModels();
+      if (own.length > 0) return own;
+      for (const route of sharingRoutes(table, provider)) {
+        const models = route.provider.getModels();
+        if (models.length > 0) return models;
+      }
+      return own;
+    },
     filterModels: (models, credential) => owner().provider.filterModels!(models, credential),
     refreshModels: (context) => owner().provider.refreshModels(context),
     stream: (model, context, options) => forSession(options?.sessionId).provider.stream(model, context, options),
