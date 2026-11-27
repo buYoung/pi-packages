@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-28
+
 ### New
 
 - Image generation can create simple animated GIFs when `"gif": true` is set in the image settings file (included `@buyong/pi-codex-image-gen`).
@@ -13,6 +15,8 @@
 - Auto Review and Computer Use approval dialogs report a permission wait to terminals that show program status (OSC 7501), on Pi 1.6.1 and later.
 - Auto Review follows the Guardian policy from Codex `rust-v0.172.0`. Saved allow rules from earlier versions are asked again (included `@buyong/pi-codex-auto-review`).
 - Fast mode's built-in list, used when the model catalog cannot be read, covers `openai-codex` `gpt-6.2-sol`, `gpt-6.2-astra`, and `gpt-6.1-terra` (included `@buyong/pi-codex-fast-mode`).
+- Fast mode's built-in list, used when the model catalog cannot be read, no longer includes `gpt-5.4`, which Codex removed (included `@buyong/pi-codex-fast-mode`).
+- The MCP sign-in redirect prompt reports an authentication wait to terminals that show program status (OSC 7501).
 
 ### Fixed
 

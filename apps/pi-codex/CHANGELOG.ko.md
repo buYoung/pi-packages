@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-28
+
 ### 새로워진 것
 
 - 이미지 설정 파일에 `"gif": true`를 넣으면 이미지 생성이 간단한 애니메이션 GIF를 만듭니다(포함된 `@buyong/pi-codex-image-gen`).
@@ -13,6 +15,8 @@
 - Pi 1.6.1 이상에서는 프로그램 상태(OSC 7501)를 표시하는 터미널에 Auto Review와 Computer Use 승인 대화상자를 권한 대기로 알립니다.
 - Auto Review가 Codex `rust-v0.172.0`의 Guardian 정책을 따릅니다. 이전 버전에서 저장한 허용 규칙은 다시 묻습니다(포함된 `@buyong/pi-codex-auto-review`).
 - 모델 카탈로그를 읽지 못할 때 쓰는 Fast 모드 내장 목록에 `openai-codex`의 `gpt-6.2-sol`, `gpt-6.2-astra`, `gpt-6.1-terra`를 추가했습니다(포함된 `@buyong/pi-codex-fast-mode`).
+- 모델 카탈로그를 읽지 못할 때 쓰는 Fast 모드 내장 목록에서 Codex가 없앤 `gpt-5.4`를 뺐습니다(포함된 `@buyong/pi-codex-fast-mode`).
+- MCP 로그인 리디렉션 안내가 뜨면 프로그램 상태(OSC 7501)를 표시하는 터미널에 인증 대기로 알립니다.
 
 ### 해결된 것
 
