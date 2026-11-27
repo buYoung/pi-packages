@@ -4,7 +4,7 @@
 
 ### New
 
-- Image generation can create simple animated GIFs when `"gif": true` is set in the image settings file (included `@buyong/pi-codex-image-gen`).
+- Image generation can create simple animated GIFs when you ask for a GIF or an animated image (included `@buyong/pi-codex-image-gen`).
 - Auto Review `.rules` files can use `prefix_rule(..., canonical_matching=True)` from Codex `rust-v0.172.0` (included `@buyong/pi-codex-auto-review`).
 
 ### Improved

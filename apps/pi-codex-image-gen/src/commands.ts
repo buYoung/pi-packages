@@ -27,7 +27,7 @@ export function registerImageGenSettingsCommand(pi: ExtensionAPI): void {
             try {
                 await ctx.waitForIdle();
                 const store = new ImageGenSettingsStore();
-                const currentModel = (await store.load()).model;
+                const currentModel = await store.load();
                 let selected: string | undefined = args.trim();
                 if (!selected) {
                     if (!ctx.hasUI) {

@@ -4,7 +4,7 @@
 
 ### 새로워진 것
 
-- 이미지 설정 파일에 `"gif": true`를 넣으면 이미지 생성이 간단한 애니메이션 GIF를 만듭니다(포함된 `@buyong/pi-codex-image-gen`).
+- GIF나 움직이는 이미지를 요청하면 이미지 생성이 간단한 애니메이션 GIF를 만듭니다(포함된 `@buyong/pi-codex-image-gen`).
 - Auto Review의 `.rules` 파일에서 Codex `rust-v0.172.0`의 `prefix_rule(..., canonical_matching=True)`를 쓸 수 있습니다(포함된 `@buyong/pi-codex-auto-review`).
 
 ### 달라진 것

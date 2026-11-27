@@ -4,13 +4,6 @@ import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { IMAGE_MODEL, type ImageModel, isImageModel } from "./arguments.js";
 
-/** Saved image settings after defaults: the model and the opt-in GIF output. */
-export interface ImageGenSettings {
-    model: ImageModel;
-    /** `gif`, the counterpart of Codex's `features.image_generation_animation`; off by default. */
-    isGifEnabled: boolean;
-}
-
 /** Stores the image model separately from Pi's chat model settings. */
 export class ImageGenSettingsStore {
     constructor(
@@ -33,19 +26,12 @@ export class ImageGenSettingsStore {
             throw new Error(
                 "Image generation model must be gpt-image-2.5 or gpt-image-2.",
             );
-        if (settings.gif !== undefined && typeof settings.gif !== "boolean")
-            throw new Error(
-                "Image generation gif setting must be true or false.",
-            );
         return settings;
     }
 
-    async load(): Promise<ImageGenSettings> {
+    async load(): Promise<ImageModel> {
         const settings = await this.read();
-        return {
-            model: isImageModel(settings.model) ? settings.model : IMAGE_MODEL,
-            isGifEnabled: settings.gif === true,
-        };
+        return isImageModel(settings.model) ? settings.model : IMAGE_MODEL;
     }
 
     /** Preserves unrelated keys and atomically replaces the saved model. */

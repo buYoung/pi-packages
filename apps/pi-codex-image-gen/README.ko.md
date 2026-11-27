@@ -63,7 +63,7 @@ Use image_gen to edit /absolute/path/to/product.png. Remove the background and k
 | `transparent_background` | 불리언. 기본값은 `false`입니다. |
 | `referenced_image_paths` | 로컬 절대 경로 최대 5개. `~/`는 홈 디렉터리로 확장합니다. |
 | `num_last_images_to_include` | 현재 모델이 볼 수 있는 대화의 최근 이미지 1~5개 사용 |
-| `gif` | 움직이는 GIF 요청. [GIF 출력](#움직이는-gif-출력)을 켰을 때만 제공합니다. |
+| `gif` | [움직이는 GIF](#움직이는-gif-출력) 요청. GIF를 요청할 때만 지정합니다. |
 
 모델이 요청에 맞춰 이 인자를 정합니다. 로컬 파일은 `referenced_image_paths`, 대화 이미지는 `num_last_images_to_include`를 쓰고, 새 이미지에는 둘 다 쓰지 않습니다. 한 호출에 두 참조 인자를 함께 쓸 수는 없습니다. 알 수 없는 필드, 잘못된 타입·개수와 참조 선택 충돌은 요청 전에 거부합니다.
 
@@ -92,18 +92,7 @@ Use image_gen to edit /absolute/path/to/product.png. Remove the background and k
 
 ## 움직이는 GIF 출력
 
-GIF 출력은 Codex에서도 아직 개발 중인 기능이라 기본으로 꺼져 있습니다. 켜려면 위 설정 파일에 `"gif": true`를 추가합니다.
-
-```json
-{
-  "model": "gpt-image-2.5",
-  "gif": true
-}
-```
-
-다음 세션 시작(새 세션, `/reload`, Pi 재시작)부터 도구가 `gif` 인자와 Codex의 GIF 안내를 제공합니다. 요청마다 파일을 다시 읽으므로 키를 지우거나 `false`로 바꾸면 다음 호출부터 GIF 요청을 거부합니다. `true`·`false` 외의 값은 잘못된 설정이며 오류를 반환합니다.
-
-간단한 애니메이션을 요청합니다.
+요청에서 GIF나 움직이는 이미지를 만들어 달라고 하면 모델이 `gif`를 지정합니다. 예를 들면 다음과 같습니다.
 
 ```text
 Use image_gen to create a two-frame GIF of a pixel alternating between red and blue.
@@ -114,7 +103,7 @@ Use image_gen to create a two-frame GIF of a pixel alternating between red and b
 | `{}` | 백엔드 기본값: 9프레임, 프레임당 200 ms |
 | `{"frame_count": 2, "frame_duration_ms": 200}` | 2~16프레임, 프레임당 20~2000 ms. 범위는 백엔드가 확인합니다. |
 
-GIF 결과는 애니메이션을 그대로 담아 `.gif`로 저장합니다. 모델과 Pi 터미널에는 첫 프레임의 정지 PNG가 전달되며, 애니메이션은 저장 경로를 클릭해 확인합니다. Pi가 이 미리보기를 만들지 못하면 결과에는 저장 경로만 담깁니다. GIF를 바꿀 때는 GIF 자체가 아니라 프레임으로 만든 스프라이트시트를 참조 이미지로 넘기도록 모델에게 안내합니다. 설정을 켰다고 계정·백엔드가 GIF 요청을 받아들인다는 보장은 없습니다.
+GIF 결과는 애니메이션을 그대로 담아 `.gif`로 저장합니다. 모델과 Pi 터미널에는 첫 프레임의 정지 PNG가 전달되며, 애니메이션은 저장 경로를 클릭해 확인합니다. Pi가 이 미리보기를 만들지 못하면 결과에는 저장 경로만 담깁니다. GIF를 바꿀 때는 GIF 자체가 아니라 프레임으로 만든 스프라이트시트를 참조 이미지로 넘기도록 모델에게 안내합니다. 계정에 따라 백엔드가 GIF 요청을 받아들이지 않을 수 있습니다.
 
 ## 출력과 저장
 
@@ -152,9 +141,8 @@ SDK·도구 호출자 참고: 저장에 성공하면 `details.savedPath`에 경�
 | 증상 | 조치 |
 | --- | --- |
 | 도구가 숨겨졌거나 구독 인증 정보가 없음 | `/login openai-codex`로 다시 로그인합니다. 대화 모델은 유지하세요. `--tools`, `--exclude-tools`, `--no-tools`나 Pi의 `defaultTools` 설정으로 직접 끈 도구는 확장이 다시 켜지 않으므로, `image_gen`을 켜고 Pi를 시작합니다. |
-| 잘못된 이미지 모델 설정 | `<agentDir>/codex-image-gen/settings.json`(오류에 표시된 경로)의 `model`을 `gpt-image-2.5`나 `gpt-image-2`로 고칩니다. 다음 요청이 파일을 다시 읽습니다. `gif`는 `true`나 `false`로 지정하거나 지웁니다. |
-| `GIF output is unavailable in this session.` | 설정 파일에 `"gif": true`를 지정한 뒤 새 세션을 시작하거나 `/reload`를 실행합니다. |
-| `GIF output is not enabled for this request.` | ChatGPT 백엔드가 이 계정에 GIF 출력을 열지 않았습니다. 설정 파일에서 `gif`를 지우거나 `false`로 바꿉니다. |
+| 잘못된 이미지 모델 설정 | `<agentDir>/codex-image-gen/settings.json`(오류에 표시된 경로)의 `model`을 `gpt-image-2.5`나 `gpt-image-2`로 고칩니다. 다음 요청이 파일을 다시 읽습니다. |
+| `GIF output is not enabled for this request.` | ChatGPT 백엔드가 이 계정에 GIF 출력을 열지 않았습니다. 정지 이미지로 요청합니다. |
 | 로컬 참조를 읽거나 디코딩할 수 없음 | 경로가 절대 경로(또는 `~/`로 시작)인지, 파일을 읽을 수 있는지, 유효한 PNG·JPEG·WebP나 Pi가 디코딩할 수 있는 형식인지 확인합니다. |
 | 요청한 최근 이미지가 없음 | 다시 첨부하거나 저장한 로컬 경로를 사용합니다. 현재 모델이 볼 수 있는 대화 밖의 이미지는 자동으로 복구하지 않습니다. |
 | 백엔드가 모델·계정을 거부함 | 계정 접근과 반환 오류를 확인합니다. 다른 모델로 대체하거나 API 키를 구독 인증 대신 사용하지 않습니다. |

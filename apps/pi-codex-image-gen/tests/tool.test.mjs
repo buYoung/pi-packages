@@ -4,18 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { inflateSync } from "node:zlib";
-import { GIF_UNAVAILABLE_MESSAGE } from "../dist/arguments.js";
-import {
-    IMAGE_GEN_DESCRIPTION,
-    IMAGE_GEN_GIF_DESCRIPTION,
-} from "../dist/description.js";
-import imageGenExtension from "../dist/index.js";
-import {
-    createImageGenTool,
-    IMAGE_GEN_GIF_SCHEMA,
-    IMAGE_GEN_SCHEMA,
-    imageGenTool,
-} from "../dist/tool.js";
+import { IMAGE_GEN_DESCRIPTION } from "../dist/description.js";
+import { IMAGE_GEN_SCHEMA, imageGenTool } from "../dist/tool.js";
 
 // Two one-pixel frames, red then blue, with a 200 ms frame duration (Codex's test fixture).
 const GIF =
@@ -93,20 +83,9 @@ function stubImagesBackend(t, b64) {
     return requests;
 }
 
-test("GIF output off: Codex's schema and description without gif", () => {
-    const tool = createImageGenTool(false);
+test("the tool always offers gif first, with GIF guidance for explicit requests", () => {
+    const tool = imageGenTool;
     assert.equal(tool.parameters, IMAGE_GEN_SCHEMA);
-    assert.equal("gif" in tool.parameters.properties, false);
-    assert.equal(tool.description, IMAGE_GEN_DESCRIPTION);
-    assert.equal(imageGenTool.parameters, IMAGE_GEN_SCHEMA);
-    assert.throws(() => tool.prepareArguments({ prompt: "x", gif: {} }), {
-        message: GIF_UNAVAILABLE_MESSAGE,
-    });
-});
-
-test("GIF output on: gif property first and GIF guidance appended", () => {
-    const tool = createImageGenTool(true);
-    assert.equal(tool.parameters, IMAGE_GEN_GIF_SCHEMA);
     assert.deepEqual(Object.keys(tool.parameters.properties), [
         "gif",
         "num_last_images_to_include",
@@ -117,10 +96,13 @@ test("GIF output on: gif property first and GIF guidance appended", () => {
     assert.deepEqual(tool.parameters.properties.gif.type, ["object", "null"]);
     assert.deepEqual(tool.parameters.required, ["prompt"]);
     assert.equal(tool.parameters.additionalProperties, false);
+    assert.equal(tool.description, IMAGE_GEN_DESCRIPTION);
+    assert.ok(tool.description.includes("\n\nGIF guidelines:\n"));
     assert.ok(
-        tool.description.startsWith(`${IMAGE_GEN_DESCRIPTION}\nGIF guidelines:\n`),
+        tool.description.endsWith(
+            "- Set `gif` only when the user explicitly asks for a GIF or an animated image.\n",
+        ),
     );
-    assert.equal(tool.description, IMAGE_GEN_GIF_DESCRIPTION);
     assert.deepEqual(tool.prepareArguments({ prompt: "x", gif: {} }), {
         prompt: "x",
         gif: {},
@@ -129,9 +111,9 @@ test("GIF output on: gif property first and GIF guidance appended", () => {
 });
 
 test("a GIF is saved as .gif and the model gets a first-frame PNG", async (t) => {
-    const root = await agentDir(t, { model: "gpt-image-2", gif: true });
+    const root = await agentDir(t, { model: "gpt-image-2" });
     const requests = stubImagesBackend(t, GIF);
-    const result = await createImageGenTool(true).execute(
+    const result = await imageGenTool.execute(
         "call-1",
         { prompt: "pixel", gif: { frame_count: 2, frame_duration_ms: 200 } },
         undefined,
@@ -164,10 +146,10 @@ test("a GIF is saved as .gif and the model gets a first-frame PNG", async (t) =>
 });
 
 test("an undecodable GIF returns the saved path without an image block", async (t) => {
-    const root = await agentDir(t, { gif: true });
+    const root = await agentDir(t);
     const broken = Buffer.from("GIF89a-not-really-a-gif").toString("base64");
     stubImagesBackend(t, broken);
-    const result = await createImageGenTool(true).execute(
+    const result = await imageGenTool.execute(
         "call-5",
         { prompt: "pixel", gif: {} },
         undefined,
@@ -185,9 +167,9 @@ test("an undecodable GIF returns the saved path without an image block", async (
 });
 
 test("a PNG result keeps its bytes and .png path", async (t) => {
-    const root = await agentDir(t, { gif: true });
+    const root = await agentDir(t);
     stubImagesBackend(t, PNG);
-    const result = await createImageGenTool(true).execute(
+    const result = await imageGenTool.execute(
         "call-2",
         { prompt: "still" },
         undefined,
@@ -200,76 +182,4 @@ test("a PNG result keeps its bytes and .png path", async (t) => {
         result.details.savedPath,
         join(root, "generated_images", "session-1", "call-2.png"),
     );
-});
-
-test("execution rejects gif when the saved setting is off", async (t) => {
-    await agentDir(t, { gif: false });
-    const requests = stubImagesBackend(t, GIF);
-    const result = await createImageGenTool(true).execute(
-        "call-3",
-        { prompt: "pixel", gif: {} },
-        undefined,
-        undefined,
-        ctx,
-    );
-    assert.equal(result.isError, true);
-    assert.equal(result.content[0].text, GIF_UNAVAILABLE_MESSAGE);
-    assert.equal(requests.length, 0);
-});
-
-test("a non-boolean gif setting fails the request like a bad model", async (t) => {
-    await agentDir(t, { gif: "yes" });
-    const requests = stubImagesBackend(t, PNG);
-    const result = await createImageGenTool(false).execute(
-        "call-4",
-        { prompt: "still" },
-        undefined,
-        undefined,
-        ctx,
-    );
-    assert.equal(result.isError, true);
-    assert.equal(
-        result.content[0].text,
-        "image generation failed: unable to load model settings: Image generation gif setting must be true or false.",
-    );
-    assert.equal(requests.length, 0);
-});
-
-function fakePi() {
-    const registered = [];
-    const handlers = new Map();
-    return {
-        registered,
-        handlers,
-        registerTool: (tool) => registered.push(tool),
-        registerCommand: () => {},
-        on: (event, handler) => handlers.set(event, handler),
-        getAllTools: () => [],
-        getActiveTools: () => [],
-        setActiveTools: () => {},
-        appendEntry: () => {},
-    };
-}
-
-test("session start registers the GIF schema only when the setting is on", async (t) => {
-    const root = await agentDir(t);
-    const pi = fakePi();
-    imageGenExtension(pi);
-    assert.equal(pi.registered.length, 1);
-    assert.equal(pi.registered[0].parameters, IMAGE_GEN_SCHEMA);
-
-    await pi.handlers.get("session_start")({}, { mode: "print" });
-    assert.equal(pi.registered.length, 1);
-
-    await mkdir(join(root, "codex-image-gen"), { recursive: true });
-    const settingsPath = join(root, "codex-image-gen", "settings.json");
-    await writeFile(settingsPath, JSON.stringify({ gif: true }));
-    await pi.handlers.get("session_start")({}, { mode: "print" });
-    assert.equal(pi.registered.length, 2);
-    assert.equal(pi.registered[1].parameters, IMAGE_GEN_GIF_SCHEMA);
-
-    await writeFile(settingsPath, "not json");
-    await pi.handlers.get("session_start")({}, { mode: "print" });
-    assert.equal(pi.registered.length, 3);
-    assert.equal(pi.registered[2].parameters, IMAGE_GEN_SCHEMA);
 });
