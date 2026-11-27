@@ -8,6 +8,7 @@
     "* 9-12 * * 1-5"
   ],
   "prConcurrentLimit": 3,
+  "minimumReleaseAge": "1 day",
   "automerge": false,
   "packageRules": [
     {
@@ -36,6 +37,12 @@
     {
       "description": "Skip packages owned by this repository and the pi-ollama-cloud version pinned by Auto Review conformance tests",
       "matchPackageNames": ["@buyong/**", "@repo/**", "pi-ollama-cloud"],
+      "enabled": false
+    },
+    {
+      "description": "Skip the Rust differential crates, which must match the codemap-search lock file",
+      "matchManagers": ["cargo"],
+      "matchFileNames": ["packages/redact/scripts/rust-differential/**"],
       "enabled": false
     }
   ]
