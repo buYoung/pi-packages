@@ -8,7 +8,7 @@ const credential = { type: "oauth", access: "token", refresh: "", expires: 0 } a
 const entry = (id: string): ModelsStoreEntry => ({ models: [{ id } as DevinModel], checkedAt: 1 });
 
 /** An instance's own provider that records what reaches it and publishes what the test gives it. */
-function instance(name: string, options: { models?: DevinModel[]; persist?: ModelsStoreEntry; toAuth?: () => Promise<{ apiKey: string }> } = {}) {
+function instance(name: string, options: { models?: DevinModel[]; persist?: ModelsStoreEntry; toAuth?: () => Promise<{ apiKey: string }>; refreshError?: Error } = {}) {
   const refreshes: RefreshModelsContext[] = [], published: ModelsPublication[] = [], authorized: string[] = [];
   let models = options.models ?? [];
   const provider = {
@@ -19,6 +19,7 @@ function instance(name: string, options: { models?: DevinModel[]; persist?: Mode
     filterModels: (candidates: readonly DevinModel[]) => candidates,
     refreshModels: async (context: RefreshModelsContext) => {
       refreshes.push(context);
+      if (options.refreshError) throw options.refreshError;
       const publication: ModelsPublication = { ...(options.persist && context.allowNetwork ? { persist: options.persist } : {}), update: () => { models = [{ id: name } as DevinModel]; } };
       published.push(publication);
       await context.publish(publication);
@@ -70,6 +71,20 @@ test("a refresh reaches every attached instance of the registration; only the re
   expect(registering.refreshes.map((context) => context.allowNetwork)).toStrictEqual([false, true]);
   expect(network.accepted.filter((publication) => publication.persist !== undefined)).toStrictEqual([registering.published[1]]);
   expect(older.models()).toStrictEqual([{ id: "older" }]);
+});
+
+test("another instance's failed restore does not fail the refresh Pi gave the registering instance", async () => {
+  const pi = runtime();
+  const failing = instance("failing", { refreshError: new Error("runtime failed to load") }), registering = instance("registering");
+  pi.register(failing); pi.register(registering); pi.attach(failing); pi.attach(registering);
+  const refresh = hostRefresh({ allowNetwork: false, stored: entry("stored") });
+  await expect(registering.routing.provider.refreshModels(refresh.context)).resolves.toBe(undefined);
+  expect(failing.refreshes).toHaveLength(1);
+  expect(registering.models()).toStrictEqual([{ id: "registering" }]);
+
+  const broken = instance("broken", { refreshError: new Error("own failure") });
+  pi.register(broken); pi.attach(broken);
+  await expect(broken.routing.provider.refreshModels(hostRefresh({ allowNetwork: false }).context)).rejects.toThrow("own failure");
 });
 
 test("an instance that attaches after the latest refresh restores from it, but not from a refresh Pi superseded", async () => {

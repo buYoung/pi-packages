@@ -75,7 +75,7 @@ function loadFailure(model: Model<DevinAPI>, error: unknown, signal: AbortSignal
 export function makeLazyProvider(options: LazyProviderOptions): LazyProvider {
   let instance: DevinInstance | undefined;
   let coldModels: readonly DevinModel[] = [];
-  /** Pi's latest refresh of this instance, until Pi supersedes it. */
+  /** Pi's latest refresh of this instance, until Pi's next refresh replaces it or Pi aborts it. */
   let latest: RefreshModelsContext | undefined;
   /** The OAuth credential of the latest request auth answered without the runtime. */
   let pendingAuth: OAuthCredential | undefined;

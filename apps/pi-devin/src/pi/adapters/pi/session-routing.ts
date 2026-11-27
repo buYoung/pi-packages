@@ -13,7 +13,7 @@ import type { DevinProvider } from "./types.ts";
  * routes weakly, so an instance Pi no longer references, such as one of a session disposed without `session_shutdown`,
  * leaves it once collected. Besides the routes, it maps each registered provider weakly to the function that lets an
  * instance attaching later restore from that provider's latest refresh; the refresh itself, credential included, stays
- * with the registering instance until Pi supersedes it. Nothing else stays in the table.
+ * with the registering instance until Pi's next refresh of it replaces it or Pi aborts it. Nothing else stays in the table.
  */
 const ROUTES_KEY = Symbol.for("@buyong/pi-devin/session-routes/v1");
 const PROVIDER_ID = "devin";
@@ -101,7 +101,7 @@ export function makeSessionRouting(own: DevinProvider, isAuxiliary: () => boolea
     const auxiliary = sharing.filter((route) => route.isAuxiliary());
     return auxiliary.length === 1 ? auxiliary[0] : owner();
   };
-  /** Pi's latest refresh of this provider, until Pi supersedes it. */
+  /** Pi's latest refresh of this provider, until Pi's next refresh replaces it or Pi aborts it. */
   let latest: Refresh | undefined;
   /** Whether a refresh Pi did not supersede has reached this instance through this provider. */
   let hasRefreshed = false;
@@ -125,17 +125,17 @@ export function makeSessionRouting(own: DevinProvider, isAuxiliary: () => boolea
       return isAccepted;
     };
     // The others restore what Pi stored at once, so a sign-in, logout or account switch reaches them without waiting for a fetch.
-    const outcomes = await Promise.allSettled([
+    // Only the called instance's outcome reaches Pi: a failed restore leaves another instance as it was, as on attach.
+    const [outcome] = await Promise.allSettled([
       target.provider.refreshModels({ ...context, publish }),
       ...others().map((route) => restoreFrom(route, refresh)),
     ]);
     if (target === self && !context.signal.aborted) hasRefreshed = true;
     // A list the refresh fetched and stored reaches the others too, including instances that attached in the meantime.
     if (refresh.stored !== context.stored && !context.signal.aborted) {
-      outcomes.push(...await Promise.allSettled(others().map((route) => restoreFrom(route, refresh))));
+      await Promise.allSettled(others().map((route) => restoreFrom(route, refresh)));
     }
-    const failure = outcomes.find((outcome) => outcome.status === "rejected");
-    if (failure) throw failure.reason;
+    if (outcome.status === "rejected") throw outcome.reason;
   };
   const oauth = own.auth.oauth!;
   const provider: DevinProvider = {
