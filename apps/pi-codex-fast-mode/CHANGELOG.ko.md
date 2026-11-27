@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-28
+
 ### 달라진 것
 
 - 모델 카탈로그를 읽지 못할 때 쓰는 내장 목록에 `openai-codex`의 `gpt-6.2-sol`, `gpt-6.2-astra`, `gpt-6.1-terra` Fast를 추가하고, Codex에서 빠진 `openai-codex`의 `gpt-5.4`를 뺐습니다.

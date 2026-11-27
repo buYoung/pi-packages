@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-28
+
 ### Improved
 
 - The built-in list used when the model catalog cannot be read offers Fast for `openai-codex` `gpt-6.2-sol`, `gpt-6.2-astra`, and `gpt-6.1-terra`, and no longer lists `openai-codex` `gpt-5.4`, which Codex removed.
