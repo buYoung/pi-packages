@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-This package installs four Codex extensions and the image-generation skill as one distribution. It owns packaging and resource discovery, not the extensions' runtime behavior.
+This package installs five Codex extensions and the image-generation skill as one distribution. It owns packaging and resource discovery, not the extensions' runtime behavior.
 
 ## 2. Ownership Map
 
@@ -18,7 +18,7 @@ This package installs four Codex extensions and the image-generation skill as on
 - `stageDependency()` prefers a workspace package, then resolves through ancestor `node_modules` directories. It validates names and requested version ranges, reuses matching versions, and rejects conflicting versions of the same name. Recursion follows `dependencies`, not peers or development dependencies.
 - Workspace archives pass through their own `prepack` lifecycle and contain resolved workspace/catalog dependency ranges. Registry file discovery suppresses lifecycle scripts. Do not package duplicate Pi host dependencies, development sources, native binaries, or OpenAI's private runtime.
 - Preparation uses unique staging and archive directories. Only after preparation finishes does it remove the old `node_modules` tree and rename staging into place. `finally` removes temporary directories, but failure after deleting the old tree does not restore it.
-- A prepared bundle is a snapshot. Later changes to a component do not modify its copied files. The checker requires the four component declarations, exact bundle membership, matching workspace versions, and no unresolved workspace/catalog ranges. Check the archive rather than inferring its contents from workspace resolution.
+- A prepared bundle is a snapshot. Later changes to a component do not modify its copied files. The checker requires the five component declarations, exact bundle membership, matching workspace versions, and no unresolved workspace/catalog ranges. Check the archive rather than inferring its contents from workspace resolution.
 - Individual components retain ownership of authentication, settings, commands, and failures. Installing this bundle does not install Desktop's automation runtime, grant account access, or turn ordinary extension loading into Auto Review's guarded startup. Avoid loading the same extension through both the bundle and an individual installation.
 
 ## 4. Conventions

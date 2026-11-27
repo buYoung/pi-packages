@@ -1,6 +1,7 @@
 // Port of the Apache-2.0 Codex execpolicy contracts at CODEX_EXECPOLICY_REVISION.
 // Attribution and upstream revision are recorded in the repository NOTICE.
 import { basename, isAbsolute, normalize, resolve } from "node:path";
+import { caseFold } from "./case-folding.js";
 import { executableName } from "./platform-paths.js";
 import {
     CODEX_EXECPOLICY_REVISION,
@@ -111,6 +112,34 @@ function shellWords(source: string): string[] {
     if (!words.length) throw new Error("Example cannot be empty");
     return words;
 }
+function canonicalMatching(value: Value): boolean {
+    if (value === null) return false;
+    if (typeof value !== "boolean")
+        throw new Error("canonical_matching must be a bool");
+    return value;
+}
+/** Unicode canonical caseless key: NFD, full case folding, then NFD again. */
+function canonicalKey(token: string): string {
+    return caseFold(token.normalize("NFD")).normalize("NFD");
+}
+function tokensEqual(rule: PrefixRule, expected: string, actual: string) {
+    return rule.canonicalMatching
+        ? canonicalKey(expected) === canonicalKey(actual)
+        : expected === actual;
+}
+export function matchesRule(
+    argv: readonly string[],
+    rule: PrefixRule,
+): boolean {
+    return (
+        rule.pattern.length <= argv.length &&
+        rule.pattern.every((part, index) =>
+            (typeof part === "string" ? [part] : part).some((alternative) =>
+                tokensEqual(rule, alternative, argv[index]),
+            ),
+        )
+    );
+}
 function examples(value: Value): string[][] {
     return list(value).map((item) => {
         if (typeof item === "string") return shellWords(item);
@@ -125,17 +154,9 @@ function matches(
     hosts: Map<string, string[]>,
 ): RuleMatch[] {
     if (!command.length) return [];
-    const exact = (argv: readonly string[]) =>
-        rules
-            .filter(
-                (rule) =>
-                    rule.pattern.length <= argv.length &&
-                    rule.pattern.every((part, index) =>
-                        typeof part === "string"
-                            ? part === argv[index]
-                            : part.includes(argv[index]),
-                    ),
-            )
+    const exact = (argv: readonly string[], candidates = rules) =>
+        candidates
+            .filter((rule) => matchesRule(argv, rule))
             .map((rule) => ({
                 decision: rule.decision,
                 matchedPrefix: argv.slice(0, rule.pattern.length),
@@ -148,7 +169,16 @@ function matches(
         name = executableName(basename(path)),
         allowed = hosts.get(name);
     if (allowed && !allowed.includes(path)) return [];
-    return exact([name, ...command.slice(1)]).map((match) => ({
+    // A canonical rule can spell the program differently; its own declaration also restricts the path.
+    const candidates = rules.filter((rule) => {
+        const program = rule.pattern[0];
+        return (
+            program === name ||
+            typeof program !== "string" ||
+            (hosts.get(executableName(program))?.includes(path) ?? true)
+        );
+    });
+    return exact([name, ...command.slice(1)], candidates).map((match) => ({
         ...match,
         resolvedProgram: path,
     }));
@@ -160,6 +190,7 @@ function sortedRule(rule: PrefixRule): string {
             ? {}
             : { justification: rule.justification }),
         pattern: rule.pattern,
+        ...(rule.canonicalMatching ? { canonicalMatching: true } : {}),
     });
 }
 export function evaluateRuleSources(
@@ -202,8 +233,9 @@ export function evaluateRuleSources(
             ["match", []],
             ["not_match", []],
             ["justification", null],
+            ["canonical_matching", null],
         ],
-        ([pattern, outcome, yes, no, justification]) => {
+        ([pattern, outcome, yes, no, justification, canonical]) => {
             const tokens = list(pattern).map((part) => {
                 if (typeof part === "string") return part;
                 const alternatives = list(part).map(text);
@@ -215,12 +247,14 @@ export function evaluateRuleSources(
             });
             if (!tokens.length) throw new Error("Pattern cannot be empty");
             const first = tokens[0],
-                why = reason(justification);
+                why = reason(justification),
+                isCanonical = canonicalMatching(canonical);
             const added = (typeof first === "string" ? [first] : first).map(
                 (head) => ({
                     pattern: [head, ...tokens.slice(1)],
                     decision: decision(outcome),
                     ...(why === undefined ? {} : { justification: why }),
+                    ...(isCanonical ? { canonicalMatching: true } : {}),
                 }),
             );
             rules.push(...added);

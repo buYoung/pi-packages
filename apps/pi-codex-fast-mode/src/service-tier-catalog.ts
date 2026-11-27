@@ -33,14 +33,16 @@ const FALLBACK_FAST_MODELS: ReadonlySet<string> = new Set([
     "openai/gpt-6.1-sol",
     "openai/gpt-6-sol",
     "openai/gpt-6-luna",
+    "openai-codex/gpt-6.2-sol",
+    "openai-codex/gpt-6.2-astra",
     "openai-codex/gpt-6-astra",
     "openai-codex/gpt-6.1-sol",
+    "openai-codex/gpt-6.1-terra",
     "openai-codex/gpt-6-sol",
     "openai-codex/gpt-6-luna",
     "openai-codex/gpt-5.6-sol",
     "openai-codex/gpt-5.6-terra",
     "openai-codex/gpt-5.6-luna",
-    "openai-codex/gpt-5.4",
     "openai-codex/gpt-5.5",
 ]);
 const FALLBACK_ULTRAFAST_MODEL_IDS: ReadonlySet<string> = new Set([

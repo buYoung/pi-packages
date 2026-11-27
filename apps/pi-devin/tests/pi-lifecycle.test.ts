@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 import { SessionManager, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import devinExtension from "../index.ts";
 import { DevinLifecycle } from "../src/pi/features/runs/lifecycle.ts";
-import { DEVIN_STATE_ENTRY } from "../src/pi/features/runs/state.ts";
+import { DEVIN_STATE_ENTRY } from "../src/pi/features/runs/entry.ts";
 import type { DevinSessionState } from "../src/pi/features/runs/types.ts";
 import type { DevinProvider } from "../src/pi/adapters/pi/types.ts";
 import { run, runSync } from "./helpers.ts";

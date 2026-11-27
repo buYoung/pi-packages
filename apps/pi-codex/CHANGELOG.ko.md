@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### 새로워진 것
+
+- 이미지 설정 파일에 `"gif": true`를 넣으면 이미지 생성이 간단한 애니메이션 GIF를 만듭니다(포함된 `@buyong/pi-codex-image-gen`).
+- Auto Review의 `.rules` 파일에서 Codex `rust-v0.172.0`의 `prefix_rule(..., canonical_matching=True)`를 쓸 수 있습니다(포함된 `@buyong/pi-codex-auto-review`).
+
+### 달라진 것
+
+- Computer Use가 `@earendil-works/pi-mcp` 1.6.1을 사용합니다.
+- Pi 1.6.1 이상에서는 프로그램 상태(OSC 7501)를 표시하는 터미널에 Auto Review와 Computer Use 승인 대화상자를 권한 대기로 알립니다.
+- Auto Review가 Codex `rust-v0.172.0`의 Guardian 정책을 따릅니다. 이전 버전에서 저장한 허용 규칙은 다시 묻습니다(포함된 `@buyong/pi-codex-auto-review`).
+- 모델 카탈로그를 읽지 못할 때 쓰는 Fast 모드 내장 목록에 `openai-codex`의 `gpt-6.2-sol`, `gpt-6.2-astra`, `gpt-6.1-terra`를 추가했습니다(포함된 `@buyong/pi-codex-fast-mode`).
+
+### 해결된 것
+
+- Codex Desktop 26.1120 이후에도 Browser Use가 `The browser access host is unavailable`로 실패하지 않습니다.
+
 ## [0.7.2] - 2026-11-21
 
 ### 달라진 것

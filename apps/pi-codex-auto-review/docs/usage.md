@@ -244,7 +244,7 @@ The guard discovers global instructions in `agentDir` and trusted project instru
 
 ## Rule files
 
-The TypeScript engine evaluates `.rules` contracts ported from Codex revision `a956835d020762cb2b570053af06f643a11c0ecc`. [Parity tests](https://github.com/buYoung/pi-packages/blob/main/apps/pi-codex-auto-review/tests/unit/execpolicy-parity.test.mjs) replay captured outputs from the former native engine; they do not prove equivalence for every Starlark program.
+The TypeScript engine evaluates `.rules` contracts ported from Codex revision `3d86e43b075adeba2193ec5c22ac92f55afd82e6` (`rust-v0.172.0`). [Parity tests](https://github.com/buYoung/pi-packages/blob/main/apps/pi-codex-auto-review/tests/unit/execpolicy-parity.test.mjs) replay outputs captured from the former native engine at revision `a956835d020762cb2b570053af06f643a11c0ecc`; they do not prove equivalence for every Starlark program.
 
 For example, create a user-managed rule file containing:
 
@@ -255,14 +255,15 @@ prefix_rule(["git", "push"], decision="forbidden")
 
 Add its path to `ruleFiles` in your policy and reload or restart. JSON `commandRules` uses `ask`/`deny`; `.rules` uses `prompt`/`forbidden` for those decisions.
 
-- Supports Starlark functions, conditionals, comprehensions, string interpolation, `prefix_rule`, `host_executable`, `network_rule`, and `match`/`not_match` validation.
+- Supports Starlark functions, conditionals, comprehensions, string interpolation, `prefix_rule` (including `canonical_matching=True`), `host_executable`, `network_rule`, and `match`/`not_match` validation.
+- `prefix_rule(..., canonical_matching=True)` compares every word of that rule, including alternatives, with Unicode canonical caseless matching: `["git", "push"]` also matches `GIT Push`, and `straße` matches `STRASSE`. The program name is compared as written, not resolved on the filesystem. Without it, rule words match exactly.
 - Exposes Starlark values and policy functions, not host file/network functions or JavaScript `eval`.
 - Bounds input/output, evaluation steps, collection size, nesting, and time. Invalid input, unsupported syntax, or exhausted limits rejects evaluation.
 - Uses a cancellable Node.js worker for asynchronous evaluation and a bounded Node.js child process for the synchronous API. No evaluator starts when no rule files are configured.
 - Uses the strongest matching decision for compound commands. Network protocol labels merge into host allow/deny lists, not separate protocol permissions.
 - Requires review for uninterpretable shell syntax unless a trusted full-command rule allows it. Such bash commands match `[<shell>, "-c", command]`; such PowerShell scripts match `[<powershell executable>, "-Command", script]`.
 - Literal PowerShell scripts match their inner commands, as in Codex PR #20336. Nested `bash`/`sh`/`zsh`/`dash` `-c`/`-lc` and `powershell`/`pwsh` `-Command`/`-c` wrappers are unwrapped up to four levels. On Windows, wrapper names compare case-insensitively without `.exe`, `.cmd`, `.bat`, or `.com`.
-- A PowerShell command that starts with a known cmdlet or default alias, in any letter case, is matched twice: as written, and with the documented cmdlet name, such as `Remove-Item` for `rm`, `del`, or `remove-item`. A rule that matches either form applies: `forbidden` and `prompt` from either one count, and `allow` still has to cover every command. Rule words compare exactly, including case, so write cmdlet rules with the documented name (such as `["Remove-Item"]`) to cover every alias and spelling; a rule written for an alias such as `["rm"]` matches only that alias. Commands from a `bash -c` script inside PowerShell keep their own names: `sort` there is not `Sort-Object`.
+- A PowerShell command that starts with a known cmdlet or default alias, in any letter case, is matched twice: as written, and with the documented cmdlet name, such as `Remove-Item` for `rm`, `del`, or `remove-item`. A rule that matches either form applies: `forbidden` and `prompt` from either one count, and `allow` still has to cover every command. Rule words compare exactly, including case, unless the rule sets `canonical_matching=True`, so write cmdlet rules with the documented name (such as `["Remove-Item"]`) to cover every alias and spelling; a rule written for an alias such as `["rm"]` matches only that alias. Commands from a `bash -c` script inside PowerShell keep their own names: `sort` there is not `Sort-Object`.
 - Reviews `curl`/`wget` when the destination is not an explicit HTTP URL or comes from a separate configuration file.
 
 **Keep `allow` rules narrow.** They can authorize matching commands beyond ordinary scope, but cannot override absolute denials while Full Access is off. A command with a target that has no checkable location, such as a wildcard or provider path in PowerShell or a WSL or POSIX-root path on Windows, is reviewed even when an `allow` rule matches.

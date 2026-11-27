@@ -24,8 +24,13 @@ export interface DevinModel extends Model<DevinAPI> {
     recommended?: true;
     /** Account identity hash (endpoint and user ID) the catalog belongs to. Lets a new session of the same account reuse it. */
     account?: string;
+    /** Only on a list a lead stored. Lets the extension entry show the stored list before it loads the runtime. */
+    storedBy?: StoredBy;
   };
 }
+
+/** The package version whose projection built a stored list, and the Fusion choice saved when it was built. */
+export interface StoredBy { version: string; fusion: FusionSelection | null }
 
 /** One remote catalog lookup for a credential, with the team's model policy applied. */
 export interface RemoteCatalogShape {
@@ -39,7 +44,7 @@ export interface ModelCatalogShape {
   readonly filter: (models: readonly Model<DevinAPI>[], credential: HostCredential | undefined) => Effect.Effect<readonly Model<DevinAPI>[]>;
   /** Restores or refreshes the list for Pi's current credential. Stops with the provider lifetime and Pi's signal. */
   readonly refresh: (context: RefreshModelsContext) => Effect.Effect<void, DevinFailure>;
-  /** Before the first refresh has ended, waits for it when there is no list yet. Likewise `resolveUID`. */
+  /** Before the first refresh has ended, waits for it when there is no list yet, failing after `FIRST_REFRESH_WAIT_MS`. Likewise `resolveUID`. */
   readonly resolve: (modelID: string, level: EffectiveThinkingLevel, credential: Credential) => Effect.Effect<BackendModelSelection, DevinError>;
   /** Resolves a catalog UID chosen by a payload hook at that variant's thinking level, including UIDs hidden from the list. */
   readonly resolveUID: (uid: string, credential: Credential) => Effect.Effect<BackendModelSelection, DevinError>;

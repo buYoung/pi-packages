@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### 달라진 것
+
+- Effect와 포함된 `@effect/platform-node`를 4.1.6으로 업데이트했습니다.
+- Devin을 쓰지 않는 Pi 프로세스는 이제 Devin 런타임 비용을 내지 않습니다. Effect, Node 플랫폼 패키지, protobufjs는 처음 쓸 때 불러옵니다. Devin 모델이나 Devin 실행 기록이 있는 세션, Devin 모델로의 전환, `/devin`, `/devin-fusion`, `devin_sidekick`, 로그인, 요청, Devin에 접속해야 하는 모델 목록 새로 고침이 그 시점입니다. 그전에도 `/model`은 Pi가 저장한 목록에서 같은 Devin 모델을 보여 줍니다. 다른 기본 모델을 쓰고 시작 시 네트워크 새로 고침을 하지 않는 RPC 프로세스에서 측정한 메모리 사용량(footprint)은 약 173 MB에서 약 80 MB로 줄었습니다. 확장이 없으면 약 74 MB입니다. 리드가 저장하는 모델 목록에는 이제 그 목록을 만든 패키지 버전과 Fusion 선택도 기록됩니다.
+
+### 해결된 것
+
+- 같은 턴에 시작한 프로세스 내 서브에이전트처럼 Pi 모델 런타임 하나에서 세션 두 개가 함께 열려도 먼저 열린 세션의 Devin 요청이 동작합니다. 이전에는 그 세션이 끝날 때까지 요청이 "Devin uses only the OAuth account session from /login. API key authentication is not supported."로 실패했습니다.
+- `models.json`에 `devin` 항목이 있을 때, 다른 세션이 쓰는 모델 런타임에 새 세션이 들어와도 모든 세션의 Devin 요청이 잠깐 "No API provider registered for api: devin-connect"로 멈추지 않습니다.
+- 로그인, 계정 전환, 로그아웃이 모델 런타임을 함께 쓰는 모든 세션에 반영됩니다. 이전에는 마지막에 열린 세션만 알았고, 다른 세션은 이전 계정의 모델 목록을 그대로 가진 채 로그인 뒤의 Devin 요청이 실패했습니다.
+- 세션의 모델 목록을 불러오기 전에 온 Devin 요청은 최대 10초만 기다린 뒤 "The Devin model list has not loaded. Refresh the model list and try again."으로 실패합니다. 이전에는 응답 없이 계속 기다릴 수 있었습니다.
+
 ## [0.1.16] - 2026-11-11
 
 ### 달라진 것

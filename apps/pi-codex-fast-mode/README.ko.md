@@ -121,7 +121,7 @@ Fast와 Ultrafast를 요청할 수 있는 모델은 Codex CLI처럼 OpenAI Codex
 | 공급자 | 내장 목록의 Fast 모델 ID | 내장 목록의 Ultrafast 모델 ID |
 | --- | --- | --- |
 | `openai` | `gpt-5.4`, `gpt-5.5`, `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-luna` | `gpt-6-astra`, `gpt-6.1-sol` |
-| `openai-codex` | 위 모델 전부와 `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` | `gpt-6-astra`, `gpt-6.1-sol` |
+| `openai-codex` | `gpt-5.5`, `gpt-6.2-sol`, `gpt-6.2-astra`, `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` | `gpt-6-astra`, `gpt-6.1-sol` |
 
 카탈로그와 내장 목록은 공급자·계정이 모든 모델이나 서비스 등급을 제공한다는 약속이 아닙니다.
 

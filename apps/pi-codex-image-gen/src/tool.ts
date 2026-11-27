@@ -1,11 +1,17 @@
 import {
     type AgentToolUpdateCallback,
+    convertToPng,
     type ExtensionAPI,
     type ExtensionToolContext,
     getAgentDir,
 } from "@earendil-works/pi-coding-agent";
-import { type ImageRequestPlan, parseImageGenArguments } from "./arguments.js";
-import { saveGeneratedImage } from "./artifact.js";
+import {
+    GIF_UNAVAILABLE_MESSAGE,
+    IMAGE_MODEL,
+    type ImageRequestPlan,
+    parseImageGenArguments,
+} from "./arguments.js";
+import { generatedImageFormat, saveGeneratedImage } from "./artifact.js";
 import { resolveOpenAiCredentials } from "./auth.js";
 import {
     ImageRequestError,
@@ -13,7 +19,10 @@ import {
     ImagesClient,
     type ReferenceImage,
 } from "./backend.js";
-import { IMAGE_GEN_DESCRIPTION } from "./description.js";
+import {
+    IMAGE_GEN_DESCRIPTION,
+    IMAGE_GEN_GIF_DESCRIPTION,
+} from "./description.js";
 import {
     collectRecentImages,
     loadReferenceImages,
@@ -26,7 +35,7 @@ import {
     generatedImageResult,
     type ImageGenDetails,
 } from "./result.js";
-import { ImageGenSettingsStore } from "./settings.js";
+import { type ImageGenSettings, ImageGenSettingsStore } from "./settings.js";
 
 export const IMAGE_GEN_TOOL_NAME = "image_gen";
 export const IMAGE_GEN_TOOL_LABEL = "Image generation";
@@ -56,6 +65,33 @@ export const IMAGE_GEN_SCHEMA = {
     },
     required: ["prompt"],
     additionalProperties: false,
+} as const;
+
+/**
+ * `IMAGE_GEN_SCHEMA` plus the `gif` property Codex advertises when GIF output is on: schemars
+ * output for `Option<GifOptions>` reduced the same way, so the documented ranges are omitted.
+ */
+export const IMAGE_GEN_GIF_SCHEMA = {
+    ...IMAGE_GEN_SCHEMA,
+    properties: {
+        gif: {
+            type: ["object", "null"],
+            description:
+                "Set this to create a simple looping GIF with 2–16 frames. Use {} for defaults.",
+            properties: {
+                frame_count: {
+                    type: ["integer", "null"],
+                    description: "Number of frames (2–16). Defaults to 9.",
+                },
+                frame_duration_ms: {
+                    type: ["integer", "null"],
+                    description:
+                        "Duration of each frame in milliseconds (20–2000). Defaults to 200.",
+                },
+            },
+        },
+        ...IMAGE_GEN_SCHEMA.properties,
+    },
 } as const;
 
 export type { ImageGenDetails };
@@ -133,41 +169,98 @@ async function executeImageGen(
         return errorResult("image generation returned no image data", details);
     }
     signal?.throwIfAborted();
+    const format = generatedImageFormat(first.b64_json);
     const savedPath = await saveGeneratedImage(
         getAgentDir(),
         ctx.sessionManager.getSessionId(),
         toolCallId,
         first.b64_json,
     );
-    return generatedImageResult(plan, first.b64_json, savedPath);
+    const base64Png =
+        format === "png"
+            ? first.b64_json
+            : await gifStillPreview(first.b64_json, signal);
+    if (base64Png === undefined && savedPath === undefined) {
+        return errorResult(
+            "image generation failed: the generated GIF could not be saved or previewed",
+            details,
+        );
+    }
+    return generatedImageResult(plan, format, base64Png, savedPath);
 }
 
-export const imageGenTool: RegisteredToolDefinition = {
-    name: IMAGE_GEN_TOOL_NAME,
-    label: IMAGE_GEN_TOOL_LABEL,
-    description: IMAGE_GEN_DESCRIPTION,
-    parameters:
-        IMAGE_GEN_SCHEMA as unknown as RegisteredToolDefinition["parameters"],
-    annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        openWorldHint: true,
-    },
-    prepareArguments: (args) => parseImageGenArguments(args).arguments,
-    renderCall: renderImageGenCall,
-    renderResult: renderImageGenResult,
-    async execute(toolCallId, params, signal, onUpdate, ctx) {
-        const { plan } = parseImageGenArguments(params);
-        signal?.throwIfAborted();
-        try {
-            plan.model = await new ImageGenSettingsStore().load();
-        } catch (error) {
-            signal?.throwIfAborted();
-            return errorResult(
-                `image generation failed: unable to load model settings: ${error instanceof Error ? error.message : String(error)}`,
-                detailsForPlan(plan),
+/**
+ * First-frame PNG of a generated GIF for the model and the terminal, which take still images;
+ * `undefined` when Pi's converter is unavailable or cannot decode it.
+ */
+async function gifStillPreview(
+    base64Gif: string,
+    signal: AbortSignal | undefined,
+): Promise<string | undefined> {
+    let preview: Awaited<ReturnType<typeof convertToPng>>;
+    try {
+        preview = await convertToPng(base64Gif.trim(), "image/gif");
+    } catch {
+        preview = null;
+    }
+    signal?.throwIfAborted();
+    return preview?.mimeType === "image/png" ? preview.data : undefined;
+}
+
+/**
+ * The `image_gen` definition for a session. With GIF output on, the schema gains `gif` and the
+ * description gains Codex's GIF guidance; otherwise a `gif` argument is rejected while parsing.
+ * Execution rereads settings and also rejects `gif` once the setting has been turned off.
+ */
+export function createImageGenTool(
+    isGifEnabled: boolean,
+): RegisteredToolDefinition {
+    return {
+        name: IMAGE_GEN_TOOL_NAME,
+        label: IMAGE_GEN_TOOL_LABEL,
+        description: isGifEnabled
+            ? IMAGE_GEN_GIF_DESCRIPTION
+            : IMAGE_GEN_DESCRIPTION,
+        parameters: (isGifEnabled
+            ? IMAGE_GEN_GIF_SCHEMA
+            : IMAGE_GEN_SCHEMA) as unknown as RegisteredToolDefinition["parameters"],
+        annotations: {
+            readOnlyHint: false,
+            destructiveHint: false,
+            openWorldHint: true,
+        },
+        prepareArguments: (args) =>
+            parseImageGenArguments(args, IMAGE_MODEL, isGifEnabled).arguments,
+        renderCall: renderImageGenCall,
+        renderResult: renderImageGenResult,
+        async execute(toolCallId, params, signal, onUpdate, ctx) {
+            const { plan } = parseImageGenArguments(
+                params,
+                IMAGE_MODEL,
+                isGifEnabled,
             );
-        }
-        return executeImageGen(toolCallId, plan, signal, onUpdate, ctx);
-    },
-};
+            signal?.throwIfAborted();
+            let settings: ImageGenSettings;
+            try {
+                settings = await new ImageGenSettingsStore().load();
+            } catch (error) {
+                signal?.throwIfAborted();
+                return errorResult(
+                    `image generation failed: unable to load model settings: ${error instanceof Error ? error.message : String(error)}`,
+                    detailsForPlan(plan),
+                );
+            }
+            if (plan.gif !== undefined && !settings.isGifEnabled) {
+                return errorResult(
+                    GIF_UNAVAILABLE_MESSAGE,
+                    detailsForPlan(plan),
+                );
+            }
+            plan.model = settings.model;
+            return executeImageGen(toolCallId, plan, signal, onUpdate, ctx);
+        },
+    };
+}
+
+/** The definition registered at load, before session settings are read: GIF output off. */
+export const imageGenTool: RegisteredToolDefinition = createImageGenTool(false);

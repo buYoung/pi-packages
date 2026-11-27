@@ -1,9 +1,11 @@
 export const CODEX_EXECPOLICY_REVISION =
-    "a956835d020762cb2b570053af06f643a11c0ecc";
+    "3d86e43b075adeba2193ec5c22ac92f55afd82e6";
 export interface PrefixRule {
     readonly pattern: readonly (string | readonly string[])[];
     readonly decision: "allow" | "prompt" | "forbidden";
     readonly justification?: string;
+    /** Set by `canonical_matching=True`: every token uses Unicode canonical caseless comparison. */
+    readonly canonicalMatching?: boolean;
 }
 export interface RuleSource {
     readonly name: string;

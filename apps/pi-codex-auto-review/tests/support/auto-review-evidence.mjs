@@ -1,21 +1,26 @@
 import { expect } from "vitest";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { CODEX_EXECPOLICY_REVISION } from "../../dist/policy/rules.js";
 import { validatePlatformEvidence } from "../../dist/reports.js";
 import { reportRoot } from "./evidence-store.mjs";
 import { suites } from "./suites.mjs";
 
+// Pinned Guardian policy text (policy_template.md and policy.md).
 export const reference = {
-    version: "codex-cli 0.160.0",
-    tag: "rust-v0.160.0",
-    revision: "a956835d020762cb2b570053af06f643a11c0ecc",
+    version: "codex-cli 0.172.0",
+    tag: "rust-v0.172.0",
+    revision: "3d86e43b075adeba2193ec5c22ac92f55afd82e6",
     policyTemplateSha256:
-        "37441097e4e825e0b195c32c985817ea07da15bb5c20fa753d87b22e2fe47e73",
+        "14cdb20e67bff950825da3666ab5fab3b740a7896abcc3ef6194bc65a869cd4d",
     tenantPolicySha256:
         "e6b0cf0a2e1c4cabc0a37ac2a0bc424ddd7c89e85d049e32d281a8db6e8d3ce6",
 };
-const ref = (file) =>
-    `https://github.com/openai/codex/blob/${reference.revision}/codex-rs/${file}`;
+// Scenario rows cite runtime sources ported at rust-v0.160.0, apart from the policy and rule pins.
+const scenarioRevision = "a956835d020762cb2b570053af06f643a11c0ecc";
+const refAt = (revision, file) =>
+    `https://github.com/openai/codex/blob/${revision}/codex-rs/${file}`;
+const ref = (file) => refAt(scenarioRevision, file);
 const guardian = (file) => ref(`ext/guardian-reviewer/src/${file}.rs`);
 const row = (id, references, expected, proofs) => ({
     id,
@@ -78,10 +83,11 @@ export const scenarioMatrix = [
     ),
     row(
         "command-rules",
-        [ref("execpolicy/src/parser.rs")],
+        [refAt(CODEX_EXECPOLICY_REVISION, "execpolicy/src/parser.rs")],
         "TypeScript rules match captured pinned Codex results and feed approval decisions; unknown commands require review",
         [
             ["policy", "Codex Starlark"],
+            ["policy", "canonical_matching compares"],
             ["policy", "original Codex result replay"],
             ["policy", "all network_rule"],
             ["integration", "unknown executable commands"],

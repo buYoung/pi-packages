@@ -6,9 +6,9 @@ import { FUSION_MODEL_ID } from "../../features/catalog/constants.ts";
 import { ModelCatalog } from "../../features/catalog/service.ts";
 import type { DevinModel, FusionChoices, FusionSelection } from "../../features/catalog/types.ts";
 import { FusionSettings } from "../../features/settings/service.ts";
+import { FUSION_COMMAND_NAME } from "./manifest.ts";
 import { FusionPicker } from "./ui/fusion-picker.ts";
 
-export const FUSION_COMMAND_NAME = "devin-fusion";
 const USAGE = `Usage: /${FUSION_COMMAND_NAME} or /${FUSION_COMMAND_NAME} <lead model ID> <sidekick model ID>`;
 
 const host = <A>(evaluate: () => Promise<A>) => Effect.tryPromise({ try: evaluate, catch: toDevinFailure });
@@ -84,9 +84,6 @@ const fusionCommand = (args: string, ctx: ExtensionCommandContext, pi: Extension
  * `/devin-fusion` only chooses the lead/sidekick pair. Whether Fusion is used is decided by picking Devin Fusion in `/model`.
  * If the current model is Fusion, it is re-selected with the updated model object so the thinking level range matches.
  */
-export function registerFusionCommand(pi: ExtensionAPI, runtime: ExtensionRuntime): void {
-  pi.registerCommand(FUSION_COMMAND_NAME, {
-    description: "Choose the lead and sidekick models for Devin Fusion (saved globally)",
-    handler: (args, ctx) => runtime.runPromise(fusionCommand(args, ctx, pi)),
-  });
+export function runFusionCommand(args: string, ctx: ExtensionCommandContext, pi: ExtensionAPI, runtime: ExtensionRuntime): Promise<void> {
+  return runtime.runPromise(fusionCommand(args, ctx, pi));
 }

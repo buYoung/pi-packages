@@ -14,6 +14,45 @@ export type ModelsDevReasoningOption =
     };
 export const GENERATED_MODELS: ChatModelConfig[] = [
   {
+    id: "beam",
+    name: "beam",
+    compat: {
+      maxTokensField: "max_tokens",
+      requiresAssistantAfterToolResult: false,
+      requiresReasoningContentOnAssistantMessages: false,
+      requiresThinkingAsText: false,
+      requiresToolResultName: false,
+      sendSessionAffinityHeaders: false,
+      supportsDeveloperRole: false,
+      supportsLongCacheRetention: false,
+      supportsReasoningEffort: true,
+      supportsStore: false,
+      supportsStrictMode: false,
+      supportsUsageInStreaming: true,
+      thinkingFormat: "openai",
+      zaiToolStream: false,
+    },
+    contextWindow: 1048576,
+    cost: {
+      cacheRead: 0.015,
+      cacheWrite: 0,
+      input: 0.125,
+      output: 0.4,
+    },
+    input: ["text"],
+    maxTokens: 131072,
+    reasoning: true,
+    thinkingLevelMap: {
+      high: "high",
+      low: "low",
+      max: "max",
+      medium: "medium",
+      minimal: null,
+      off: null,
+      xhigh: "xhigh",
+    },
+  },
+  {
     id: "deepseek-v4-pro:0813",
     name: "deepseek-v4-pro:0813",
     compat: {
@@ -44,7 +83,8 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     reasoning: true,
     thinkingLevelMap: {
       high: "high",
-      low: null,
+      low: "low",
+      max: "max",
       medium: null,
       minimal: null,
       off: "none",
@@ -83,6 +123,46 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: "high",
       low: "low",
+      max: "max",
+      medium: null,
+      minimal: null,
+      off: "none",
+      xhigh: "max",
+    },
+  },
+  {
+    id: "deepseek-v4.1-flash:1017",
+    name: "deepseek-v4.1-flash:1017",
+    compat: {
+      maxTokensField: "max_tokens",
+      requiresAssistantAfterToolResult: false,
+      requiresReasoningContentOnAssistantMessages: false,
+      requiresThinkingAsText: false,
+      requiresToolResultName: false,
+      sendSessionAffinityHeaders: false,
+      supportsDeveloperRole: false,
+      supportsLongCacheRetention: false,
+      supportsReasoningEffort: true,
+      supportsStore: false,
+      supportsStrictMode: false,
+      supportsUsageInStreaming: true,
+      thinkingFormat: "openai",
+      zaiToolStream: false,
+    },
+    contextWindow: 1048576,
+    cost: {
+      cacheRead: 0,
+      cacheWrite: 0,
+      input: 0,
+      output: 0,
+    },
+    input: ["text", "image"],
+    maxTokens: 393216,
+    reasoning: true,
+    thinkingLevelMap: {
+      high: "high",
+      low: "low",
+      max: "max",
       medium: null,
       minimal: null,
       off: "none",
@@ -121,6 +201,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: null,
       low: null,
+      max: null,
       medium: "medium",
       minimal: null,
       off: "none",
@@ -159,6 +240,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: "high",
       low: null,
+      max: "max",
       medium: null,
       minimal: null,
       off: "none",
@@ -197,9 +279,10 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: "high",
       low: "low",
+      max: "max",
       medium: null,
       minimal: null,
-      off: "none",
+      off: null,
       xhigh: "max",
     },
   },
@@ -235,9 +318,10 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: "high",
       low: "low",
+      max: "max",
       medium: null,
       minimal: null,
-      off: "none",
+      off: null,
       xhigh: "max",
     },
   },
@@ -273,6 +357,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: "high",
       low: "low",
+      max: null,
       medium: "medium",
       minimal: null,
       off: null,
@@ -311,10 +396,89 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: "high",
       low: "low",
+      max: null,
       medium: "medium",
       minimal: null,
       off: null,
       xhigh: null,
+    },
+  },
+  {
+    id: "hy4",
+    name: "hy4",
+    compat: {
+      maxTokensField: "max_tokens",
+      requiresAssistantAfterToolResult: false,
+      requiresReasoningContentOnAssistantMessages: false,
+      requiresThinkingAsText: false,
+      requiresToolResultName: false,
+      sendSessionAffinityHeaders: false,
+      supportsDeveloperRole: false,
+      supportsLongCacheRetention: false,
+      supportsReasoningEffort: true,
+      supportsStore: false,
+      supportsStrictMode: false,
+      supportsUsageInStreaming: true,
+      thinkingFormat: "openai",
+      zaiToolStream: false,
+    },
+    contextWindow: 1048576,
+    cost: {
+      cacheRead: 0.042,
+      cacheWrite: 0,
+      input: 0.834,
+      output: 2.501,
+    },
+    input: ["text", "image"],
+    maxTokens: 131072,
+    reasoning: true,
+    thinkingLevelMap: {
+      high: null,
+      low: null,
+      max: null,
+      medium: "medium",
+      minimal: null,
+      off: "none",
+      xhigh: null,
+    },
+  },
+  {
+    id: "inkling-2-small",
+    name: "inkling-2-small",
+    compat: {
+      maxTokensField: "max_tokens",
+      requiresAssistantAfterToolResult: false,
+      requiresReasoningContentOnAssistantMessages: false,
+      requiresThinkingAsText: false,
+      requiresToolResultName: false,
+      sendSessionAffinityHeaders: false,
+      supportsDeveloperRole: false,
+      supportsLongCacheRetention: false,
+      supportsReasoningEffort: true,
+      supportsStore: false,
+      supportsStrictMode: false,
+      supportsUsageInStreaming: true,
+      thinkingFormat: "openai",
+      zaiToolStream: false,
+    },
+    contextWindow: 1048576,
+    cost: {
+      cacheRead: 0.03,
+      cacheWrite: 0,
+      input: 0.3,
+      output: 1,
+    },
+    input: ["text", "image"],
+    maxTokens: 131072,
+    reasoning: true,
+    thinkingLevelMap: {
+      high: "high",
+      low: "low",
+      max: "max",
+      medium: "medium",
+      minimal: null,
+      off: "none",
+      xhigh: "max",
     },
   },
   {
@@ -349,6 +513,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: null,
       low: null,
+      max: null,
       medium: "medium",
       minimal: null,
       off: "none",
@@ -387,6 +552,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: null,
       low: null,
+      max: null,
       medium: "medium",
       minimal: null,
       off: "none",
@@ -425,6 +591,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: "high",
       low: "low",
+      max: "max",
       medium: null,
       minimal: null,
       off: "none",
@@ -432,8 +599,8 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     },
   },
   {
-    id: "minimax-m2.7",
-    name: "minimax-m2.7",
+    id: "kimi-k3.1-pro",
+    name: "kimi-k3.1-pro",
     compat: {
       maxTokensField: "max_tokens",
       requiresAssistantAfterToolResult: false,
@@ -450,22 +617,101 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       thinkingFormat: "openai",
       zaiToolStream: false,
     },
-    contextWindow: 196608,
+    contextWindow: 1048576,
     cost: {
-      cacheRead: 0.06,
+      cacheRead: 0.2,
       cacheWrite: 0,
-      input: 0.3,
-      output: 1.2,
+      input: 2,
+      output: 10,
     },
-    input: ["text"],
+    input: ["text", "image"],
+    maxTokens: 524288,
+    reasoning: true,
+    thinkingLevelMap: {
+      high: "high",
+      low: "low",
+      max: "max",
+      medium: "medium",
+      minimal: null,
+      off: "none",
+      xhigh: "max",
+    },
+  },
+  {
+    id: "mimo-v2.6-flash",
+    name: "mimo-v2.6-flash",
+    compat: {
+      maxTokensField: "max_tokens",
+      requiresAssistantAfterToolResult: false,
+      requiresReasoningContentOnAssistantMessages: false,
+      requiresThinkingAsText: false,
+      requiresToolResultName: false,
+      sendSessionAffinityHeaders: false,
+      supportsDeveloperRole: false,
+      supportsLongCacheRetention: false,
+      supportsReasoningEffort: true,
+      supportsStore: false,
+      supportsStrictMode: false,
+      supportsUsageInStreaming: true,
+      thinkingFormat: "openai",
+      zaiToolStream: false,
+    },
+    contextWindow: 1048576,
+    cost: {
+      cacheRead: 0.0028,
+      cacheWrite: 0,
+      input: 0.14,
+      output: 0.28,
+    },
+    input: ["text", "image"],
     maxTokens: 131072,
     reasoning: true,
     thinkingLevelMap: {
       high: null,
       low: null,
+      max: null,
       medium: "medium",
       minimal: null,
-      off: null,
+      off: "none",
+      xhigh: null,
+    },
+  },
+  {
+    id: "mimo-v2.6-pro",
+    name: "mimo-v2.6-pro",
+    compat: {
+      maxTokensField: "max_tokens",
+      requiresAssistantAfterToolResult: false,
+      requiresReasoningContentOnAssistantMessages: false,
+      requiresThinkingAsText: false,
+      requiresToolResultName: false,
+      sendSessionAffinityHeaders: false,
+      supportsDeveloperRole: false,
+      supportsLongCacheRetention: false,
+      supportsReasoningEffort: true,
+      supportsStore: false,
+      supportsStrictMode: false,
+      supportsUsageInStreaming: true,
+      thinkingFormat: "openai",
+      zaiToolStream: false,
+    },
+    contextWindow: 1048576,
+    cost: {
+      cacheRead: 0.0036,
+      cacheWrite: 0,
+      input: 0.435,
+      output: 0.87,
+    },
+    input: ["text", "image"],
+    maxTokens: 131072,
+    reasoning: true,
+    thinkingLevelMap: {
+      high: null,
+      low: null,
+      max: null,
+      medium: "medium",
+      minimal: null,
+      off: "none",
       xhigh: null,
     },
   },
@@ -508,8 +754,8 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     },
   },
   {
-    id: "mistral-large-3:675b",
-    name: "mistral-large-3:675b",
+    id: "minimax-m3.1-flash",
+    name: "minimax-m3.1-flash",
     compat: {
       maxTokensField: "max_tokens",
       requiresAssistantAfterToolResult: false,
@@ -526,16 +772,24 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       thinkingFormat: "openai",
       zaiToolStream: false,
     },
-    contextWindow: 262144,
+    contextWindow: 1000000,
     cost: {
-      cacheRead: 0.5,
+      cacheRead: 0.015,
       cacheWrite: 0,
-      input: 0.5,
-      output: 1.5,
+      input: 0.15,
+      output: 0.6,
     },
     input: ["text", "image"],
-    maxTokens: 262144,
-    reasoning: false,
+    maxTokens: 524288,
+    reasoning: true,
+    thinkingLevelMap: {
+      high: "high",
+      low: "low",
+      medium: "medium",
+      minimal: null,
+      off: "none",
+      xhigh: "max",
+    },
   },
   {
     id: "mistral-large-4",
@@ -560,8 +814,8 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     cost: {
       cacheRead: 0.07,
       cacheWrite: 0,
-      input: 0.68,
-      output: 2.09,
+      input: 0.7,
+      output: 2.1,
     },
     input: ["text", "image"],
     maxTokens: 262144,
@@ -576,8 +830,8 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     },
   },
   {
-    id: "nemotron-3-nano:30b",
-    name: "nemotron-3-nano:30b",
+    id: "muse-spark-open",
+    name: "muse-spark-open",
     compat: {
       maxTokensField: "max_tokens",
       requiresAssistantAfterToolResult: false,
@@ -594,23 +848,24 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       thinkingFormat: "openai",
       zaiToolStream: false,
     },
-    contextWindow: 262144,
+    contextWindow: 1048576,
     cost: {
-      cacheRead: 0.06,
+      cacheRead: 0.15,
       cacheWrite: 0,
-      input: 0.06,
-      output: 0.24,
+      input: 1.25,
+      output: 4.25,
     },
-    input: ["text"],
-    maxTokens: 131072,
+    input: ["text", "image"],
+    maxTokens: 524288,
     reasoning: true,
     thinkingLevelMap: {
-      high: null,
-      low: null,
+      high: "high",
+      low: "low",
+      max: null,
       medium: "medium",
       minimal: null,
       off: "none",
-      xhigh: null,
+      xhigh: "xhigh",
     },
   },
   {
@@ -645,6 +900,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: null,
       low: null,
+      max: null,
       medium: "medium",
       minimal: null,
       off: "none",
@@ -683,6 +939,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
     thinkingLevelMap: {
       high: null,
       low: null,
+      max: null,
       medium: "medium",
       minimal: null,
       off: "none",
@@ -691,6 +948,12 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
   },
 ];
 export const MODEL_PRICING: Record<string, ModelPrice> = {
+  beam: {
+    cacheRead: 0.015,
+    cacheWrite: 0,
+    input: 0.125,
+    output: 0.4,
+  },
   "deepseek-v4-pro:0813": {
     cacheRead: 0.044,
     cacheWrite: 0,
@@ -739,6 +1002,18 @@ export const MODEL_PRICING: Record<string, ModelPrice> = {
     input: 0.07,
     output: 0.3,
   },
+  hy4: {
+    cacheRead: 0.042,
+    cacheWrite: 0,
+    input: 0.834,
+    output: 2.501,
+  },
+  "inkling-2-small": {
+    cacheRead: 0.03,
+    cacheWrite: 0,
+    input: 0.3,
+    output: 1,
+  },
   "kimi-k2.6": {
     cacheRead: 0.16,
     cacheWrite: 0,
@@ -757,11 +1032,23 @@ export const MODEL_PRICING: Record<string, ModelPrice> = {
     input: 3,
     output: 15,
   },
-  "minimax-m2.7": {
-    cacheRead: 0.06,
+  "kimi-k3.1-pro": {
+    cacheRead: 0.2,
     cacheWrite: 0,
-    input: 0.3,
-    output: 1.2,
+    input: 2,
+    output: 10,
+  },
+  "mimo-v2.6-flash": {
+    cacheRead: 0.0028,
+    cacheWrite: 0,
+    input: 0.14,
+    output: 0.28,
+  },
+  "mimo-v2.6-pro": {
+    cacheRead: 0.0036,
+    cacheWrite: 0,
+    input: 0.435,
+    output: 0.87,
   },
   "minimax-m3": {
     cacheRead: 0.12,
@@ -769,23 +1056,23 @@ export const MODEL_PRICING: Record<string, ModelPrice> = {
     input: 0.6,
     output: 2.4,
   },
-  "mistral-large-3:675b": {
-    cacheRead: 0.5,
+  "minimax-m3.1-flash": {
+    cacheRead: 0.015,
     cacheWrite: 0,
-    input: 0.5,
-    output: 1.5,
+    input: 0.15,
+    output: 0.6,
   },
   "mistral-large-4": {
     cacheRead: 0.07,
     cacheWrite: 0,
-    input: 0.68,
-    output: 2.09,
+    input: 0.7,
+    output: 2.1,
   },
-  "nemotron-3-nano:30b": {
-    cacheRead: 0.06,
+  "muse-spark-open": {
+    cacheRead: 0.15,
     cacheWrite: 0,
-    input: 0.06,
-    output: 0.24,
+    input: 1.25,
+    output: 4.25,
   },
   "nemotron-3-super": {
     cacheRead: 0.015,
@@ -801,31 +1088,10 @@ export const MODEL_PRICING: Record<string, ModelPrice> = {
   },
 };
 export const MODEL_REASONING_OPTIONS: Record<string, ModelsDevReasoningOption[]> = {
-  "deepseek-v4-flash": [
-    {
-      type: "toggle",
-    },
+  beam: [
     {
       type: "effort",
-      values: ["high", "max"],
-    },
-  ],
-  "deepseek-v4-flash:0731": [
-    {
-      type: "toggle",
-    },
-    {
-      type: "effort",
-      values: ["high", "max"],
-    },
-  ],
-  "deepseek-v4-pro": [
-    {
-      type: "toggle",
-    },
-    {
-      type: "effort",
-      values: ["high", "max"],
+      values: ["low", "medium", "high", "xhigh", "max"],
     },
   ],
   "deepseek-v4-pro:0813": [
@@ -834,10 +1100,19 @@ export const MODEL_REASONING_OPTIONS: Record<string, ModelsDevReasoningOption[]>
     },
     {
       type: "effort",
-      values: ["high", "max"],
+      values: ["low", "high", "max"],
     },
   ],
   "deepseek-v4.1-flash": [
+    {
+      type: "toggle",
+    },
+    {
+      type: "effort",
+      values: ["low", "high", "max"],
+    },
+  ],
+  "deepseek-v4.1-flash:1017": [
     {
       type: "toggle",
     },
@@ -851,12 +1126,10 @@ export const MODEL_REASONING_OPTIONS: Record<string, ModelsDevReasoningOption[]>
       type: "toggle",
     },
   ],
-  "glm-5.1": [
+  "glm-5.2": [
     {
       type: "toggle",
     },
-  ],
-  "glm-5.2": [
     {
       type: "effort",
       values: ["high", "max"],
@@ -886,9 +1159,19 @@ export const MODEL_REASONING_OPTIONS: Record<string, ModelsDevReasoningOption[]>
       values: ["low", "medium", "high"],
     },
   ],
-  "kimi-k2.5": [
+  hy4: [
+    {
+      type: "effort",
+      values: ["none", "high"],
+    },
+  ],
+  "inkling-2-small": [
     {
       type: "toggle",
+    },
+    {
+      type: "effort",
+      values: ["low", "medium", "high", "max"],
     },
   ],
   "kimi-k2.6": [
@@ -910,8 +1193,21 @@ export const MODEL_REASONING_OPTIONS: Record<string, ModelsDevReasoningOption[]>
       values: ["low", "high", "max"],
     },
   ],
-  "minimax-m2.5": [],
-  "minimax-m2.7": [
+  "kimi-k3.1-pro": [
+    {
+      type: "toggle",
+    },
+    {
+      type: "effort",
+      values: ["low", "medium", "high", "max"],
+    },
+  ],
+  "mimo-v2.6-flash": [
+    {
+      type: "toggle",
+    },
+  ],
+  "mimo-v2.6-pro": [
     {
       type: "toggle",
     },
@@ -925,15 +1221,25 @@ export const MODEL_REASONING_OPTIONS: Record<string, ModelsDevReasoningOption[]>
       values: ["low", "medium", "high", "max"],
     },
   ],
+  "minimax-m3.1-flash": [
+    {
+      type: "effort",
+      values: ["low", "medium", "high", "xhigh", "max"],
+    },
+  ],
   "mistral-large-4": [
     {
       type: "effort",
       values: ["none", "high"],
     },
   ],
-  "nemotron-3-nano:30b": [
+  "muse-spark-open": [
     {
       type: "toggle",
+    },
+    {
+      type: "effort",
+      values: ["low", "medium", "high", "max"],
     },
   ],
   "nemotron-3-super": [
@@ -946,57 +1252,80 @@ export const MODEL_REASONING_OPTIONS: Record<string, ModelsDevReasoningOption[]>
       type: "toggle",
     },
   ],
-  "qwen3.5:397b": [
-    {
-      type: "toggle",
-    },
-  ],
 };
 export const GENERATED_CATALOG_INFO = {
   candidateIds: [
+    "beam",
+    "clef:27b",
     "deepseek-v4-pro:0813",
     "deepseek-v4.1-flash",
+    "deepseek-v4.1-flash:1017",
     "gemma4:31b",
     "glm-5.2",
     "glm-5.3",
     "glm-5.3-flash",
     "gpt-oss:120b",
     "gpt-oss:20b",
+    "hy4",
+    "inkling-2-small",
     "kimi-k2.6",
     "kimi-k2.7-code",
     "kimi-k3",
-    "minimax-m2.7",
+    "kimi-k3.1-pro",
+    "mimo-v2.6-flash",
+    "mimo-v2.6-pro",
     "minimax-m3",
-    "mistral-large-3:675b",
+    "minimax-m3.1-flash",
     "mistral-large-4",
-    "nemotron-3-nano:30b",
+    "muse-spark-open",
     "nemotron-3-super",
     "nemotron-3-ultra",
   ],
-  generatedAt: "2026-10-10T11:19:35.283Z",
-  nativeThinkingIds: [],
+  generatedAt: "2026-11-27T09:44:50.238Z",
+  nativeThinkingIds: [
+    "beam",
+    "deepseek-v4-pro:0813",
+    "deepseek-v4.1-flash",
+    "deepseek-v4.1-flash:1017",
+    "gemma4:31b",
+    "glm-5.2",
+    "glm-5.3",
+    "glm-5.3-flash",
+    "gpt-oss:120b",
+    "gpt-oss:20b",
+    "hy4",
+    "inkling-2-small",
+    "kimi-k2.6",
+    "kimi-k2.7-code",
+    "kimi-k3",
+    "kimi-k3.1-pro",
+    "mimo-v2.6-flash",
+    "mimo-v2.6-pro",
+    "muse-spark-open",
+    "nemotron-3-super",
+    "nemotron-3-ultra",
+  ],
   notes: [
-    "Existing export values migrated without refreshing or inferring new values.",
-    "Legacy model generation: 2026-10-10T11:19:35.283Z; legacy pricing generation: 2026-10-10T11:19:30.929Z.",
-    "Source observation times and original exact/family pricing matches were not recorded; candidateIds reflect legacy pricing keys.",
+    "Unknown prices are omitted, not declared free; a base-name price applies only to the one candidate with that base name, and limits are never inherited.",
+    "Input-only pricing rows: 1; off-peak rows not applied: 2.",
   ],
   schemaVersion: 1,
   sources: {
     cloud: {
-      observedAt: null,
+      observedAt: "2026-11-27T09:44:48.904Z",
       url: "https://ollama.com",
     },
     limits: "existing measurements; not reprobed",
     pricing: {
-      observedAt: null,
+      observedAt: "2026-11-27T09:44:49.125Z",
       tier: "standard",
       url: "https://ollama.com/pricing",
     },
     reasoning: {
-      observedAt: null,
+      observedAt: "2026-11-27T09:44:50.237Z",
       url: "https://models.dev/api.json",
     },
   },
   unknownLimitIds: [],
-  unknownPricingIds: [],
+  unknownPricingIds: ["deepseek-v4.1-flash:1017"],
 };

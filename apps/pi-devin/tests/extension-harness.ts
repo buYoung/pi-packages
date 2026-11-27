@@ -9,7 +9,8 @@ import type { Credential } from "../src/core/types.ts";
 import { DeviceIdentitySource } from "../src/core/services/device-identity.ts";
 import { HttpTransport, type HttpTransportShape } from "../src/core/services/http-transport.ts";
 import { NodePlatformLayer } from "../src/core/services/platform.ts";
-import { registerDevinExtension } from "../src/pi/adapters/pi/registration.ts";
+import { makeDevinInstance } from "../src/pi/adapters/pi/instance.ts";
+import { registerDevinExtension, type DevinRegistration } from "../src/pi/adapters/pi/registration.ts";
 import { makeDevinProvider } from "../src/pi/adapters/pi/provider.ts";
 import type { DevinProvider } from "../src/pi/adapters/pi/types.ts";
 import { currentAccountUsage, UsageStatus, type UsageStatusShape } from "../src/pi/adapters/pi/usage-status.ts";
@@ -121,11 +122,31 @@ export function makeTestProvider(options: TestOptions = {}): TestProvider {
   return testAccess(provider, runtime);
 }
 
-/** The whole extension on test services, registered with the given Pi API. */
+/** The whole extension on test services, registered with the given Pi API and loaded at once. */
 export function registerTestExtension(pi: ExtensionAPI, options: TestOptions = {}): TestProvider & { runtime: ExtensionRuntime; usageStatus: UsageStatusShape } {
-  const { provider, runtime } = registerDevinExtension(pi, testEnvironment(options));
+  const instance = makeDevinInstance(pi, testEnvironment(options));
+  const { provider } = registerDevinExtension(pi, { isFusionChild: options.isFusionChild === true, instance, agentDir: options.sidekick?.agentDir ?? (() => "/unused-agent-dir") });
+  const { runtime } = instance;
   listen(runtime, options.onAccountUsage);
   return { ...testAccess(provider, runtime), runtime, usageStatus: runtime.runSync(UsageStatus) };
+}
+
+/**
+ * The whole extension on test services, registered as Pi's entry registers it: the instance loads on first use. `loads` counts
+ * the loads; `agentDir` holds the settings files the provider reads before it loads.
+ */
+export function registerLazyTestExtension(pi: ExtensionAPI, options: TestOptions & { agentDir: string }): { registration: DevinRegistration; loads: () => number } {
+  let loads = 0;
+  const registration = registerDevinExtension(pi, {
+    isFusionChild: options.isFusionChild === true, agentDir: () => options.agentDir, now: options.now,
+    instance: async () => {
+      loads++;
+      const instance = makeDevinInstance(pi, testEnvironment(options));
+      listen(instance.runtime, options.onAccountUsage);
+      return instance;
+    },
+  });
+  return { registration, loads: () => loads };
 }
 
 /** A transport over a test fetch that counts the connection pools clients open and close. */

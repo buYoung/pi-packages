@@ -59,9 +59,12 @@ function describeRequest(args: unknown): string {
             : historyCount > 0
               ? `Edit · last ${imageCount(historyCount)} in conversation`
               : "Generate";
-    return request.transparent_background === true
-        ? `${operation} · transparent background`
-        : operation;
+    const parts = [operation];
+    if (typeof request.gif === "object" && request.gif !== null)
+        parts.push("GIF");
+    if (request.transparent_background === true)
+        parts.push("transparent background");
+    return parts.join(" · ");
 }
 
 /** Tool title and request summary, with the prompt on one line until the row is expanded. */
@@ -105,11 +108,14 @@ function imageSize(content: readonly unknown[]): string | undefined {
 }
 
 function resultHeading(details: unknown, content: readonly unknown[]): string {
-    const { operation, background } = (details ?? {}) as {
+    const { operation, background, format } = (details ?? {}) as {
         operation?: unknown;
         background?: unknown;
+        format?: unknown;
     };
-    const parts = [operation === "edit" ? "Edited" : "Generated"];
+    const verb = operation === "edit" ? "Edited" : "Generated";
+    // The image block of a GIF result is a still preview; the saved file keeps the animation.
+    const parts = [format === "gif" ? `${verb} GIF` : verb];
     const size = imageSize(content);
     if (size !== undefined) parts.push(size);
     if (background === "transparent") parts.push("transparent background");

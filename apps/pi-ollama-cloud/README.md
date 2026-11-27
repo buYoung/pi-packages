@@ -183,7 +183,7 @@ The cache stores full page text and URLs, and sessions that use the same cache p
 
 Prices are estimates based on the standard per-million-token rates on the [Ollama pricing page](https://ollama.com/pricing). They do not guarantee actual charges or credit deductions, and Off-Peak discount hours are not included. Models without a known price show `unknown (not free)` in the development CLI's model metadata view. Pi's numeric cost fields can contain 0, but **that does not mean free**.
 
-Price data is fixed in the package and changes only with a new release. Unconfirmed `:cloud` aliases and date tags do not inherit another ID's price or output limit. If the API does not report cached-token usage, cache discounts are not reflected in `/cost` either. The `cacheWrite` cost field is always 0.
+Price data is fixed in the package and changes only with a new release. A price listed under a base name, such as `deepseek-v4-pro`, applies to a tagged ID only when it is the only catalog ID with that base name. Other `:cloud` aliases and date tags do not inherit another ID's price, and no ID inherits another ID's output limit. If the API does not report cached-token usage, cache discounts are not reflected in `/cost` either. The `cacheWrite` cost field is always 0.
 
 ## Limits and support
 
@@ -238,7 +238,7 @@ import type { UsageData } from "@buyong/pi-ollama-cloud/src/usage/api.ts";
 
 ## Development and verification
 
-This section is for contributors working in a source checkout. Run from the monorepo root with Node.js 22.19 or later and `pnpm@12.18.0`.
+This section is for contributors working in a source checkout. Run from the monorepo root with Node.js 22.19 or later and `pnpm@12.23.0`.
 
 ```bash
 pnpm install --frozen-lockfile

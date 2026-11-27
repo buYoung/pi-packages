@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Improved
+
+- Update Effect and the bundled `@effect/platform-node` to 4.1.6.
+- Pi processes that do not use Devin no longer pay for its runtime. The extension now loads Effect, its Node platform packages and protobufjs on first use: a session on a Devin model or with a Devin run, a switch to a Devin model, `/devin`, `/devin-fusion`, `devin_sidekick`, sign-in, a request, or a model refresh that has to reach Devin. Until then `/model` lists the same Devin models from the list Pi stored. In a measured RPC process with another default model and no startup network refresh, the memory footprint went from about 173 MB to about 80 MB; without the extension it is about 74 MB. The model list a lead stores now also records the package version and Fusion choice it was built with.
+
+### Fixed
+
+- When two sessions open together in one Pi model runtime, such as in-process subagents started in the same turn, the first one's Devin requests work. Before, they failed with "Devin uses only the OAuth account session from /login. API key authentication is not supported." for the rest of that session.
+- With a `devin` entry in `models.json`, a session that joins a model runtime other sessions already use no longer stops Devin requests in every session for a moment with "No API provider registered for api: devin-connect".
+- A sign-in, account switch or logout reaches every session sharing a model runtime. Before, only the session opened last learned it: the others kept the previous account's model list, and their Devin requests failed after a sign-in.
+- A Devin request that comes before its session's model list is loaded waits at most 10 seconds, then fails with "The Devin model list has not loaded. Refresh the model list and try again." Before, it could wait without an answer.
+
 ## [0.1.16] - 2026-11-11
 
 ### Improved

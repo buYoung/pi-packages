@@ -113,6 +113,19 @@ test("preserves legacy launches and removes only the browser-access preload", as
     assert.equal(plan.runtimeRoot, f.runtimeRoot);
 });
 
+test("removes the browser-access flag that replaced the preload", async (t) => {
+    const f = await fixture(t);
+    await f.config("26.1120.50957", {
+        command: f.command,
+        args: ["--require-browser-access"],
+        env_vars: wrapped(f.command).env_vars,
+    });
+    const plan = await f.discover();
+    assert.equal(plan.command, f.command);
+    assert.deepEqual(plan.args, []);
+    assert.equal(plan.runtimeRoot, f.runtimeRoot);
+});
+
 test("does not unwrap a shell script with additional behavior", async (t) => {
     const f = await fixture(t);
     const args = ["-c", `${browserAccessWrapper}; echo extra`, "cua-repl", f.command];

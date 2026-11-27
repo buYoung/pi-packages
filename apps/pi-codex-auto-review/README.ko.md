@@ -109,7 +109,7 @@ Use bash to run exactly node --version and report the result. Do not install any
 - **OS 격리:** 검토 범위는 강제 권한 경계가 아닙니다. 승인된 셸·인터프리터는 파일에 간접 접근하거나 다른 목적지에 연결할 수 있습니다. 네트워크 프록시나 디렉터리·하드링크 전수 검사는 없습니다.
 - **신뢰한 코드 전체의 보호:** Pi·로드한 확장·외부 MCP 서버는 신뢰하는 실행 구성 요소입니다. MCP 도구를 제외한 다른 확장의 도구에는 이 승인 제어가 자동 적용되지 않으며 외부 MCP 서버 내부 실행도 격리하지 않습니다.
 - **외부 요청의 즉시 취소:** 이미 MCP 서버에 보낸 요청의 중단 효과는 해당 서버 구현에 달려 있습니다.
-- **Codex와 같은 보안·판단:** 이 확장은 Codex [`rust-v0.160.0`](https://github.com/openai/codex/tree/a956835d020762cb2b570053af06f643a11c0ecc)의 공개 정책·규칙 계약을 따릅니다. Codex의 독점 모델이나 샌드박스는 포함하지 않습니다.
+- **Codex와 같은 보안·판단:** 이 확장은 Codex [`rust-v0.172.0`](https://github.com/openai/codex/tree/3d86e43b075adeba2193ec5c22ac92f55afd82e6)의 공개 정책·규칙 계약을 따릅니다. Codex의 독점 모델이나 샌드박스는 포함하지 않습니다.
 - **설치한 Pi의 의존성:** 이 저장소에 기록한 의존성 수정은 따로 설치한 Pi가 쓰는 패키지를 바꾸지 않습니다. [의존성 보안](docs/security/dependencies.ko.md)을 참고하세요.
 
 ## 소스 빌드와 검증

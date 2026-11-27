@@ -122,7 +122,7 @@ export function registerMcpCommand(
               ctx.ui.input(
                 `Waiting for sign-in to "${name}". If the browser cannot reach this machine, paste the URL it was redirected to.`,
                 "http://127.0.0.1:.../callback?code=...",
-                { signal },
+                { signal, blockedKind: "auth" },
               ),
             ),
         }),

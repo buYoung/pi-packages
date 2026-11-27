@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### 달라진 것
+
+- `@earendil-works/pi-mcp`를 1.6.1로 업데이트했습니다.
+- Pi 1.6.1 이상에서는 프로그램 상태(OSC 7501)를 표시하는 터미널에 승인 대화상자를 권한 대기로 알립니다.
+
+### 해결된 것
+
+- Codex Desktop 26.1120 이후 런타임을 `--require-browser-access` 플래그로 실행해도 Browser Use가 `The browser access host is unavailable`로 실패하지 않습니다.
+
 ## [0.3.5] - 2026-11-21
 
 ### 달라진 것

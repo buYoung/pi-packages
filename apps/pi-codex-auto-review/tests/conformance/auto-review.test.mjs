@@ -73,6 +73,10 @@ test("[reference] the rendered prompt preserves complete upstream policy section
     ).toBeTruthy();
     expect(text).toMatch(/trust=authorization/);
     expect(text).toMatch(/transport envelope.*not.*user authorization/);
+    expect(
+        text,
+        "The Pi overlay must not restate a stricter post-denial rule than upstream",
+    ).not.toMatch(/exact previously denied action/);
 });
 
 test("[joined] ordinary execution, automatic elevation, review denial and absolute denial retain distinct final effects", async (t) => {

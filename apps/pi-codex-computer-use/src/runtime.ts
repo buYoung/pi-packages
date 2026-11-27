@@ -24,6 +24,8 @@ export const TRUSTED_SERVICES_VARIABLE = "NODE_REPL_TRUSTED_SERVICES";
  * `withoutBrowserAccessImport` keeps it out of the command line Pi launches.
  */
 export const BROWSER_ACCESS_IMPORT_BASENAME = "require-browser-access.mjs";
+/** The flag that replaces the preload module in newer Desktop plugin versions. */
+export const BROWSER_ACCESS_FLAG = "--require-browser-access";
 /** Where sky looks for the native service first (then `$CODEX_HOME/computer-use`, then the bundle id). */
 export const SERVICE_APP_PATH_VARIABLE = "SKY_CUA_SERVICE_PATH";
 export const CODEX_DESKTOP_BUNDLE_ID = "com.openai.codex";
@@ -245,14 +247,15 @@ function withoutBrowserAccessWrapper(
 }
 
 /**
- * Drops the `--import <…>/require-browser-access.mjs` pair from the plugin-cache command line.
- * With the preload, browser commands fail with `The browser access host is unavailable`; runtime
- * approval elicitation still applies without it.
+ * Drops the `--import <…>/require-browser-access.mjs` pair and the `--require-browser-access` flag
+ * from the plugin-cache command line. With either one, browser commands fail with `The browser
+ * access host is unavailable`; runtime approval elicitation still applies without them.
  */
 export function withoutBrowserAccessImport(args: string[]): string[] {
     const kept: string[] = [];
     for (let index = 0; index < args.length; index += 1) {
         const next = args[index + 1];
+        if (args[index] === BROWSER_ACCESS_FLAG) continue;
         if (
             args[index] === "--import" &&
             next !== undefined &&

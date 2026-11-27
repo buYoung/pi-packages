@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { Effect, Schema } from "effect";
 import type { DevinError } from "../../../core/errors.ts";
 import { failWith } from "../../../core/validation.ts";
+import { DEVIN_STATE_ENTRY } from "./entry.ts";
 import type { DevinSessionState, SessionBinding } from "./types.ts";
 
-export const DEVIN_STATE_ENTRY = "pi-devin.state.v1";
 export const MAX_STEP_INDEX = 2_147_483_647;
 
 const UUID = Schema.String.check(Schema.isPattern(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/));

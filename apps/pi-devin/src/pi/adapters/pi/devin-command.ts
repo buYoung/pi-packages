@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Effect } from "effect";
 import { toDevinFailure, type DevinError, type DevinFailure } from "../../../core/errors.ts";
 import { ExtensionConfig } from "../../app/config.ts";
@@ -10,7 +10,6 @@ import { sessionUsage, usageReport } from "../../features/usage/report.ts";
 import { DevinPanel, PREFERENCE_ITEMS } from "./ui/devin-panel.ts";
 import { UsageStatus } from "./usage-status.ts";
 
-export const DEVIN_COMMAND_NAME = "devin";
 const USAGE = "Usage: /devin, /devin recommended on|off, /devin status on|off";
 const ARGUMENT_KEYS: Readonly<Record<string, keyof DevinPreferences>> = { recommended: "recommendedOnly", status: "showUsageStatus" };
 
@@ -74,9 +73,6 @@ const devinCommand = (args: string, ctx: ExtensionCommandContext, runtime: Exten
  * `/devin` shows usage details and display settings. Settings are saved globally and applied immediately.
  * The TUI gets a dedicated screen; other modes use arguments and notifications.
  */
-export function registerDevinCommand(pi: ExtensionAPI, runtime: ExtensionRuntime): void {
-  pi.registerCommand(DEVIN_COMMAND_NAME, {
-    description: "Show Devin usage and change display settings (recommended models only, usage in the status line); saved globally",
-    handler: (args, ctx) => runtime.runPromise(devinCommand(args, ctx, runtime)),
-  });
+export function runDevinCommand(args: string, ctx: ExtensionCommandContext, runtime: ExtensionRuntime): Promise<void> {
+  return runtime.runPromise(devinCommand(args, ctx, runtime));
 }

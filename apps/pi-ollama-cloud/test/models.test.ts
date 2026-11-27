@@ -1,11 +1,20 @@
 import type { OpenAICompletionsCompat } from "@earendil-works/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
-import { GENERATED_MODELS, MODEL_PRICING } from "../src/generated/catalog.generated.ts";
+import { GENERATED_MODELS, MODEL_PRICING, type ModelsDevReasoningOption } from "../src/generated/catalog.generated.ts";
 import { MODEL_MAX_OUTPUT_TOKENS } from "../src/generated/limits.generated.ts";
 import { fetchModelDetails, fetchModelIds } from "../src/models/api.ts";
 import { getContextLength } from "../src/models/context-length.ts";
 import { assembleModels } from "../src/models/metadata.ts";
-import { resolve } from "../src/models/thinking-levels.ts";
+import { resolve, resolveThinkingMetadata } from "../src/models/thinking-levels.ts";
+
+// models.dev entries of models Ollama Cloud no longer lists, kept so the resolver rules stay covered.
+const RETIRED_REASONING: Record<string, ModelsDevReasoningOption[]> = {
+  "minimax-m2.7": [{ type: "toggle" }],
+  "qwen3.5:397b": [{ type: "toggle" }],
+  "deepseek-v4-pro": [{ type: "toggle" }, { type: "effort", values: ["high", "max"] }],
+};
+const resolveRetired = (id: string, capabilities: string[]) =>
+  resolveThinkingMetadata(id, capabilities, undefined, RETIRED_REASONING).map;
 
 // --- Helpers ---
 
@@ -243,7 +252,10 @@ describe("assembleModels", () => {
     });
 
     it("hides off for minimax-m2.7 (none does not disable thinking)", () => {
-      const models = assembleModels({ "minimax-m2.7": rawModel({ capabilities: ["tools", "thinking"] }) });
+      const models = assembleModels(
+        { "minimax-m2.7": rawModel({ capabilities: ["tools", "thinking"] }) },
+        { reasoning: RETIRED_REASONING },
+      );
       expect(models[0].thinkingLevelMap).toEqual({
         off: null,
         minimal: null,
@@ -363,7 +375,7 @@ describe("resolve", () => {
       high: null,
       xhigh: null,
     });
-    expect(resolve("qwen3.5:397b", ["tools", "thinking"])).toEqual({
+    expect(resolveRetired("qwen3.5:397b", ["tools", "thinking"])).toEqual({
       off: "none",
       minimal: null,
       low: null,
@@ -375,7 +387,7 @@ describe("resolve", () => {
 
   it("hides off for minimax-m2.7 (none does not disable thinking), binary map otherwise", () => {
     // minimax-m2.7: models.dev = [toggle]; OFF_NULL hides off (live probe leaks).
-    expect(resolve("minimax-m2.7", ["tools", "thinking"])).toEqual({
+    expect(resolveRetired("minimax-m2.7", ["tools", "thinking"])).toEqual({
       off: null,
       minimal: null,
       low: null,
@@ -388,7 +400,7 @@ describe("resolve", () => {
   it("applies OFF_NULL to a tagged id that resolves to its family", () => {
     // minimax-m2.7:latest has no models.dev entry; it matches the family
     // minimax-m2.7, so OFF_NULL must still hide the off toggle.
-    expect(resolve("minimax-m2.7:latest", ["tools", "thinking"])).toEqual({
+    expect(resolveRetired("minimax-m2.7:latest", ["tools", "thinking"])).toEqual({
       off: null,
       minimal: null,
       low: null,
@@ -466,7 +478,7 @@ describe("resolve", () => {
 
   it("resolves a :tag family to the family's reasoning options", () => {
     // deepseek-v4-pro:0813 -> models.dev family "deepseek-v4-pro" (effort [high, max]).
-    expect(resolve("deepseek-v4-pro:0813", ["tools", "thinking"])).toEqual({
+    expect(resolveRetired("deepseek-v4-pro:0813", ["tools", "thinking"])).toEqual({
       off: "none",
       minimal: null,
       low: null,
