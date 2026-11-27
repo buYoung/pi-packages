@@ -8,6 +8,7 @@ import { evaluateRuleSources } from "./rule-engine.js";
 import type { CompiledRules, PrefixRule, RuleSource } from "./rule-types.js";
 import { analyzeShell } from "./shell.js";
 
+export { matchesRule } from "./rule-engine.js";
 export type {
     CompiledRules,
     PrefixRule,
@@ -15,20 +16,7 @@ export type {
     RuleSource,
 } from "./rule-types.js";
 export { CODEX_EXECPOLICY_REVISION } from "./rule-types.js";
-export function matchesRule(
-    argv: readonly string[],
-    rule: PrefixRule,
-): boolean {
-    return (
-        rule.pattern.length <= argv.length &&
-        rule.pattern.every((part, index) => {
-            const argument = argv[index];
-            return typeof part === "string"
-                ? part === argument
-                : argument !== undefined && part.includes(argument);
-        })
-    );
-}
+
 const MAX_BYTES = 8 * 1024 * 1024;
 function isScalarString(value: unknown): value is string {
     if (typeof value !== "string") return false;

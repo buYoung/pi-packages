@@ -13,7 +13,11 @@ const corpus = JSON.parse(
         "utf8",
     ),
 );
-expect(corpus.reference.revision).toBe(CODEX_EXECPOLICY_REVISION);
+// The corpus was captured from the native helper at rust-v0.160.0. Through CODEX_EXECPOLICY_REVISION,
+// upstream .rules changes only add opt-in canonical_matching, so these results still apply unchanged.
+expect(corpus.reference.revision).toBe(
+    "a956835d020762cb2b570053af06f643a11c0ecc",
+);
 for (const entry of corpus.cases.filter(
     (entry) => entry.platform !== "posix" || process.platform !== "win32",
 )) {
@@ -29,7 +33,10 @@ for (const entry of corpus.cases.filter(
         } else {
             expect(
                 await evaluateRules(entry.sources, entry.commands),
-            ).toStrictEqual(entry.expected.result);
+            ).toStrictEqual({
+                ...entry.expected.result,
+                revision: CODEX_EXECPOLICY_REVISION,
+            });
         }
     });
 }

@@ -107,7 +107,7 @@ Audit records go to `<agentDir>/guard/audit.jsonl`, which grows without rotation
 - **OS isolation:** reviewed scope is not an enforced permission boundary. Approved shells and interpreters can access files indirectly or contact different destinations during execution. There is no network proxy or exhaustive directory/hard-link scan.
 - **Coverage of trusted code:** Pi, loaded extensions, and external MCP servers are trusted execution components. Other extensions' tools, except MCP tools, do not automatically receive this approval gate, and execution inside an external MCP server is not isolated.
 - **Immediate external cancellation:** stopping a request already sent to an MCP server depends on that server's implementation.
-- **Codex-equivalent security or decisions:** this extension follows the public Guardian policy in Codex [`rust-v0.172.0`](https://github.com/openai/codex/tree/3d86e43b075adeba2193ec5c22ac92f55afd82e6) and the public rule contracts in Codex [`rust-v0.160.0`](https://github.com/openai/codex/tree/a956835d020762cb2b570053af06f643a11c0ecc), not its proprietary model or sandbox.
+- **Codex-equivalent security or decisions:** this extension follows the public policy and rule contracts in Codex [`rust-v0.172.0`](https://github.com/openai/codex/tree/3d86e43b075adeba2193ec5c22ac92f55afd82e6), not its proprietary model or sandbox.
 - **Dependencies of your Pi installation:** dependency fixes recorded for this repository do not change the packages that a separately installed Pi uses. See [dependency security](docs/security/dependencies.md).
 
 ## Build and verify from source

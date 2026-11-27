@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### New
+
+- `.rules` files can use `prefix_rule(..., canonical_matching=True)` from Codex `rust-v0.172.0`. Every word of such a rule matches regardless of letter case and Unicode composition, so `["git", "push"]` also matches `GIT Push`. Files that use it no longer fail to load. Rules without it still match exactly.
+
 ### Improved
 
 - The reviewer uses the Guardian policy from Codex `rust-v0.172.0`. When you approve an action again after it was denied and you saw its risk, the reviewer counts that as your approval even if your wording is not exact. Actions that remain critical are still denied. Because the policy changed, saved allow rules from earlier versions no longer match and are asked again.

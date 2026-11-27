@@ -244,7 +244,7 @@ SDK는 승인 UI 없이 시작합니다. 자동 검토는 호출을 승인할 �
 
 ## 규칙 파일
 
-TypeScript 엔진은 Codex 리비전 `a956835d020762cb2b570053af06f643a11c0ecc`에서 이식한 `.rules` 계약을 평가합니다. [대조 검사](https://github.com/buYoung/pi-packages/blob/main/apps/pi-codex-auto-review/tests/unit/execpolicy-parity.test.mjs)는 이전 네이티브 엔진에서 수집한 출력을 재생하며, 모든 Starlark 프로그램의 동등성을 증명하지는 않습니다.
+TypeScript 엔진은 Codex 리비전 `3d86e43b075adeba2193ec5c22ac92f55afd82e6`(`rust-v0.172.0`)에서 이식한 `.rules` 계약을 평가합니다. [대조 검사](https://github.com/buYoung/pi-packages/blob/main/apps/pi-codex-auto-review/tests/unit/execpolicy-parity.test.mjs)는 리비전 `a956835d020762cb2b570053af06f643a11c0ecc`의 이전 네이티브 엔진에서 수집한 출력을 재생하며, 모든 Starlark 프로그램의 동등성을 증명하지는 않습니다.
 
 예를 들어 사용자가 관리하는 규칙 파일에 다음을 작성합니다.
 
@@ -255,14 +255,15 @@ prefix_rule(["git", "push"], decision="forbidden")
 
 정책의 `ruleFiles`에 경로를 추가하고 다시 로드하거나 재시작합니다. JSON `commandRules`의 `ask`·`deny`에 해당하는 `.rules` 값은 `prompt`·`forbidden`입니다.
 
-- Starlark 함수·조건식·컴프리헨션·문자열 보간, `prefix_rule`, `host_executable`, `network_rule`, `match`·`not_match` 검증을 지원합니다.
+- Starlark 함수·조건식·컴프리헨션·문자열 보간, `prefix_rule`(`canonical_matching=True` 포함), `host_executable`, `network_rule`, `match`·`not_match` 검증을 지원합니다.
+- `prefix_rule(..., canonical_matching=True)`는 그 규칙의 모든 단어를 대안까지 포함해 유니코드 정규 대소문자 무시 비교로 대조합니다. `["git", "push"]`는 `GIT Push`에도, `straße`는 `STRASSE`에도 맞습니다. 프로그램 이름은 파일 시스템에서 확인하지 않고 쓴 그대로 비교합니다. 이 옵션이 없으면 규칙 단어는 정확히 일치해야 합니다.
 - Starlark 값과 정책 함수만 제공하며 호스트 파일·네트워크 함수나 JavaScript `eval`은 제공하지 않습니다.
 - 입출력·평가 단계·자료 크기·중첩·시간을 제한합니다. 잘못된 입력, 지원하지 않는 구문이나 한도 초과는 평가를 거부합니다.
 - 비동기 평가는 취소 가능한 Node.js 작업 스레드, 동기 API는 제한된 Node.js 자식 프로세스를 사용합니다. 규칙 파일이 없으면 평가기를 시작하지 않습니다.
 - 복합 명령에는 가장 강한 판단을 적용합니다. 네트워크 프로토콜 표시는 별도 권한이 아니라 호스트 허용·거부 목록으로 합칩니다.
 - 해석하지 못하는 셸 구문은 신뢰한 전체 명령 규칙이 허용하지 않으면 검토합니다. 이런 bash 명령은 `[<셸>, "-c", 명령]`, PowerShell 스크립트는 `[<PowerShell 실행 파일>, "-Command", 스크립트]`로 대조합니다.
 - 리터럴 PowerShell 스크립트는 Codex PR #20336처럼 내부 명령으로 대조합니다. 중첩된 `bash`·`sh`·`zsh`·`dash`의 `-c`·`-lc`와 `powershell`·`pwsh`의 `-Command`·`-c` 래퍼는 네 단계까지 풉니다. Windows에서는 래퍼 이름을 대소문자 구분 없이, `.exe`·`.cmd`·`.bat`·`.com`을 뺀 이름으로 비교합니다.
-- 알려진 cmdlet이나 기본 별칭으로 시작하는 PowerShell 명령은 대소문자와 상관없이 두 번 대조합니다. 한 번은 쓴 그대로, 한 번은 문서상의 cmdlet 이름(예: `rm`·`del`·`remove-item`은 `Remove-Item`)으로 대조합니다. 둘 중 어느 형태에 맞는 규칙이든 적용되므로 `forbidden`과 `prompt`는 어느 쪽에서 나와도 효력이 있고, `allow`는 여전히 모든 명령을 덮어야 합니다. 규칙 단어는 대소문자까지 정확히 비교하므로, 모든 별칭과 표기를 포괄하려면 `["Remove-Item"]`처럼 문서상의 cmdlet 이름으로 규칙을 쓰세요. `["rm"]`처럼 별칭으로 쓴 규칙은 그 별칭에만 맞습니다. PowerShell 안의 `bash -c` 스크립트에서 나온 명령은 자기 이름을 유지하므로, 그 안의 `sort`는 `Sort-Object`가 아닙니다.
+- 알려진 cmdlet이나 기본 별칭으로 시작하는 PowerShell 명령은 대소문자와 상관없이 두 번 대조합니다. 한 번은 쓴 그대로, 한 번은 문서상의 cmdlet 이름(예: `rm`·`del`·`remove-item`은 `Remove-Item`)으로 대조합니다. 둘 중 어느 형태에 맞는 규칙이든 적용되므로 `forbidden`과 `prompt`는 어느 쪽에서 나와도 효력이 있고, `allow`는 여전히 모든 명령을 덮어야 합니다. 규칙 단어는 `canonical_matching=True`를 지정하지 않으면 대소문자까지 정확히 비교하므로, 모든 별칭과 표기를 포괄하려면 `["Remove-Item"]`처럼 문서상의 cmdlet 이름으로 규칙을 쓰세요. `["rm"]`처럼 별칭으로 쓴 규칙은 그 별칭에만 맞습니다. PowerShell 안의 `bash -c` 스크립트에서 나온 명령은 자기 이름을 유지하므로, 그 안의 `sort`는 `Sort-Object`가 아닙니다.
 - `curl`·`wget`의 목적지가 명시적인 HTTP URL이 아니거나 별도 설정 파일에서 오면 검토합니다.
 
 **`allow` 규칙은 좁게 지정하세요.** 일치하는 명령을 일반 범위 밖에서도 허용할 수 있지만, Full Access가 꺼져 있으면 절대 거부를 해제하지는 못합니다. PowerShell의 와일드카드·공급자 경로나 Windows의 WSL·POSIX 루트 경로처럼 위치를 확인할 수 없는 대상이 있는 명령은 `allow` 규칙과 맞아도 검토합니다.
