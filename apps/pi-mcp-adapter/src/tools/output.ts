@@ -16,8 +16,8 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ImageContent, JsonValue, TextContent } from "@earendil-works/pi-ai";
-import { type AgentToolResult, formatSize } from "@earendil-works/pi-coding-agent";
-import { type CallToolResult, type ContentBlock, toLlmContent } from "@earendil-works/pi-mcp";
+import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
+import { type CallToolResult, type ContentBlock, toLlmContent, toMcpModelContent } from "@earendil-works/pi-mcp";
 import { Effect } from "effect";
 import { errorMessage, fromPromise } from "../shared/effects.ts";
 
@@ -132,64 +132,21 @@ export interface ConvertMcpResultOptions {
   maxOutputBytes?: number;
 }
 
-/** File extension for a saved binary resource: the one its URI ends in, else `.bin`. */
-function extensionOf(uri: string): string {
-  const path = URL.canParse(uri) ? new URL(uri).pathname : uri;
-  return /\.[A-Za-z0-9]{1,8}$/.exec(path)?.[0] ?? ".bin";
-}
-
-/** Blobs of these types are shown as text. */
-function isTextMimeType(mimeType: string | undefined): boolean {
-  if (!mimeType) return false;
-  const type = mimeType.split(";", 1)[0].trim().toLowerCase();
-  return type.startsWith("text/") || type === "application/json" || type.endsWith("+json") || type.endsWith("+xml");
-}
-
-/** Model-facing content of one block of `server`'s result. */
-function blockToContent(
-  server: string,
-  block: ContentBlock,
-  options: ConvertMcpResultOptions,
-): Effect.Effect<ModelContent> {
-  if (block.type === "resource_link") {
-    const details = [block.mimeType, block.size === undefined ? undefined : formatSize(block.size)].filter(Boolean);
-    const read = options.resourceReaderTool ? `. Read it with ${options.resourceReaderTool} (server "${server}")` : "";
-    const description = block.description ? `: ${block.description}` : "";
-    return Effect.succeed([
-      {
-        type: "text",
-        text: `[Resource ${block.uri} "${block.title ?? block.name}"${details.length > 0 ? ` (${details.join(", ")})` : ""}${description}${read}]`,
-      },
-    ]);
-  }
-  if (block.type === "resource" && "blob" in block.resource && !block.resource.mimeType?.startsWith("image/")) {
-    const { uri, mimeType, blob } = block.resource;
-    const data = Buffer.from(blob, "base64");
-    if (isTextMimeType(mimeType)) return Effect.succeed([{ type: "text", text: data.toString("utf8") }]);
-    const kind = `${mimeType ?? "unknown type"}, ${formatSize(data.length)}`;
-    return saveToTempFile(data, extensionOf(uri)).pipe(
-      Effect.match({
-        onSuccess: (path): ModelContent => [
-          { type: "text", text: `[Binary resource ${uri} (${kind}) saved to ${path}]` },
-        ],
-        onFailure: (error): ModelContent => [
-          { type: "text", text: `[Binary resource ${uri} (${kind}) could not be saved: ${errorMessage(error)}]` },
-        ],
-      }),
-    );
-  }
-  return Effect.sync(() => toLlmContent({ content: [block] }));
-}
-
 /** Model-facing content of `server`'s content blocks, before the output limit. */
 export function toModelContent(
   server: string,
   blocks: readonly ContentBlock[],
   options: ConvertMcpResultOptions = {},
 ): Effect.Effect<ModelContent> {
-  return Effect.map(
-    Effect.forEach(blocks, (block) => blockToContent(server, block, options), { concurrency: "unbounded" }),
-    (contents) => contents.flat(),
+  return Effect.promise(() =>
+    toMcpModelContent(
+      server,
+      { content: [...blocks] },
+      {
+        saveOutput: (data, extension) => Effect.runPromise(saveToTempFile(data, extension)),
+        ...(options.resourceReaderTool ? { readResourceTool: options.resourceReaderTool } : {}),
+      },
+    ),
   );
 }
 
