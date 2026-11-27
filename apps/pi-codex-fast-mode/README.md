@@ -121,7 +121,7 @@ Like the Codex CLI, the extension uses the OpenAI Codex model catalog to decide 
 | Provider | Built-in Fast model IDs | Built-in Ultrafast model IDs |
 | --- | --- | --- |
 | `openai` | `gpt-5.4`, `gpt-5.5`, `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-luna` | `gpt-6-astra`, `gpt-6.1-sol` |
-| `openai-codex` | All of the above plus `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` | `gpt-6-astra`, `gpt-6.1-sol` |
+| `openai-codex` | `gpt-5.5`, `gpt-6.2-sol`, `gpt-6.2-astra`, `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` | `gpt-6-astra`, `gpt-6.1-sol` |
 
 Neither the catalog nor the built-in list promises that your provider/account offers every model or service tier.
 
