@@ -5,7 +5,12 @@ import {
     type ExtensionToolContext,
     getAgentDir,
 } from "@earendil-works/pi-coding-agent";
-import { type ImageRequestPlan, parseImageGenArguments } from "./arguments.js";
+import {
+    GIF_UNAVAILABLE_MESSAGE,
+    IMAGE_MODEL,
+    type ImageRequestPlan,
+    parseImageGenArguments,
+} from "./arguments.js";
 import { generatedImageFormat, saveGeneratedImage } from "./artifact.js";
 import { resolveOpenAiCredentials } from "./auth.js";
 import {
@@ -14,7 +19,10 @@ import {
     ImagesClient,
     type ReferenceImage,
 } from "./backend.js";
-import { IMAGE_GEN_DESCRIPTION } from "./description.js";
+import {
+    IMAGE_GEN_DESCRIPTION,
+    IMAGE_GEN_GIF_DESCRIPTION,
+} from "./description.js";
 import {
     collectRecentImages,
     loadReferenceImages,
@@ -27,7 +35,7 @@ import {
     generatedImageResult,
     type ImageGenDetails,
 } from "./result.js";
-import { ImageGenSettingsStore } from "./settings.js";
+import { type ImageGenSettings, ImageGenSettingsStore } from "./settings.js";
 
 export const IMAGE_GEN_TOOL_NAME = "image_gen";
 export const IMAGE_GEN_TOOL_LABEL = "Image generation";
@@ -38,11 +46,33 @@ type RegisteredToolDefinition = Parameters<ExtensionAPI["registerTool"]>[0];
  * Schema the model sees, equal to what Codex sends for its imagegen tool: schemars output
  * reduced to the keywords Codex's tool-schema type keeps (FDD §9.2). Properties are in the
  * sorted order Codex's `BTreeMap` serializes. Limits are enforced in `prepareArguments`, not
- * here, so Pi's generic validation message is unreachable. `gif` is the property Codex adds when
- * its GIF output is on; the documented ranges are omitted the same way.
+ * here, so Pi's generic validation message is unreachable.
  */
 export const IMAGE_GEN_SCHEMA = {
     type: "object",
+    properties: {
+        num_last_images_to_include: { type: ["integer", "null"] },
+        prompt: { type: "string" },
+        referenced_image_paths: {
+            type: ["array", "null"],
+            items: { type: "string" },
+        },
+        transparent_background: {
+            type: "boolean",
+            description:
+                "Whether the output should have a transparent background. Defaults to false.",
+        },
+    },
+    required: ["prompt"],
+    additionalProperties: false,
+} as const;
+
+/**
+ * `IMAGE_GEN_SCHEMA` plus the `gif` property Codex advertises when GIF output is on: schemars
+ * output for `Option<GifOptions>` reduced the same way, so the documented ranges are omitted.
+ */
+export const IMAGE_GEN_GIF_SCHEMA = {
+    ...IMAGE_GEN_SCHEMA,
     properties: {
         gif: {
             type: ["object", "null"],
@@ -60,20 +90,8 @@ export const IMAGE_GEN_SCHEMA = {
                 },
             },
         },
-        num_last_images_to_include: { type: ["integer", "null"] },
-        prompt: { type: "string" },
-        referenced_image_paths: {
-            type: ["array", "null"],
-            items: { type: "string" },
-        },
-        transparent_background: {
-            type: "boolean",
-            description:
-                "Whether the output should have a transparent background. Defaults to false.",
-        },
+        ...IMAGE_GEN_SCHEMA.properties,
     },
-    required: ["prompt"],
-    additionalProperties: false,
 } as const;
 
 export type { ImageGenDetails };
@@ -189,32 +207,60 @@ async function gifStillPreview(
     return preview?.mimeType === "image/png" ? preview.data : undefined;
 }
 
-export const imageGenTool: RegisteredToolDefinition = {
-    name: IMAGE_GEN_TOOL_NAME,
-    label: IMAGE_GEN_TOOL_LABEL,
-    description: IMAGE_GEN_DESCRIPTION,
-    parameters:
-        IMAGE_GEN_SCHEMA as unknown as RegisteredToolDefinition["parameters"],
-    annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        openWorldHint: true,
-    },
-    prepareArguments: (args) => parseImageGenArguments(args).arguments,
-    renderCall: renderImageGenCall,
-    renderResult: renderImageGenResult,
-    async execute(toolCallId, params, signal, onUpdate, ctx) {
-        const { plan } = parseImageGenArguments(params);
-        signal?.throwIfAborted();
-        try {
-            plan.model = await new ImageGenSettingsStore().load();
-        } catch (error) {
-            signal?.throwIfAborted();
-            return errorResult(
-                `image generation failed: unable to load model settings: ${error instanceof Error ? error.message : String(error)}`,
-                detailsForPlan(plan),
+/**
+ * The `image_gen` definition for a session. With GIF output on, the schema gains `gif` and the
+ * description gains Codex's GIF guidance; otherwise a `gif` argument is rejected while parsing.
+ * Execution rereads settings and also rejects `gif` once the setting has been turned off.
+ */
+export function createImageGenTool(
+    isGifEnabled: boolean,
+): RegisteredToolDefinition {
+    return {
+        name: IMAGE_GEN_TOOL_NAME,
+        label: IMAGE_GEN_TOOL_LABEL,
+        description: isGifEnabled
+            ? IMAGE_GEN_GIF_DESCRIPTION
+            : IMAGE_GEN_DESCRIPTION,
+        parameters: (isGifEnabled
+            ? IMAGE_GEN_GIF_SCHEMA
+            : IMAGE_GEN_SCHEMA) as unknown as RegisteredToolDefinition["parameters"],
+        annotations: {
+            readOnlyHint: false,
+            destructiveHint: false,
+            openWorldHint: true,
+        },
+        prepareArguments: (args) =>
+            parseImageGenArguments(args, IMAGE_MODEL, isGifEnabled).arguments,
+        renderCall: renderImageGenCall,
+        renderResult: renderImageGenResult,
+        async execute(toolCallId, params, signal, onUpdate, ctx) {
+            const { plan } = parseImageGenArguments(
+                params,
+                IMAGE_MODEL,
+                isGifEnabled,
             );
-        }
-        return executeImageGen(toolCallId, plan, signal, onUpdate, ctx);
-    },
-};
+            signal?.throwIfAborted();
+            let settings: ImageGenSettings;
+            try {
+                settings = await new ImageGenSettingsStore().load();
+            } catch (error) {
+                signal?.throwIfAborted();
+                return errorResult(
+                    `image generation failed: unable to load model settings: ${error instanceof Error ? error.message : String(error)}`,
+                    detailsForPlan(plan),
+                );
+            }
+            if (plan.gif !== undefined && !settings.isGifEnabled) {
+                return errorResult(
+                    GIF_UNAVAILABLE_MESSAGE,
+                    detailsForPlan(plan),
+                );
+            }
+            plan.model = settings.model;
+            return executeImageGen(toolCallId, plan, signal, onUpdate, ctx);
+        },
+    };
+}
+
+/** The definition registered at load, before session settings are read: GIF output off. */
+export const imageGenTool: RegisteredToolDefinition = createImageGenTool(false);

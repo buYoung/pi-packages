@@ -26,7 +26,7 @@ function recordingClient() {
 }
 
 function plan(args) {
-    return parseImageGenArguments(args, "gpt-image-2").plan;
+    return parseImageGenArguments(args, "gpt-image-2", true).plan;
 }
 
 test("generation flattens GIF controls as Codex's ImageOutput::Gif", async () => {

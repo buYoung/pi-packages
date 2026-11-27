@@ -7,7 +7,12 @@ import {
     latestBranchRecord,
 } from "./exposure.js";
 import { disableImageZoom, enableImageZoom } from "./image-zoom.js";
-import { IMAGE_GEN_TOOL_NAME, imageGenTool } from "./tool.js";
+import { ImageGenSettingsStore } from "./settings.js";
+import {
+    createImageGenTool,
+    IMAGE_GEN_TOOL_NAME,
+    imageGenTool,
+} from "./tool.js";
 
 export type {
     GifOptions,
@@ -39,16 +44,28 @@ export {
 /**
  * Pi extension entry: registers the Codex-compatible `image_gen` tool and gates its exposure
  * (and the bundled `imagegen` skill) on Pi's `openai-codex` login at session start and before each
- * user prompt (FDD §9.9, §9.10).
+ * user prompt (FDD §9.9, §9.10). Each session start re-registers the tool when the saved `gif`
+ * setting changes whether its schema offers GIF output.
  */
 const imageGenExtension: ExtensionFactory = (pi) => {
     pi.registerTool(imageGenTool);
+    let isGifRegistered = false;
     registerImageGenSettingsCommand(pi);
     const state = createExposureState();
-    pi.on("session_start", (_event, ctx) => {
+    pi.on("session_start", async (_event, ctx) => {
         state.hiddenByExtension = undefined;
         applyExposureDecision(pi, ctx, state);
         if (ctx.mode === "tui") enableImageZoom(IMAGE_GEN_TOOL_NAME);
+        // Unreadable settings leave GIF output off here; execution reports the settings error.
+        const isGifEnabled = await new ImageGenSettingsStore()
+            .load()
+            .then((settings) => settings.isGifEnabled)
+            .catch(() => false);
+        if (isGifEnabled !== isGifRegistered) {
+            // Pi replaces a same-name tool and keeps its active or hidden state.
+            pi.registerTool(createImageGenTool(isGifEnabled));
+            isGifRegistered = isGifEnabled;
+        }
     });
     pi.on("session_shutdown", () => {
         disableImageZoom();

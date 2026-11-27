@@ -12,6 +12,10 @@ export function isImageModel(value: unknown): value is ImageModel {
 /** Maximum reference images per edit (`MAX_EDIT_IMAGES` in Codex `tool.rs`). */
 export const MAX_EDIT_IMAGES = 5;
 
+/** `RespondToModel` text when `gif` is requested while GIF output is off (Codex `tool.rs`). */
+export const GIF_UNAVAILABLE_MESSAGE =
+    "GIF output is unavailable in this session.";
+
 const FIELD_NAMES = [
     "prompt",
     "gif",
@@ -282,11 +286,16 @@ function planRequest(
 /**
  * Validates raw tool arguments in Codex order and returns both the normalized arguments
  * (for Pi's schema validation) and the request plan. Throws `Error` with Codex's messages.
+ * A `gif` argument is rejected after deserialization unless GIF output is enabled.
  */
 export function parseImageGenArguments(
     args: unknown,
     model: ImageModel = IMAGE_MODEL,
+    isGifEnabled = false,
 ): ParsedImageGenArguments {
     const normalized = deserializeArguments(args);
+    if (normalized.gif !== undefined && !isGifEnabled) {
+        throw new Error(GIF_UNAVAILABLE_MESSAGE);
+    }
     return { arguments: normalized, plan: planRequest(normalized, model) };
 }

@@ -22,6 +22,9 @@ const DESCRIPTION_LINES = [
     "- Always use this tool for image editing unless the user explicitly requests otherwise.",
 ];
 
+/** Model-facing description of the `image_gen` tool (Codex text with the FDD §9.3 edits). */
+export const IMAGE_GEN_DESCRIPTION = `${DESCRIPTION_LINES.join("\n")}\n`;
+
 // Verbatim from OpenAI Codex `codex-rs/ext/image-generation/imagegen_gif_description.md`
 // (Apache-2.0, Copyright 2025 OpenAI), added in openai/codex#59073.
 const GIF_DESCRIPTION_LINES = [
@@ -29,12 +32,7 @@ const GIF_DESCRIPTION_LINES = [
     "- Use imagegen only for simple GIFs with 2–16 frames. For more complex animations or more than 16 frames, use other tools instead.",
     "- Set `gif` to request GIF output. Use `{}` for the defaults (9 frames, 200 ms per frame), or set `frame_count` and `frame_duration_ms`.",
     "- To edit a previously generated GIF, first inspect its frames, then create a spritesheet with equal-sized cells in a regular grid. Pass that spritesheet through `referenced_image_paths` and set `gif` to generate the new GIF. Do not pass the GIF itself as an edit input.",
-    // Added for Pi: Codex offers `gif` only behind a default-off feature; Pi always offers it.
-    "- Set `gif` only when the user explicitly asks for a GIF or an animated image.",
 ];
 
-/**
- * Model-facing description of the `image_gen` tool: the Codex text with the FDD §9.3 edits, then
- * the GIF guidance, joined the way Codex joins the two files when its GIF output is on.
- */
-export const IMAGE_GEN_DESCRIPTION = `${DESCRIPTION_LINES.join("\n")}\n\n${GIF_DESCRIPTION_LINES.join("\n")}\n`;
+/** The description with GIF guidance appended the way Codex joins the two files when GIF output is on. */
+export const IMAGE_GEN_GIF_DESCRIPTION = `${IMAGE_GEN_DESCRIPTION}\n${GIF_DESCRIPTION_LINES.join("\n")}\n`;

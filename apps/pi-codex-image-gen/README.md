@@ -63,7 +63,7 @@ Replace the example path with your file. Ask explicitly for transparency when ne
 | `transparent_background` | Boolean; defaults to `false` |
 | `referenced_image_paths` | Up to five absolute local paths; `~/` expands to the home directory |
 | `num_last_images_to_include` | Use the latest 1–5 images from the current model-visible conversation |
-| `gif` | Request an [animated GIF](#animated-gif-output); set only when you ask for one |
+| `gif` | Request an animated GIF; offered only when [GIF output](#animated-gif-output) is turned on |
 
 The model sets these arguments from your request: `referenced_image_paths` for local files, `num_last_images_to_include` for conversation images, and neither for a new image. One call cannot use both reference arguments. Unknown fields, invalid types/counts, and conflicting reference choices are rejected before a request is sent.
 
@@ -92,7 +92,18 @@ These model names are sent to the subscription backend. Their presence in the se
 
 ## Animated GIF output
 
-Ask for a GIF or an animated image in your request, and the model sets `gif`. For example:
+GIF output is off by default, as it is in Codex, where it is still under development. To turn it on, add `"gif": true` to the settings file above:
+
+```json
+{
+  "model": "gpt-image-2.5",
+  "gif": true
+}
+```
+
+The tool offers the `gif` argument and Codex's GIF guidance from the next session start (a new session, `/reload`, or restarting Pi). Every request rereads the file, so removing the key or setting it to `false` stops GIF requests from the next call. Any value other than `true` or `false` is an invalid setting and returns an error.
+
+Ask for a simple animation:
 
 ```text
 Use image_gen to create a two-frame GIF of a pixel alternating between red and blue.
@@ -103,7 +114,7 @@ Use image_gen to create a two-frame GIF of a pixel alternating between red and b
 | `{}` | Backend defaults: 9 frames, 200 ms per frame |
 | `{"frame_count": 2, "frame_duration_ms": 200}` | 2–16 frames and 20–2000 ms per frame; the backend checks these ranges |
 
-A GIF result is saved as `.gif` with the animation intact. The model and Pi's terminal receive a still PNG of the first frame; click the saved path to view the animation. If Pi cannot make that preview, the result contains only the saved path. To change a GIF, the model is told to build a spritesheet of its frames and pass that as a reference image, not the GIF itself. The backend may not accept GIF requests for your account.
+A GIF result is saved as `.gif` with the animation intact. The model and Pi's terminal receive a still PNG of the first frame; click the saved path to view the animation. If Pi cannot make that preview, the result contains only the saved path. To change a GIF, the model is told to build a spritesheet of its frames and pass that as a reference image, not the GIF itself. Turning the setting on does not prove that your account or the backend accepts GIF requests.
 
 ## Output and storage
 
@@ -141,8 +152,9 @@ In the interactive terminal, each `image_gen` call shows the request (operation,
 | Symptom | Action |
 | --- | --- |
 | Tool hidden or missing subscription credentials | Run `/login openai-codex` again. Keep your conversation model selected. If you turned the tool off yourself (with `--tools`, `--exclude-tools`, `--no-tools`, or Pi's `defaultTools` setting), the extension does not turn it back on; start Pi with `image_gen` enabled. |
-| Invalid image-model setting | Set `model` to `gpt-image-2.5` or `gpt-image-2` in `<agentDir>/codex-image-gen/settings.json` (the path in the error); the next request rereads it. |
-| `GIF output is not enabled for this request.` | The ChatGPT backend has not enabled GIF output for this account. Ask for a still image instead. |
+| Invalid image-model setting | Set `model` to `gpt-image-2.5` or `gpt-image-2` in `<agentDir>/codex-image-gen/settings.json` (the path in the error); the next request rereads it. Set `gif` to `true` or `false`, or remove it. |
+| `GIF output is unavailable in this session.` | Set `"gif": true` in the settings file, then start a new session or run `/reload`. |
+| `GIF output is not enabled for this request.` | The ChatGPT backend has not enabled GIF output for this account. Remove `gif` from the settings file or set it to `false`. |
 | Local reference cannot be read/decoded | Check that the path is absolute (or starts with `~/`), the file is readable, and it is a valid PNG, JPEG, or WebP image or another format Pi can decode. |
 | Requested recent images are unavailable | Attach them again or use their saved local paths; images outside the current model-visible context are not recovered automatically. |
 | Backend rejects the model or account | Check your account access and the returned error. The extension does not substitute another model or use an API key as a subscription fallback. |
