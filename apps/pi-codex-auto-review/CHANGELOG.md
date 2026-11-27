@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-11-28
+
 ### New
 
 - `.rules` files can use `prefix_rule(..., canonical_matching=True)` from Codex `rust-v0.172.0`. Every word of such a rule matches regardless of letter case and Unicode composition, so `["git", "push"]` also matches `GIT Push`. Files that use it no longer fail to load. Rules without it still match exactly.
