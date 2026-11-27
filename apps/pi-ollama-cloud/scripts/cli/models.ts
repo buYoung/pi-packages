@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { MODEL_PRICING } from "../../src/generated/catalog.generated.ts";
+import { MODEL_MAX_OUTPUT_TOKENS } from "../../src/generated/limits.generated.ts";
 import { fetchModelIds, refreshOllamaCloudModels } from "../../src/models/api.ts";
 import { assembleModels, resolveModelMetadata } from "../../src/models/metadata.ts";
 import { isRecord } from "../../src/models/types.ts";
@@ -50,18 +52,23 @@ export const modelsFeature: VerificationFeature = {
       assert.equal(all.length, 6);
       assert.equal(all.find((m) => m.requestedId === "clef:27b")?.isChatCandidate, false);
       assert.equal(assembleModels(raw).length, 5);
-      // The generated snapshot prices beam and muse-spark-open; the other two have no standard price.
-      const generatedPriceIds = new Set(["beam", "muse-spark-open"]);
+      // Fixture IDs can also be in the generated snapshot; each field's source follows the snapshot's own entries.
       for (const id of ["beam", "muse-spark-open", "deepseek-v4.1-flash:1017", "glm-5.3-flash:cloud"]) {
         const metadata = resolveModelMetadata(id, raw[id]);
-        assert.equal(metadata.sources.price, generatedPriceIds.has(id) ? "generated" : "unknown");
-        assert.equal(metadata.sources.maxTokens, "fallback");
-        assert.equal(metadata.maxTokens, 32768);
+        const isLimitGenerated = Object.hasOwn(MODEL_MAX_OUTPUT_TOKENS, id);
+        assert.equal(metadata.sources.price, Object.hasOwn(MODEL_PRICING, id) ? "generated" : "unknown");
+        assert.equal(metadata.sources.maxTokens, isLimitGenerated ? "generated" : "fallback");
+        assert.equal(metadata.maxTokens, isLimitGenerated ? MODEL_MAX_OUTPUT_TOKENS[id] : 32768);
         assert.equal(metadata.sources.contextWindow, "api");
         assert.equal(metadata.sources.thinking, "api");
         assert.equal(metadata.metadataId, id);
       }
       assert.equal(resolveModelMetadata("glm-5.3-flash", raw["glm-5.3-flash"]).maxTokens, 524288);
+      // A tagged ID never inherits its family's limit.
+      assert.equal(
+        resolveModelMetadata("glm-5.3-flash:cloud", raw["glm-5.3-flash:cloud"]).sources.maxTokens,
+        "fallback",
+      );
     });
     await check("Safe handling of unknown thinking, malformed values, legacy input, and off exceptions", async () => {
       const future = resolveModelMetadata("future", {

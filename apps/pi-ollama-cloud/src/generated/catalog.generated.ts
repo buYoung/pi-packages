@@ -40,7 +40,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       output: 0.4,
     },
     input: ["text"],
-    maxTokens: 32768,
+    maxTokens: 131072,
     reasoning: true,
     thinkingLevelMap: {
       high: "high",
@@ -157,7 +157,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       output: 0,
     },
     input: ["text", "image"],
-    maxTokens: 32768,
+    maxTokens: 393216,
     reasoning: true,
     thinkingLevelMap: {
       high: "high",
@@ -430,7 +430,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       output: 2.501,
     },
     input: ["text", "image"],
-    maxTokens: 32768,
+    maxTokens: 131072,
     reasoning: true,
     thinkingLevelMap: {
       high: null,
@@ -469,7 +469,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       output: 1,
     },
     input: ["text", "image"],
-    maxTokens: 32768,
+    maxTokens: 131072,
     reasoning: true,
     thinkingLevelMap: {
       high: "high",
@@ -625,7 +625,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       output: 10,
     },
     input: ["text", "image"],
-    maxTokens: 32768,
+    maxTokens: 524288,
     reasoning: true,
     thinkingLevelMap: {
       high: "high",
@@ -664,7 +664,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       output: 0.28,
     },
     input: ["text", "image"],
-    maxTokens: 32768,
+    maxTokens: 131072,
     reasoning: true,
     thinkingLevelMap: {
       high: null,
@@ -703,7 +703,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       output: 0.87,
     },
     input: ["text", "image"],
-    maxTokens: 32768,
+    maxTokens: 131072,
     reasoning: true,
     thinkingLevelMap: {
       high: null,
@@ -780,7 +780,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       output: 0.6,
     },
     input: ["text", "image"],
-    maxTokens: 32768,
+    maxTokens: 524288,
     reasoning: true,
     thinkingLevelMap: {
       high: "high",
@@ -856,7 +856,7 @@ export const GENERATED_MODELS: ChatModelConfig[] = [
       output: 4.25,
     },
     input: ["text", "image"],
-    maxTokens: 32768,
+    maxTokens: 524288,
     reasoning: true,
     thinkingLevelMap: {
       high: "high",
@@ -1281,7 +1281,7 @@ export const GENERATED_CATALOG_INFO = {
     "nemotron-3-super",
     "nemotron-3-ultra",
   ],
-  generatedAt: "2026-11-27T05:36:59.250Z",
+  generatedAt: "2026-11-27T09:44:50.238Z",
   nativeThinkingIds: [
     "beam",
     "deepseek-v4-pro:0813",
@@ -1312,30 +1312,20 @@ export const GENERATED_CATALOG_INFO = {
   schemaVersion: 1,
   sources: {
     cloud: {
-      observedAt: "2026-11-27T05:36:57.891Z",
+      observedAt: "2026-11-27T09:44:48.904Z",
       url: "https://ollama.com",
     },
     limits: "existing measurements; not reprobed",
     pricing: {
-      observedAt: "2026-11-27T05:36:58.111Z",
+      observedAt: "2026-11-27T09:44:49.125Z",
       tier: "standard",
       url: "https://ollama.com/pricing",
     },
     reasoning: {
-      observedAt: "2026-11-27T05:36:59.249Z",
+      observedAt: "2026-11-27T09:44:50.237Z",
       url: "https://models.dev/api.json",
     },
   },
-  unknownLimitIds: [
-    "beam",
-    "deepseek-v4.1-flash:1017",
-    "hy4",
-    "inkling-2-small",
-    "kimi-k3.1-pro",
-    "mimo-v2.6-flash",
-    "mimo-v2.6-pro",
-    "minimax-m3.1-flash",
-    "muse-spark-open",
-  ],
+  unknownLimitIds: [],
   unknownPricingIds: ["deepseek-v4.1-flash:1017"],
 };

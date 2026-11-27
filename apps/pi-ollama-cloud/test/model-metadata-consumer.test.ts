@@ -6,6 +6,7 @@ import type { ExtensionAPI, ProviderConfig } from "@earendil-works/pi-coding-age
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { chatResponse, withMockFetch } from "../scripts/cli/mock-transport.ts";
 import { modelsFeature } from "../scripts/cli/models.ts";
+import { MODEL_MAX_OUTPUT_TOKENS } from "../src/generated/limits.generated.ts";
 import extension from "../src/index.ts";
 import { isRecord } from "../src/models/types.ts";
 import { completeOllamaChat } from "../src/pi/chat.ts";
@@ -72,7 +73,7 @@ describe("model metadata consumers", () => {
           expect(models.some((model) => model.id === "clef:27b")).toBe(false);
           expect(models.find((model) => model.id === "beam")).toMatchObject({
             thinkingLevelMap: { xhigh: "xhigh", max: "max" },
-            maxTokens: 32768,
+            maxTokens: MODEL_MAX_OUTPUT_TOKENS.beam ?? 32768,
           });
           expect(publications[0].persist?.models.find((model) => model.id === "glm-5.3-flash:cloud")).toMatchObject({
             id: "glm-5.3-flash:cloud",

@@ -7,7 +7,7 @@
 ### 달라진 것
 
 - Effect 런타임 의존성을 4.1.6으로 업데이트했습니다.
-- 2026년 11월 27일 Ollama Cloud 기준으로 생성 모델 카탈로그·가격·추론 수준을 갱신했습니다(18 -> 24개). `beam`, `deepseek-v4.1-flash:1017`, `hy4`, `inkling-2-small`, `kimi-k3.1-pro`, `mimo-v2.6-flash`, `mimo-v2.6-pro`, `minimax-m3.1-flash`, `muse-spark-open`을 추가하고, 더는 목록에 없는 `minimax-m2.7`, `mistral-large-3:675b`, `nemotron-3-nano:30b`를 뺐습니다. 새 모델은 출력 한도를 측정하기 전까지 32768토큰을 씁니다.
+- 2026년 11월 27일 Ollama Cloud 기준으로 생성 모델 카탈로그·가격·추론 수준을 갱신했습니다(18 -> 24개). `beam`, `deepseek-v4.1-flash:1017`, `hy4`, `inkling-2-small`, `kimi-k3.1-pro`, `mimo-v2.6-flash`, `mimo-v2.6-pro`, `minimax-m3.1-flash`, `muse-spark-open`을 추가하고, 더는 목록에 없는 `minimax-m2.7`, `mistral-large-3:675b`, `nemotron-3-nano:30b`를 뺐습니다. 새 모델의 출력 한도는 실제 API로 측정했습니다. `beam`, `hy4`, `inkling-2-small`, `mimo-v2.6-flash`, `mimo-v2.6-pro`는 131072토큰, `deepseek-v4.1-flash:1017`은 393216토큰, `kimi-k3.1-pro`, `minimax-m3.1-flash`, `muse-spark-open`은 524288토큰 이상입니다.
 - Ollama 가격표에 `deepseek-v4-pro`처럼 기본 이름으로 적힌 가격은 카탈로그에 그 기본 이름을 가진 ID가 하나뿐일 때 `deepseek-v4-pro:0813` 같은 태그 ID에 적용합니다.
 
 ### 해결된 것
