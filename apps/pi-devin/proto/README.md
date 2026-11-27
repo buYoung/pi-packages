@@ -1,6 +1,6 @@
 # proto sources
 
-`.proto` sources for the Devin protocol schema. The runtime (`src/core/protocol/protobuf.ts`) parses this directory directly, and the npm package ships it (`files` in `package.json` lists `proto`). `buf` remains a development-only compile check; no built descriptor is shipped.
+`.proto` sources for the Devin protocol schema. `scripts/generate-schema.mjs` builds the runtime schema `src/core/protocol/schema.generated.ts` from this directory, keeping only the types the RPCs named in `src/` reach; the npm package ships that part inside its `dist/` bundle, not this directory. `buf` remains a development-only compile check; no built descriptor is shipped.
 
 ## Layout
 
@@ -8,7 +8,7 @@
 - Declarations, numbers, labels, proto3 optional, oneofs, maps, reserved ranges, extensions, defaults, custom `json_name` and options were copied from the original as is, including the `buf.validate` custom options.
 - The original has no SourceCodeInfo. The original comments and formatting cannot be recovered, so there are no comments other than the notes on observed additions. Types in the same package use relative names; types from other packages use the fully qualified name with a leading dot (`.exa.codeium_common_pb.Metadata`).
 - The current tree is edited directly and keeps the original logical paths and declaration order. Only the order in 3 files was adjusted so the compiler produces the original declaration order: the added value 7 of `DisplayOption` moved after the base descriptor's values, and the nested messages `Index.RepoStats` and `SourceInfo.Extension` moved before the map fields. Fields, numbers and options match the previously printed tree (the `descriptor-to-proto.mjs` output).
-- This source is now the shipped schema itself. The runtime loads it directly, so edits take effect on the next start. The original third-party descriptor is not shipped and not kept in the package.
+- This source is the source of the shipped schema. Edits take effect once the schema is generated again. The original third-party descriptor is not shipped and not kept in the package.
 
 ## Added definitions
 
@@ -59,7 +59,7 @@ When a new wire definition appears, change the following together.
 
 1. Add the definition with an `[added field]` (or `[added value]` for enums) comment to the relevant `.proto`. Put it after the original declarations so the declaration order stays stable.
 2. Add the evidence and whether the name is local to `observedAdditions` in `verification/followup/proto-provenance.json`.
-3. There is no build step: the runtime reads this directory, so edit the sources directly and rerun the verifier.
+3. Edit the sources directly, then run `pnpm run generate:schema`; `tests/protocol.test.ts` fails while the generated schema is out of date.
 
 Then run the verifier and save the report under a new per-task name (for example, `proto-check-13.json`) instead of overwriting an earlier report. If the schema changes, redo the artifact verification (06).
 

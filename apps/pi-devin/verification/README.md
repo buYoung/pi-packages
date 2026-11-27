@@ -39,15 +39,16 @@ In the same shell and package directory:
 check_env pnpm typecheck
 check_env pnpm verify:offline
 check_env node cli.ts --help
+check_env pnpm build
 check_env node verification/scripts/validate-package.mjs "$package_dir" \
   --expect "$package_dir/verification/inventory.json" \
   --pi-root "$PI_ROOT" --runtime --pack \
   --report "$check_dir/package-check.json"
 ```
 
-Expected: exit code 0, all offline cases passing, and `status: "pass"` in `package-check.json`. The inventory independently declares the single entry point `index.ts`, one tool `devin_sidekick` and two commands `devin` and `devin-fusion`, empty flag/skill/prompt/theme registrations, 164 required files including the bundled `@effect/platform-node` and `@effect/platform-node-shared`, and the dev-only paths that must be absent from the archive (`devOnlyPaths`, including the source-only CLI `cli.ts`, `src/cli/` and unbundled `node_modules/` entries). Type-only modules and the modules only the CLI loads are left out with `!` entries in `files`. Check the import closure of the shipped entry point with `node verification/scripts/import-closure.mjs . --expect verification/inventory.json`.
+Expected: exit code 0, all offline cases passing, and `status: "pass"` in `package-check.json`. The inventory independently declares the single entry point `dist/index.js`, one tool `devin_sidekick` and two commands `devin` and `devin-fusion`, empty flag/skill/prompt/theme registrations, 7 required files including `dist/THIRD_PARTY_LICENSES.txt`, and the dev-only paths that must be absent from the archive (`devOnlyPaths`: the sources `index.ts`, `cli.ts`, `src/` and `proto/`, the build scripts and any `node_modules/`). `pnpm build` writes `dist/` with `scripts/build.mjs`, which fails when `dist/index.js` would load Effect or protobufjs before the instance loads; the runtime check loads the package through its manifest, so it needs that build. Check the import closure of the shipped entry point with `node verification/scripts/import-closure.mjs . --expect verification/inventory.json`.
 
-`--pack` builds the real archive the way the release workflow does, with `pnpm pack --config.node-linker=hoisted` so the bundled `@effect/platform-node` packages are stored as real files, and extracts it. Use `artifact.archive` and `artifact.packageDir` from the report. The `skipped` status the tool shows for `semantic import and bundle inspection` and `extracted artifact runtime and behavior` must be covered separately by the checks below. Resource checks alone do not prove the provider works. Behavior checks for features that do not exist are `not_applicable`.
+`--pack` builds the real archive the way the release workflow does, with `pnpm pack`, whose `prepack` runs `scripts/build.mjs`, and extracts it. Use `artifact.archive` and `artifact.packageDir` from the report. The `skipped` status the tool shows for `semantic import and bundle inspection` and `extracted artifact runtime and behavior` must be covered separately by the checks below. Resource checks alone do not prove the provider works. Behavior checks for features that do not exist are `not_applicable`.
 
 ## 3. Preparing production dependencies only
 
@@ -64,7 +65,7 @@ check_env npm install --prefix "$consumer_dir" --omit=dev --ignore-scripts \
 check_env node verification/scripts/prepare-artifact.mjs "$consumer_dir" "$artifact_dir"
 ```
 
-`prepare-artifact.mjs` checks the fresh consumer's lock and copies only production dependencies into the real extracted artifact. It keeps the archive's bundled `node_modules/@effect/` packages and does not overwrite anything there. It copies no Pi host or dev-only packages and does not change the archive's runtime files. `@types/node` may be installed as a production dependency of protobufjs.
+`prepare-artifact.mjs` checks the fresh consumer's lock and copies only production dependencies into the real extracted artifact. The archive bundles its npm packages in `dist/` and declares none, so the lock holds only `@buyong/pi-devin`, nothing is copied and the report lists no dependencies. It copies no Pi host or dev-only packages and does not change the archive's runtime files.
 
 There is no need to run `npm install` in the extracted root to resolve the dev `catalog:`/`workspace:` specifiers. Keep a regular user's tarball consumer install separate from preparing the extracted artifact for verification.
 
@@ -74,21 +75,13 @@ There is no need to run `npm install` in the extracted root to resolve the dev `
 check_env node verification/scripts/validate-package.mjs "$artifact_dir" \
   --expect "$package_dir/verification/inventory.json" \
   --pi-root "$PI_ROOT" --runtime --report "$check_dir/extracted-check.json"
-check_env env PI_DEVIN_TEST_PACKAGE_ROOT="$artifact_dir" PI_DEVIN_TEST_PI_ROOT="$PI_ROOT" \
-  pnpm exec vitest run --config verification/scripts/artifact-vitest.config.mjs
+node verification/scripts/host-contract.mjs --report "$check_dir/host-contract-artifact.json" \
+  --package-root "$artifact_dir" --pi-root "$PI_ROOT"
 ```
 
-Expected: the extracted resource check `pass` and provider checks **72/72** across 7 test files.
+Expected: the extracted resource check `pass` and `outcome: "pass"` in the host-contract report.
 
-These checks cover the account login object, catalog, exact UIDs, protobuf, images, tool results, retries, compression, cancellation, session replacement, provider lifetimes across shutdown and the next session start, the prompt cache, Fusion and SDK mode binding. They do not run the tool runner in place of Pi.
-
-The configuration fixes the suites to `tests/pi-provider*`, `pi-integration`, `pi-runtime`, `pi-lifecycle*` and `pi-lifetime`. Running all of `tests/*.test.ts` against the artifact is not supported: the archive does not contain the CLI (`cli.ts`, `src/cli/`), so the CLI tests have nothing to load from it. Only the imports Vitest resolves for the tests are redirected to the extracted artifact; processes the tests start are not.
-
-Check the real Pi execution path of the extracted artifact by passing `--package-root "$artifact_dir" --pi-root "$PI_ROOT"` to the step 6 runner. The Pi process sandbox then also refuses reads of the source `src/`, `index.ts` and `cli.ts`, and the help scenario checks that refusal (`EPERM`) as a control.
-
-`artifact-vitest.config.mjs` is a source-only Vitest configuration that redirects the production imports of the source tests to the extracted artifact and pins host imports to the **public entries** of `PI_ROOT`. The tests and fake inputs are only check tools, not runtime dependencies of the archive. The configuration uses a Vite `resolveId` plugin, and Vitest compiles the redirected artifact files with its own TypeScript transform, so Pi's real load path is checked by the step 6 runner below. Setting `PI_DEVIN_TEST_REPORT_DIR` to an existing directory saves the mapping record of the Vitest process.
-
-The recorded sandbox run predates the move to Vitest and used the former Node preload (`artifact-loader.mjs`). It used an extraction path containing spaces and Hangul characters, and a separate cwd. Its provider checks (44 at that time) passed even while the OS sandbox (`sandbox-exec`) refused network outside loopback, the real HOME outside the repository and Node, and reads of the source `apps/pi-devin/src/`, `index.ts` and `cli.ts`. Source tests run without the loader under the same profile fail with `EPERM` (negative control). The command above, which only sets environment variables, does not by itself provide the same OS isolation.
+The archive holds the bundle, not the source modules, so the source tests cannot run against it; the step 6 runner checks the provider through the real Pi execution path instead. With `--package-root`, its Pi process sandbox also refuses reads of the source `src/`, `index.ts` and `cli.ts`, and the help scenario checks that refusal (`EPERM`) as a control.
 
 ## 5. Local Pi registration and cleanup
 
@@ -129,5 +122,6 @@ Expected: exit code 0 and `outcome: "pass"` in the report. The scope is:
 - The handoff snapshots under `handoffs/` and `followup/handoffs/` are verification records from each implementation point. Do not overwrite past records because their hashes differ from the current code.
 - `package-check.json`, `extracted-check.json` and `handoffs/05-package-checks.json` are the distribution evidence. Read them together with the real archive path and hash, dependencies, commands run, how `skipped` was covered, and limits.
 - If the final README or runtime files change, build a new archive and redo the extracted-artifact checks.
+- Records up to 0.1.16 come from archives that shipped `index.ts`, `src/` and `proto/`; their extracted provider checks ran the source tests against the archive with `artifact-vitest.config.mjs`, which was removed when the archive became the `dist/` bundle.
 - Live service, CLI parity and the earlier cleanup findings are judged separately.
 - The records of steps 2–5 above do not include the Node 22.19.0 minimum run or other OSes. The real Pi execution path and the Node 22.19.0 results are in `followup/handoffs/05-host-contract.json`.

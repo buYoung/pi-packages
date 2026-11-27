@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Source-only check: recompiles the proto/ sources with the pinned buf,
-// cross-checks the wire output of the real runtime codec (which loads the same sources directly),
+// cross-checks the wire output of the real runtime codec (whose schema scripts/generate-schema.mjs generates from the same sources),
 // and confirms the capture-based probes really depend on the added definitions.
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -150,6 +150,7 @@ async function main() {
       sourceRoot: relative(APP_ROOT, source) || ".",
       sourceFiles: sourceFiles.map((name) => ({ name, sha256: sha256(readFileSync(join(source, name))) })),
       runtime: { path: "src/core/protocol/protobuf.ts", sha256: sha256(readFileSync(join(APP_ROOT, "src/core/protocol/protobuf.ts"))) },
+      schema: { path: "src/core/protocol/schema.generated.ts", sha256: sha256(readFileSync(join(APP_ROOT, "src/core/protocol/schema.generated.ts"))) },
       fixtures: ["tests/fixtures/captured-samples/GetChatMessage", "tests/fixtures/model-catalog.json"],
     };
     report.compilerCommand = `buf build ${report.inputs.sourceRoot} --as-file-descriptor-set --exclude-source-info`;

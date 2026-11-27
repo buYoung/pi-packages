@@ -186,16 +186,17 @@ TUI 전용 화면(`/devin` 화면, 상태 표시줄, Fusion 선택 화면)은 �
 ```bash
 pnpm run typecheck
 pnpm run test:unit
+pnpm run build
 node verification/scripts/import-closure.mjs . --expect verification/inventory.json
 ```
 
-기대 결과: 종료 코드 0, 모든 테스트 통과, import-closure 문제 없이 `ok: true`. 보조 모델 테스트는 취소, 하위 프로세스 연결 끊김, 한 번만 전달, 보고 한도를 다룹니다. 격리된 Pi와 압축 파일 검사는 [`verification/README.md`](https://github.com/buYoung/pi-packages/blob/main/apps/pi-devin/verification/README.md)를, 스키마 소스는 [`proto/README.md`](proto/README.md)를 참고하세요.
+기대 결과: 종료 코드 0, 모든 테스트 통과, import-closure 문제 없이 `ok: true`. 보조 모델 테스트는 취소, 하위 프로세스 연결 끊김, 한 번만 전달, 보고 한도를 다룹니다. 격리된 Pi와 압축 파일 검사는 [`verification/README.md`](https://github.com/buYoung/pi-packages/blob/main/apps/pi-devin/verification/README.md)를, 스키마 소스는 [`proto/README.md`](https://github.com/buYoung/pi-packages/blob/main/apps/pi-devin/proto/README.md)를 참고하세요.
 
 ## 스키마 출처와 라이선스
 
-이 패키지의 코드는 MIT 라이선스입니다([LICENSE](LICENSE)).
+이 패키지의 코드는 MIT 라이선스입니다([LICENSE](LICENSE)). 배포 패키지에는 `effect`, `@effect/platform-node`, `@effect/platform-node-shared`, `protobufjs`, `long`, `ws`가 함께 묶여 있으며, 이 패키지들의 라이선스는 `dist/THIRD_PARTY_LICENSES.txt`에 있습니다.
 
-`proto/`에 포함한 프로토콜 스키마는 제3자 저장소 [leookun/devin-2api](https://github.com/leookun/devin-2api)가 Devin CLI에서 추출했다고 밝힌 descriptor를 바탕으로 합니다. 이 패키지는 그 뒤 프로토콜을 직접 분석해 원래 descriptor에 없는 정의 네 개를 추가했습니다. 추가한 정의는 소스에 `[added field]`/`[added value]`로 표시하고 [`proto/README.md`](proto/README.md)에 정리했습니다. 런타임은 `proto/`를 직접 로드합니다.
+저장소의 `proto/`에 있는 프로토콜 스키마는 제3자 저장소 [leookun/devin-2api](https://github.com/leookun/devin-2api)가 Devin CLI에서 추출했다고 밝힌 descriptor를 바탕으로 합니다. 이 패키지는 그 뒤 프로토콜을 직접 분석해 원래 descriptor에 없는 정의 네 개를 추가했습니다. 추가한 정의는 소스에 `[added field]`/`[added value]`로 표시하고 [`proto/README.md`](https://github.com/buYoung/pi-packages/blob/main/apps/pi-devin/proto/README.md)에 정리했습니다. 패키지에는 그중 요청에 쓰는 부분만 `proto/`에서 생성해 넣습니다.
 
 leookun/devin-2api는 MIT License로 배포되며, 그 라이선스가 요구하는 대로 고지를 아래에 그대로 싣습니다. 이 라이선스는 leookun의 저작물에 적용되며, leookun이 Devin CLI에서 추출했다고 밝힌 스키마의 저작권과 배포 권리는 확인하지 않았습니다.
 

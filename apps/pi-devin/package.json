@@ -11,28 +11,7 @@
     "pi-package"
   ],
   "files": [
-    "./index.ts",
-    "src/",
-    "!src/cli/",
-    "!src/core/index.ts",
-    "!src/core/auth/index.ts",
-    "!src/core/models/index.ts",
-    "!src/core/inference/retry.ts",
-    "!src/core/inference/state.ts",
-    "!src/core/inference/stream-chat.ts",
-    "!src/core/types.ts",
-    "!src/pi/adapters/pi/types.ts",
-    "!src/pi/features/accounts/types.ts",
-    "!src/pi/features/auth/types.ts",
-    "!src/pi/features/catalog/types.ts",
-    "!src/pi/features/clients/types.ts",
-    "!src/pi/features/inference/types.ts",
-    "!src/pi/features/lifetime/types.ts",
-    "!src/pi/features/runs/types.ts",
-    "!src/pi/features/settings/types.ts",
-    "!src/pi/features/sidekick/types.ts",
-    "!src/pi/features/usage/types.ts",
-    "proto",
+    "dist/",
     "README.md",
     "README.ko.md",
     "CHANGELOG.md",
@@ -53,30 +32,21 @@
   },
   "pi": {
     "extensions": [
-      "./index.ts"
+      "./dist/index.js"
     ],
     "skills": [],
     "prompts": [],
     "themes": []
   },
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "generate:schema": "node scripts/generate-schema.mjs",
     "typecheck": "tsc --noEmit",
     "verify:offline": "vitest run",
     "test:unit": "vitest run",
     "cli": "node cli.ts",
-    "prepack": "node scripts/bundle-dependencies.mjs",
-    "postpack": "node scripts/bundle-dependencies.mjs --restore"
+    "prepack": "node scripts/build.mjs"
   },
-  "dependencies": {
-    "@effect/platform-node": "4.1.6",
-    "@effect/platform-node-shared": "4.1.6",
-    "effect": "4.1.6",
-    "protobufjs": "8.8.1"
-  },
-  "bundleDependencies": [
-    "@effect/platform-node",
-    "@effect/platform-node-shared"
-  ],
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
@@ -87,8 +57,13 @@
     "@earendil-works/pi-ai": "catalog:devin",
     "@earendil-works/pi-coding-agent": "catalog:devin",
     "@earendil-works/pi-tui": "catalog:devin",
+    "@effect/platform-node": "4.1.6",
+    "@effect/platform-node-shared": "4.1.6",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "effect": "4.1.6",
+    "esbuild": "catalog:",
+    "protobufjs": "8.8.1",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

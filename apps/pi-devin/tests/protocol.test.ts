@@ -248,3 +248,9 @@ test("verify-proto rebuilds the proto sources and its checks pass against the ru
   expect(summary.runtime).toMatch(/^[1-9]\d* cases, 0 failures$/);
   expect(summary.mutationControl).toMatchObject({ detected: true, sourceUnchanged: true });
 });
+
+test("the generated schema is current with proto/ and the RPCs the sources name", { timeout: 30_000 }, async () => {
+  const script = fileURLToPath(new URL("../scripts/generate-schema.mjs", import.meta.url));
+  const { stdout } = await promisify(execFile)(process.execPath, [script, "--check"], { timeout: 25_000 });
+  expect(stdout).toMatch(/is up to date/);
+});

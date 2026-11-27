@@ -184,16 +184,17 @@ The source and verification procedures are in the [GitHub repository](https://gi
 ```bash
 pnpm run typecheck
 pnpm run test:unit
+pnpm run build
 node verification/scripts/import-closure.mjs . --expect verification/inventory.json
 ```
 
-Expected: exit code 0, all tests passing, and `ok: true` with no import-closure problems. The sidekick tests cover cancellation, broken child connections, one-time delivery and report limits. See [`verification/README.md`](https://github.com/buYoung/pi-packages/blob/main/apps/pi-devin/verification/README.md) for isolated Pi and archive checks, and [`proto/README.md`](proto/README.md) for the schema sources.
+Expected: exit code 0, all tests passing, and `ok: true` with no import-closure problems. The sidekick tests cover cancellation, broken child connections, one-time delivery and report limits. See [`verification/README.md`](https://github.com/buYoung/pi-packages/blob/main/apps/pi-devin/verification/README.md) for isolated Pi and archive checks, and [`proto/README.md`](https://github.com/buYoung/pi-packages/blob/main/apps/pi-devin/proto/README.md) for the schema sources.
 
 ## Schema source and license
 
-The code in this package is MIT licensed ([LICENSE](LICENSE)).
+The code in this package is MIT licensed ([LICENSE](LICENSE)). The published package bundles `effect`, `@effect/platform-node`, `@effect/platform-node-shared`, `protobufjs`, `long` and `ws`; their licenses are in `dist/THIRD_PARTY_LICENSES.txt`.
 
-The protocol schema shipped in `proto/` is based on a descriptor that the third-party repository [leookun/devin-2api](https://github.com/leookun/devin-2api) says it extracted from the Devin CLI. This package then analyzed the protocol itself and added four definitions the base descriptor lacks; they are marked `[added field]`/`[added value]` in the sources and listed in [`proto/README.md`](proto/README.md). The runtime loads `proto/` directly.
+The protocol schema in the repository's `proto/` is based on a descriptor that the third-party repository [leookun/devin-2api](https://github.com/leookun/devin-2api) says it extracted from the Devin CLI. This package then analyzed the protocol itself and added four definitions the base descriptor lacks; they are marked `[added field]`/`[added value]` in the sources and listed in [`proto/README.md`](https://github.com/buYoung/pi-packages/blob/main/apps/pi-devin/proto/README.md). The package ships only the part of it that its requests use, generated from `proto/`.
 
 leookun/devin-2api is distributed under the MIT License, and its notice is reproduced below as that license requires. The license covers leookun's work; the copyright and distribution rights of the schema it says it extracted from the Devin CLI have not been verified.
 

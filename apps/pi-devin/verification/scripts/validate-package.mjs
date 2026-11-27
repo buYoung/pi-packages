@@ -267,8 +267,8 @@ async function packPackage(options, expected) {
   const workspace = await createWorkspace("pi-package-pack-");
   const packDir = join(workspace.root, "archive");
   await mkdir(packDir);
-  // The release workflow packs bundled dependencies with pnpm's hoisted layout; npm pack would follow pnpm's
-  // symlinks out of the package and store `../` paths.
+  // The release workflow packs a package with bundled dependencies with pnpm's hoisted layout, and the flag changes nothing
+  // for one without them; npm pack would follow pnpm's symlinks out of the package and store `../` paths.
   const child = spawnSync("pnpm", ["pack", "--config.node-linker=hoisted", "--json", "--pack-destination", packDir], {
     cwd: options.packageDir, env: isolatedEnv(), encoding: "utf8", timeout: options.timeoutMs, maxBuffer: 4 * 1024 * 1024,
   });

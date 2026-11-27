@@ -1,11 +1,9 @@
-import { readdirSync, statSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { Effect } from "effect";
-import protobuf from "protobufjs";
+import protobuf from "protobufjs/light.js";
 import { DevinError, toDevinError } from "../errors.ts";
 import type { JsonObject } from "../types.ts";
 import { failWith, object } from "../validation.ts";
+import { SCHEMA } from "./schema.generated.ts";
 
 export const CHAT_METHOD = "exa.api_server_pb.ApiServerService/GetChatMessage";
 
@@ -14,30 +12,19 @@ export interface MessageCodec {
   decode(bytes: Uint8Array): Effect.Effect<JsonObject, DevinError>;
 }
 
-const PROTO_ROOT = fileURLToPath(new URL("../../../proto/", import.meta.url));
 const camelCase = (name: string) => name.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
-
-function protoSources(directory: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(directory)) {
-    const path = join(directory, entry);
-    if (statSync(path).isDirectory()) protoSources(path, out);
-    else if (entry.endsWith(".proto")) out.push(path);
-  }
-  return out;
-}
 
 let loadedRoot: protobuf.Root | undefined;
 
 /**
- * The schema is the shipped `proto/` source tree, parsed once per process. The four definitions this
- * package added from its own protocol analysis are marked in the sources, so nothing is patched in at
- * runtime. keepCase keeps the declared snake_case names the DTO boundary uses.
+ * The schema is built once per process from `schema.generated.ts`, which `scripts/generate-schema.mjs` writes from the
+ * `proto/` source tree with only the types the RPC methods and message codecs named in `src/` reach. The four definitions
+ * this package added from its own protocol analysis are marked in the sources, so nothing is patched in at runtime. The
+ * generated names keep the declared snake_case the DTO boundary uses.
  */
 const schemaRoot: Effect.Effect<protobuf.Root, DevinError> = Effect.suspend(() => loadedRoot ? Effect.succeed(loadedRoot) : Effect.try({
   try: () => {
-    const root = new protobuf.Root();
-    root.resolvePath = (_origin: string, target: string) => isAbsolute(target) ? target : join(PROTO_ROOT, target);
-    root.loadSync(protoSources(PROTO_ROOT), { keepCase: true });
+    const root = protobuf.Root.fromJSON(SCHEMA);
     root.resolveAll();
     loadedRoot = root;
     return root;
