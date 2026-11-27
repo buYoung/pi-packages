@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improved
+
+- Update Effect and the bundled `@effect/platform-node` to 4.1.6.
+
 ## [0.1.16] - 2026-11-11
 
 ### Improved

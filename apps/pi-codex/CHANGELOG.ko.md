@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 달라진 것
+
+- Computer Use가 `@earendil-works/pi-mcp` 1.6.1을 사용합니다.
+
 ## [0.7.2] - 2026-11-21
 
 ### 달라진 것

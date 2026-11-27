@@ -48,8 +48,8 @@
     "themes": []
   },
   "dependencies": {
-    "@earendil-works/pi-mcp": "1.6.0",
-    "effect": "4.1.2",
+    "@earendil-works/pi-mcp": "1.6.1",
+    "effect": "4.1.6",
     "proper-lockfile": "^4.1.2"
   },
   "peerDependencies": {

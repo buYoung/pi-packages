@@ -4,30 +4,30 @@ packages:
 
 # One version of the Pi host packages and the toolchain for every workspace package.
 catalog:
-  "@biomejs/biome": 2.6.6
-  "@earendil-works/pi-ai": 1.6.0
-  "@earendil-works/pi-coding-agent": 1.6.0
-  "@earendil-works/pi-tui": 1.6.0
-  "@types/node": 26.6.6
+  "@biomejs/biome": 2.6.9
+  "@earendil-works/pi-ai": 1.6.1
+  "@earendil-works/pi-coding-agent": 1.6.1
+  "@earendil-works/pi-tui": 1.6.1
+  "@types/node": 26.6.11
   "@types/proper-lockfile": 4.1.4
   tsx: 4.23.15
   typescript: 7.0.2
-  vitest: 5.1.0
+  vitest: 5.1.2
 
 # Package-specific Pi SDK baselines; do not upgrade unrelated apps for one consumer.
 catalogs:
   memory:
-    "@earendil-works/pi-ai": 1.6.0
-    "@earendil-works/pi-coding-agent": 1.6.0
-    "@earendil-works/pi-tui": 1.6.0
+    "@earendil-works/pi-ai": 1.6.1
+    "@earendil-works/pi-coding-agent": 1.6.1
+    "@earendil-works/pi-tui": 1.6.1
   devin:
-    "@earendil-works/pi-ai": 1.6.0
-    "@earendil-works/pi-coding-agent": 1.6.0
-    "@earendil-works/pi-tui": 1.6.0
+    "@earendil-works/pi-ai": 1.6.1
+    "@earendil-works/pi-coding-agent": 1.6.1
+    "@earendil-works/pi-tui": 1.6.1
   mcp-adapter:
-    "@earendil-works/pi-ai": 1.6.0
-    "@earendil-works/pi-coding-agent": 1.6.0
-    "@earendil-works/pi-tui": 1.6.0
+    "@earendil-works/pi-ai": 1.6.1
+    "@earendil-works/pi-coding-agent": 1.6.1
+    "@earendil-works/pi-tui": 1.6.1
 
 # Install scripts the workspace does not need. @google/genai and protobufjs come with the Pi host packages, and type
 # checking does not use their scripts; esbuild and @bufbuild/buf load their platform binary packages without them.
@@ -37,33 +37,7 @@ allowBuilds:
   esbuild: false
   protobufjs: false
 
-minimumReleaseAgeExclude:
-  - "@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.329"
-  - "@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.329"
-  - "@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.329"
-  - "@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.329"
-  - "@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.329"
-  - "@anthropic-ai/claude-agent-sdk-linux-x64@0.3.329"
-  - "@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.329"
-  - "@anthropic-ai/claude-agent-sdk-win32-x64@0.3.329"
-  - "@anthropic-ai/claude-agent-sdk@0.3.329"
-  - "@anthropic-ai/sdk@1.12.0"
-  - "@biomejs/biome@2.6.6"
-  - "@biomejs/cli-android-arm64@2.6.6"
-  - "@biomejs/cli-android-x64@2.6.6"
-  - "@biomejs/cli-darwin-arm64@2.6.6"
-  - "@biomejs/cli-darwin-x64@2.6.6"
-  - "@biomejs/cli-linux-arm64-musl@2.6.6"
-  - "@biomejs/cli-linux-arm64@2.6.6"
-  - "@biomejs/cli-linux-x64-musl@2.6.6"
-  - "@biomejs/cli-linux-x64@2.6.6"
-  - "@biomejs/cli-win32-arm64@2.6.6"
-  - "@biomejs/cli-win32-x64@2.6.6"
-  - "@earendil-works/pi-agent-core@1.6.0"
-  - "@earendil-works/pi-ai@1.6.0"
-  - "@earendil-works/pi-codemode@1.6.0"
-  - "@earendil-works/pi-coding-agent@1.6.0"
-  - "@earendil-works/pi-mcp@1.6.0"
-  - "@earendil-works/pi-schema@1.6.0"
-  - "@earendil-works/pi-telemetry@1.6.0"
-  - "@earendil-works/pi-tui@1.6.0"
+# Pi loads the image-generation skill through the pi-codex bundle; pnpm does not provision it as an agent skill.
+permissions:
+  "@buyong/pi-codex-image-gen":
+    skills: false
