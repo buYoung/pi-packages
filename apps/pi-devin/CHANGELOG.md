@@ -6,6 +6,13 @@
 
 - Update Effect and the bundled `@effect/platform-node` to 4.1.6.
 
+### Fixed
+
+- When two sessions open together in one Pi model runtime, such as in-process subagents started in the same turn, the first one's Devin requests work. Before, they failed with "Devin uses only the OAuth account session from /login. API key authentication is not supported." for the rest of that session.
+- With a `devin` entry in `models.json`, a session that joins a model runtime other sessions already use no longer stops Devin requests in every session for a moment with "No API provider registered for api: devin-connect".
+- A sign-in, account switch or logout reaches every session sharing a model runtime. Before, only the session opened last learned it: the others kept the previous account's model list, and their Devin requests failed after a sign-in.
+- A Devin request that comes before its session's model list is loaded waits at most 10 seconds, then fails with "The Devin model list has not loaded. Refresh the model list and try again." Before, it could wait without an answer.
+
 ## [0.1.16] - 2026-11-11
 
 ### Improved

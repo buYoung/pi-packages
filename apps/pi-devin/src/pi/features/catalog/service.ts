@@ -1,5 +1,5 @@
 import type { Credential as HostCredential, ModelsPublication, RefreshModelsContext } from "@earendil-works/pi-ai";
-import { Context, Deferred, Effect, Layer, Scheduler } from "effect";
+import { Context, Deferred, Duration, Effect, Layer, Scheduler } from "effect";
 import { abortWith } from "../../../core/cancellation.ts";
 import { toDevinFailure } from "../../../core/errors.ts";
 import { modelIDForUID, projectModelVariants, resolveBackendSelection, type VariantProjection } from "../../../core/models/variants.ts";
@@ -22,6 +22,8 @@ import { restoredCatalog } from "./restore.ts";
 import type { DevinModel, ModelCatalogShape } from "./types.ts";
 
 const FRESHNESS_MS = 5 * 60_000;
+/** How long a request waits for the first refresh. Pi's offline restore takes well under a second. */
+export const FIRST_REFRESH_WAIT_MS = 10_000;
 
 /**
  * The only owner of the catalog query: when to look it up, what to restore from Pi's model store, and the list Pi shows.
@@ -57,10 +59,13 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
     models = []; projection = undefined; scope = undefined; catalogAccount = undefined; checkedAtMs = 0; modelCredential = undefined; credentialScope = undefined;
   };
   // Pi refreshes a provider it registers without waiting for it, so a session that starts in a model runtime other sessions
-  // already use can send its first request before the list is restored. Such a request waits for the first refresh to end.
+  // already use can send its first request before the list is restored. Such a request waits for the first refresh to end,
+  // for a bounded time, so an instance no refresh reaches fails its request instead of leaving it unanswered.
   const firstRefresh = yield* Deferred.make<void>();
   const currentProjection = (credential: Credential) => Effect.gen(function* () {
-    if (!projection) yield* Deferred.await(firstRefresh);
+    const hasRefreshed = projection ? true : yield* Deferred.await(firstRefresh).pipe(
+      Effect.as(true), Effect.timeoutOrElse({ duration: Duration.millis(FIRST_REFRESH_WAIT_MS), orElse: () => Effect.succeed(false) }));
+    if (!hasRefreshed) return yield* failWith("The Devin model list has not loaded. Refresh the model list and try again.");
     return !projection || scope !== catalogScope(credential)
       ? yield* failWith("No Devin model list matches the current account and endpoint. Refresh the model list.") : projection;
   });
@@ -151,9 +156,17 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
       return candidates.filter((model) => model.provider === "devin" && model.api === DEVIN_API && model.baseUrl === resolved.apiServerURL && (model as DevinModel).devin?.scope === expected);
     }).pipe(Effect.catchCause(() => Effect.succeed([]))),
     // Sign-in, logout and restores change the current credential, which decides whose quota is shown.
-    // A refresh Pi superseded ends aborted; the newer one ends the wait.
-    refresh: (context) => Effect.flatMap(lifetime.current, (current) => current.guard(refresh(context)).pipe(abortWith(context.signal), Effect.ensuring(Effect.andThen(changes.publish,
-      Effect.suspend(() => context.signal?.aborted ? Effect.void : Deferred.succeed(firstRefresh, undefined)))))),
+    // A refresh Pi superseded ends aborted, or, once it had finished before, finds its publication rejected; the newer one ends the wait.
+    refresh: (context) => Effect.suspend(() => {
+      let isRejected = false;
+      const tracked: RefreshModelsContext = { ...context, publish: async (publication) => {
+        const isAccepted = await context.publish(publication);
+        if (!isAccepted) isRejected = true;
+        return isAccepted;
+      } };
+      return Effect.flatMap(lifetime.current, (current) => current.guard(refresh(tracked)).pipe(abortWith(context.signal), Effect.ensuring(Effect.andThen(changes.publish,
+        Effect.suspend(() => context.signal?.aborted || isRejected ? Effect.void : Deferred.succeed(firstRefresh, undefined))))));
+    }),
     resolve: (modelID, level, credential) => Effect.gen(function* () {
       const current = yield* currentProjection(credential);
       let wanted = modelID;

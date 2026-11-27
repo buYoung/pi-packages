@@ -1,9 +1,10 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { normalizeContext, type AssistantMessage, type AssistantMessageEventStream, type RefreshModelsContext } from "@earendil-works/pi-ai";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { CHAT_METHOD } from "../src/core/protocol/protobuf.ts";
 import type { JsonObject } from "../src/core/types.ts";
 import { attachSession } from "../src/pi/app/session.ts";
+import { FIRST_REFRESH_WAIT_MS } from "../src/pi/features/catalog/service.ts";
 import { DEVIN_STATE_ENTRY } from "../src/pi/features/runs/state.ts";
 import type { DevinSessionState } from "../src/pi/features/runs/types.ts";
 import { makeTestProvider, type TestProvider } from "./extension-harness.ts";
@@ -98,6 +99,43 @@ test("a request that comes before the provider's first model refresh waits for i
     expect([completed.stopReason, completed.errorMessage]).toStrictEqual(["stop", undefined]);
     expect(late.chats()).toBe(1);
   } finally { listed.shutdown(); late.shutdown(); }
+});
+
+test("a refresh whose publication Pi rejected, as once a newer refresh began, does not end a request's wait; the next accepted one does", async () => {
+  const listed = serve(), late = serve();
+  try {
+    await listed.refresh();
+    await late.provider.auth.oauth!.toAuth(providerHostCredential);
+    let isSettled = false;
+    const result = settle(late.provider.streamSimple(listed.model(), prompt(), options));
+    void result.then(() => { isSettled = true; });
+    await late.provider.refreshModels({ credential: providerHostCredential, allowNetwork: false, signal: new AbortController().signal, publish: async () => false });
+    for (let round = 0; round < 20; round++) await new Promise((resolve) => setImmediate(resolve));
+    expect(isSettled).toBe(false);
+    await late.refresh();
+    const completed = await result;
+    expect([completed.stopReason, completed.errorMessage]).toStrictEqual(["stop", undefined]);
+  } finally { listed.shutdown(); late.shutdown(); }
+});
+
+test("a request waits for the first model refresh only for a bounded time, then fails with an error instead of staying unanswered", async (context) => {
+  const listed = serve(), never = serve();
+  try {
+    await listed.refresh();
+    await never.provider.auth.oauth!.toAuth(providerHostCredential);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }); context.onTestFinished(() => { vi.useRealTimers(); });
+    const result = settle(never.provider.streamSimple(listed.model(), prompt(), options));
+    for (let round = 0; round < 20; round++) await new Promise((resolve) => setImmediate(resolve));
+    await vi.advanceTimersByTimeAsync(FIRST_REFRESH_WAIT_MS - 1);
+    let isSettled = false;
+    void result.then(() => { isSettled = true; });
+    for (let round = 0; round < 20; round++) await new Promise((resolve) => setImmediate(resolve));
+    expect(isSettled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const failed = await result;
+    expect([failed.stopReason, failed.errorMessage]).toStrictEqual(["error", "The Devin model list has not loaded. Refresh the model list and try again."]);
+    expect(never.chats()).toBe(0);
+  } finally { listed.shutdown(); never.shutdown(); }
 });
 
 test("after shutdown the same provider object refuses work until the next session_start, then serves it again", async () => {
