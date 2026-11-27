@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-11-28
+
 ### New
 
 - Image generation can create simple animated GIFs when `"gif": true` is set in the image settings file (included `@buyong/pi-codex-image-gen`).
