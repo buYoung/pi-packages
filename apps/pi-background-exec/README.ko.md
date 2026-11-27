@@ -33,6 +33,8 @@ pi install npm:@buyong/pi-background-exec
 
 ## Herdr와 함께 쓰기
 
+`background_exec`는 에이전트를 실행하지 않습니다. 위임은 기본적으로 `subagent`를 씁니다. 신뢰한 프로젝트가 로컬 Herdr 역할 세션을 명시하면 Herdr 관리 패인인지 확인한 뒤 Herdr로 배정합니다. 프로젝트가 정한 기준 세션 분기와 역할 프롬프트를 유지하고, 실패하면 다른 실행기로 바꾸지 말고 실패한 단계를 보고합니다.
+
 Herdr는 Pi pane 하나의 상태 보고를 보고자 하나에게서만 받습니다. Herdr 기본 Pi 통합을 이 패키지의 보고로 바꾸세요.
 
 1. `herdr integration uninstall pi`를 실행합니다.

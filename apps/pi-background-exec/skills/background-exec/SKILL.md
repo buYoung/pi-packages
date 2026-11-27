@@ -5,7 +5,7 @@ description: Run long non-agent shell commands such as builds, tests, and simula
 
 # Background shell jobs
 
-- Agent delegation: use `subagent`. If it is unavailable or fails, stop and report; never substitute agent CLIs or SDK wrappers through `background_exec` or `bash`. Only CLI tests the user explicitly requested are exempt.
+- `background_exec` runs work, not agents. Use `subagent` for authorized delegation by default. If trusted project instructions require local Herdr role sessions, use the `herdr` skill from a verified Herdr pane with the prescribed session fork and role prompt. Do not switch routes on failure or launch a bare agent CLI or SDK wrapper through `bash`. Explicit user-requested CLI tests remain allowed.
 - Long non-agent commands (build, test, simulation): use `background_exec` (TUI or RPC sessions only). `command` runs in the session's working directory; use `cd PATH && COMMAND` to run elsewhere. `timeout` is optional, in seconds; without it the job has no limit.
 - Run the command in the foreground: no `nohup`, trailing `&`, completion watchers, or wait-only `sleep` or Perl. Keep the returned `jobId`, then end the turn or do independent work. Never poll, call `bg_wait`, or ask the user to resume you manually.
 - On `background-job-finished` or `background-jobs-finished` (with `results[]`), check each `status`, `exitCode`, and `logTail` (up to 1 KiB or 12 lines). Reuse those excerpts; read `logPath` only for missing evidence. Batch artifact reads, and verify before reporting success. Each result is progress, not overall completion; `remainingJobs` counts the jobs still running.

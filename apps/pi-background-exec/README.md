@@ -33,6 +33,8 @@ Switching, reloading, or quitting the session cancels its running jobs. Ending a
 
 ## Use with Herdr
 
+`background_exec` does not launch agents. Delegation normally uses `subagent`. If a trusted project requires local Herdr role sessions, use the Herdr agent interface in a verified Herdr pane, preserving the project's session fork and role prompt. If that route fails, report it rather than switching to another launcher.
+
 Herdr accepts state reports for a Pi pane from one reporter only. Replace Herdr's own Pi integration with this package's:
 
 1. Run `herdr integration uninstall pi`.

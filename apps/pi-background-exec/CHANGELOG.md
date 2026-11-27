@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improved
+
+- The delegation guidance follows project instructions that require local Herdr role sessions. In a Herdr pane, the model uses the Herdr skill with the project's session fork and role prompt; outside one, it reports that dispatch as blocked instead of using `subagent` in its place. Other delegation still uses `subagent`, and a failed route is reported, not swapped for another. Before, the guidance allowed only `subagent`.
+
 ## [0.1.3] - 2026-11-17
 
 ### Improved
