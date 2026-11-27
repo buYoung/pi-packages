@@ -33,6 +33,25 @@ function savedResult(result: { details: { resultPath: string } }) {
 }
 
 describe("background_exec", () => {
+  test("offers project-directed Herdr dispatch only in a managed pane", () => {
+    const guidance = (env: string, pane: string | undefined) => {
+      vi.stubEnv("HERDR_ENV", env);
+      vi.stubEnv("HERDR_PANE_ID", pane);
+      return start().tools.get("background_exec").promptGuidelines.join("\n");
+    };
+    try {
+      const inside = guidance("1", "w1:p1");
+      expect(inside).toContain("trusted project instructions");
+      expect(inside).toContain("herdr agent start");
+      for (const outside of [guidance("0", "w1:p1"), guidance("1", undefined)]) {
+        expect(outside).toContain("subagent");
+        expect(outside).not.toContain("herdr agent start");
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   test("wakes an idle session with the job's status and log tail", async () => {
     const pi = start();
     await pi.emit("session_start", { reason: "startup" }, pi.ctx);
