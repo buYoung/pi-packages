@@ -101,7 +101,7 @@ pi -e ./apps/pi-ollama-cloud        # load an app in Pi for one session
 
 `@buyong/pi-ollama-cloud`도 기존 npm 이름과 독립 버전을 유지합니다. `buYoung/pi-ollama-cloud`의 전체 Git 이력을 `apps/pi-ollama-cloud`로 편입했습니다. 설치와 Git 설치 전환은 [앱 README](apps/pi-ollama-cloud/README.ko.md)를, 생성 데이터 갱신과 배포는 [유지보수 가이드](apps/pi-ollama-cloud/docs/maintaining.md)를 따릅니다.
 
-공통 CI는 이 앱에 최신 Pi 호환성 검사와 실서비스 검사를 더 실행합니다. 실서비스 키는 `OLLAMA_CLOUD_API_KEY`로 등록하며 PR에는 전달하지 않습니다. `pi-ollama-cloud-v*` 배포 태그에서는 키와 실서비스 검사가 필수입니다. 이전 단독 GitHub 저장소(`buYoung/pi-ollama-cloud`)만 유지보수를 종료하며, npm 패키지는 deprecated 처리하지 않습니다.
+공통 CI는 이 앱에 최신 Pi 호환성 검사를 더 실행합니다. 이전 단독 GitHub 저장소(`buYoung/pi-ollama-cloud`)만 유지보수를 종료하며, npm 패키지는 deprecated 처리하지 않습니다.
 
 ## 앱 작성 규칙
 

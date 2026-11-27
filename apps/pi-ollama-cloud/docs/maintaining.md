@@ -40,7 +40,7 @@ pnpm --dir apps/pi-ollama-cloud pack --pack-destination "$verification_dir/packa
 
 [README의 전후 비교](../README.ko.md#리팩토링-전후-비교)는 같은 fixture를 두 설치본에 실행합니다. 활성·설정 비활성·환경 변수 강제 비활성의 세 경우를 비교하며, 각 설치본의 독립 검증을 대신하지 않습니다. 단위 테스트에서 생성기를 검사할 때도 임시 소비자에 선언된 운영 의존성을 준비합니다.
 
-[50회 실서비스 검사](../README.ko.md#실제-모델-요청-50회)는 명시적으로 선택한 개발용 검사이며 기존 최소 검사나 CI 배포 조건을 대체하지 않습니다. 실제 사용량과 부가 요청 상한을 실행 전에 확인합니다. 변경 전·후를 각각 검사하면 모델 요청은 총 100회이며, 새 보고서명으로 재실행하면 예산이 다시 시작됩니다. 오류·계정 전환·취소를 실서비스에서 억지로 유발하지 않고 오프라인 fixture로 확인합니다.
+[50회 실서비스 검사](../README.ko.md#실제-모델-요청-50회)는 명시적으로 선택한 개발용 검사이며 기존 최소 검사를 대체하지 않습니다. 실제 사용량과 부가 요청 상한을 실행 전에 확인합니다. 변경 전·후를 각각 검사하면 모델 요청은 총 100회이며, 새 보고서명으로 재실행하면 예산이 다시 시작됩니다. 오류·계정 전환·취소를 실서비스에서 억지로 유발하지 않고 오프라인 fixture로 확인합니다.
 
 ## 생성 데이터 갱신
 
@@ -77,18 +77,14 @@ pnpm --filter @buyong/pi-ollama-cloud generate-limits <exact-model-id>
 | PR·main push | 변경된 앱의 린트·타입·단위 테스트·패키징, Ollama는 추가 offline source/artifact 계약 검증 |
 | 공통 설정·잠금 파일 변경 | 모든 공개 Pi 앱 검증 |
 | Ollama 앱이 검증 대상으로 선택됨 | 최신 Pi 호환성 검사도 실행 |
-| Ollama 대상 main push·수동 실행 | secret이 있으면 실서비스 검사. 없으면 생략 사유 기록 |
-| Ollama 배포 태그 | 실서비스 검사 필수. 키가 없거나 검사에 실패하면 배포 차단 |
+
+CI는 실서비스 검사를 실행하지 않습니다. 실서비스 검사는 아래 명령으로 직접 실행합니다.
 
 최신 Pi 검사는 별도 CI checkout의 개발 의존성만 갱신합니다. npm 배포는 커밋된 catalog와 잠금 파일을 사용하므로 최신 호환성 검사가 배포 의존성을 바꾸지 않습니다.
 
-실서비스 검사에는 `buYoung/pi-packages`의 Actions secret `OLLAMA_CLOUD_API_KEY`가 필요합니다. 값은 실행 프로세스의 `OLLAMA_API_KEY`로 전달하며 PR에는 전달하지 않습니다. GitHub에서 기존 secret 값을 다시 읽어 복사할 수 없으므로 소유자가 새 저장소에 직접 등록합니다.
-
-모델·thinking-off·웹 검사는 `pnpm pack` archive를 별도 디렉터리에 생산 의존성과 함께 설치한 결과를 로드합니다. Pi peer는 실행 중인 호스트가 제공합니다. 설치는 `--ignore-scripts --legacy-peer-deps --omit=dev`로 개발 의존성·중복 Pi 설치를 피합니다. offline gate는 기존 로컬 의존성을 복사하므로 registry에서의 신규 설치 증명과는 구분합니다.
-
 웹 검사는 `scripts/smoke-web-tools.ts --package-dir <installed-package>`로 실제 등록된 execute·반환 상한·보관된 캐시 재사용을 확인합니다. 앱 디렉터리의 `pnpm run smoke:web-tools`는 source 경로를 검사하며 검색·fetch 각 1회와 구매 크레딧 보호를 위한 `/api/balance` 조회 1회를 사용합니다. 실패는 자동 재시도하지 않습니다.
 
-수동 최소 검증은 별도의 명시적 예산 승인 후에만 다음 형태로 실행합니다. 기존 CI의 추가 모델·thinking-off 검사를 대체하는 명령이 아닙니다.
+수동 최소 검증은 별도의 명시적 예산 승인 후에만 다음 형태로 실행합니다.
 
 ```bash
 pnpm --filter @buyong/pi-ollama-cloud exec tsx scripts/cli/live.ts --live-minimal --package-dir <installed-package> --report <new-report.json>

@@ -329,7 +329,7 @@ mkdir -p "$verification_dir/agent" "$verification_dir/work"
 
 Pi 입력창에서 `/ollama`(설정 화면을 열고 Esc로 닫기), `/ollama webtools off`, `/ollama webtools on`, `/reload`를 실행하고, 오류 없이 도구 상태가 바뀌는지 확인합니다. `webtools` 명령 두 개는 격리한 agent 디렉터리의 `ollama-cloud.json`에 값을 저장합니다. 이 확인은 시작과 명령 동작만 확인하며, 모델이나 API 호출의 성공을 뜻하지 않습니다. 격리 디렉터리는 코드의 파일·네트워크 접근을 막는 보안 경계가 아닙니다.
 
-실서비스 검사에는 API 키와 사용량이 필요합니다. CI의 `Smoke pi-ollama-cloud`는 포장한 확장의 모델 응답, thinking off, 웹 도구를 확인합니다. 로컬에서 웹 도구를 실제로 확인하려면 앱 디렉터리에서 `pnpm run smoke:web-tools`를 실행합니다. 웹 검색 1회, 페이지 읽기 1회, 구매 크레딧 보호를 위한 잔액 조회 1회를 호출해 도구 결과의 크기 상한과 캐시 재사용을 확인하며, 실패해도 다시 시도하지 않습니다.
+실서비스 검사에는 API 키와 사용량이 필요합니다. 로컬에서 웹 도구를 실제로 확인하려면 앱 디렉터리에서 `pnpm run smoke:web-tools`를 실행합니다. 웹 검색 1회, 페이지 읽기 1회, 구매 크레딧 보호를 위한 잔액 조회 1회를 호출해 도구 결과의 크기 상한과 캐시 재사용을 확인하며, 실패해도 다시 시도하지 않습니다.
 
 생성 데이터 갱신, 배포 승인과 태그 절차는 [유지보수 가이드](https://github.com/buYoung/pi-packages/blob/main/apps/pi-ollama-cloud/docs/maintaining.md)에 있습니다.
 

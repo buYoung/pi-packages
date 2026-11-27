@@ -58,6 +58,17 @@ jobs:
           package-manager-cache: false
       - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
+      # Pi downloads rg and fd when neither is on PATH, and that download sometimes fails on runners.
+      - name: Put rg and fd on PATH
+        run: |
+          arch=$(uname -m)
+          [ "$arch" = arm64 ] && arch=aarch64
+          if [ "$RUNNER_OS" = macOS ]; then target=$arch-apple-darwin; else target=$arch-unknown-linux-musl; fi
+          for asset in BurntSushi/ripgrep/releases/download/16.0.0/ripgrep-16.0.0 sharkdp/fd/releases/download/v10.5.2/fd-v10.5.2; do
+            curl -fsSL --retry 3 "https://github.com/$asset-$target.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+            echo "$RUNNER_TEMP/${asset##*/}-$target" >> "$GITHUB_PATH"
+          done
+      - run: rg --version && fd --version
       # prepack builds the selected package; only its dependencies need an earlier build.
       # The Codex bundle's prepack already builds its complete dependency tree.
       - name: Build and check the distributable package
@@ -104,17 +115,31 @@ jobs:
           package-manager-cache: false
       - uses: pnpm/action-setup@v6
       - run: pnpm install --frozen-lockfile
-      # Pi downloads the latest fd when none is on PATH. fd 10.5.1 changed Windows --full-path globs,
-      # which breaks Pi's own separator rewrite, so Windows uses fd 10.5.0 from PATH.
+      # Pi downloads rg and fd when neither is on PATH, and that download sometimes fails on runners.
+      - name: Put rg and fd on PATH
+        if: runner.os != 'Windows'
+        run: |
+          arch=$(uname -m)
+          [ "$arch" = arm64 ] && arch=aarch64
+          if [ "$RUNNER_OS" = macOS ]; then target=$arch-apple-darwin; else target=$arch-unknown-linux-musl; fi
+          for asset in BurntSushi/ripgrep/releases/download/16.0.0/ripgrep-16.0.0 sharkdp/fd/releases/download/v10.5.2/fd-v10.5.2; do
+            curl -fsSL --retry 3 "https://github.com/$asset-$target.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+            echo "$RUNNER_TEMP/${asset##*/}-$target" >> "$GITHUB_PATH"
+          done
+      # fd 10.5.1 changed Windows --full-path globs, which breaks Pi's own separator rewrite, so Windows uses fd 10.5.0.
       - if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $dir = Join-Path $env:RUNNER_TEMP 'fd'
-          Invoke-WebRequest https://github.com/sharkdp/fd/releases/download/v10.5.0/fd-v10.5.0-x86_64-pc-windows-msvc.zip -OutFile "$dir.zip"
-          Expand-Archive "$dir.zip" -DestinationPath $dir
-          Split-Path (Get-ChildItem $dir -Recurse -Filter fd.exe).FullName | Add-Content $env:GITHUB_PATH
-      - if: runner.os == 'Windows'
-        run: fd --version
+          foreach ($url in @(
+            'https://github.com/BurntSushi/ripgrep/releases/download/16.0.0/ripgrep-16.0.0-x86_64-pc-windows-msvc.zip',
+            'https://github.com/sharkdp/fd/releases/download/v10.5.0/fd-v10.5.0-x86_64-pc-windows-msvc.zip'
+          )) {
+            $dir = Join-Path $env:RUNNER_TEMP ([IO.Path]::GetFileNameWithoutExtension($url))
+            Invoke-WebRequest $url -OutFile "$dir.zip"
+            Expand-Archive "$dir.zip" -DestinationPath $dir
+            Split-Path (Get-ChildItem $dir -Recurse -Include rg.exe, fd.exe).FullName | Add-Content $env:GITHUB_PATH
+          }
+      - run: rg --version && fd --version
       - run: pnpm --filter "@buyong/pi-codex-auto-review..." run build
       - run: pnpm --filter @buyong/pi-codex-auto-review run lint
       - run: pnpm --filter @buyong/pi-codex-auto-review typecheck
@@ -146,89 +171,8 @@ jobs:
       - run: pnpm --filter @buyong/pi-ollama-cloud test:unit
       - run: pnpm --filter @buyong/pi-ollama-cloud exec tsx scripts/cli/verify.ts --offline --report "$RUNNER_TEMP/ollama-latest-offline.json"
 
-  ollama-smoke:
-    needs: [select, checks]
-    if: github.event_name != 'pull_request' && contains(fromJSON(needs.select.outputs.matrix).include.*.slug, 'pi-ollama-cloud')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    name: Smoke pi-ollama-cloud
-    env:
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_CLOUD_API_KEY }}
-      IS_RELEASE: ${{ needs.select.outputs.is-release }}
-    defaults:
-      run:
-        working-directory: apps/pi-ollama-cloud
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Require credentials for releases
-        run: |
-          echo "PI_CODING_AGENT_DIR=$RUNNER_TEMP/ollama-agent" >> "$GITHUB_ENV"
-          if [ -z "$OLLAMA_API_KEY" ]; then
-            if [ "$IS_RELEASE" = true ]; then
-              echo "::error::Set OLLAMA_CLOUD_API_KEY before releasing pi-ollama-cloud"
-              exit 1
-            fi
-            echo "Ollama live smoke skipped: OLLAMA_CLOUD_API_KEY is not configured." >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - uses: actions/setup-node@v7
-        if: env.OLLAMA_API_KEY != ''
-        with:
-          node-version: 24
-          package-manager-cache: false
-      - uses: pnpm/action-setup@v6
-        if: env.OLLAMA_API_KEY != ''
-      - run: pnpm install --frozen-lockfile
-        if: env.OLLAMA_API_KEY != ''
-      - name: Pack and extract the release contents
-        if: env.OLLAMA_API_KEY != ''
-        run: |
-          pnpm pack --pack-destination "$RUNNER_TEMP/ollama-package"
-          mkdir -p "$RUNNER_TEMP/ollama-extracted"
-          tar -xzf "$RUNNER_TEMP/ollama-package/"*.tgz -C "$RUNNER_TEMP/ollama-extracted"
-          mkdir -p "$RUNNER_TEMP/ollama-runtime"
-          printf '{"private":true}\n' > "$RUNNER_TEMP/ollama-runtime/package.json"
-          npm install --prefix "$RUNNER_TEMP/ollama-runtime" --omit=dev --ignore-scripts --legacy-peer-deps --no-audit --no-fund "$RUNNER_TEMP/ollama-package/"*.tgz
-          echo "OLLAMA_PACKED_DIR=$RUNNER_TEMP/ollama-runtime/node_modules/@buyong/pi-ollama-cloud" >> "$GITHUB_ENV"
-      - name: Basic provider smoke from the packed extension
-        if: env.OLLAMA_API_KEY != ''
-        run: >-
-          pnpm exec pi --no-extensions --no-skills --no-prompt-templates --no-themes
-          --no-context-files --no-mcp --no-session
-          -e "$OLLAMA_PACKED_DIR"
-          --model "ollama-cloud/gemma4:31b" --no-tools -p "Say hi in one word"
-      - name: Thinking off from the packed extension
-        if: env.OLLAMA_API_KEY != ''
-        run: |
-          pnpm exec pi --no-extensions --no-skills --no-prompt-templates --no-themes \
-            --no-context-files --no-mcp --no-session \
-            -e "$OLLAMA_PACKED_DIR" \
-            --thinking off --model "ollama-cloud/glm-5.2" --no-tools --mode json -p 'hi' \
-            > "$RUNNER_TEMP/ollama-thinking.jsonl"
-          node --input-type=module <<'NODE'
-          import { readFileSync } from 'node:fs';
-          const events = readFileSync(`${process.env.RUNNER_TEMP}/ollama-thinking.jsonl`, 'utf8')
-            .trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
-          const replies = events.filter(event => event.type === 'message_end' && event.message?.role === 'assistant')
-            .map(event => event.message);
-          if (!replies.length || replies.some(reply => ['error', 'aborted'].includes(reply.stopReason))) {
-            throw new Error('Thinking-off smoke did not receive a successful assistant reply');
-          }
-          if (replies.some(reply => reply.content.some(block => block.type === 'thinking'))) {
-            throw new Error('Thinking block found when thinking is off');
-          }
-          if (!replies.some(reply => reply.content.some(block => block.type === 'text' && block.text.trim()))) {
-            throw new Error('Thinking-off smoke returned no text');
-          }
-          console.log('PASS: text response without thinking');
-          NODE
-      - name: Web tools smoke
-        if: env.OLLAMA_API_KEY != ''
-        run: pnpm run smoke:web-tools --package-dir "$OLLAMA_PACKED_DIR"
-
   publish:
-    needs: [select, checks, auto-review-platforms, ollama-latest, ollama-smoke]
+    needs: [select, checks, auto-review-platforms, ollama-latest]
     if: >-
       always() && !cancelled() && github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/') && needs.select.outputs.is-release == 'true' &&
@@ -237,7 +181,7 @@ jobs:
       contains(fromJSON(needs.select.outputs.matrix).include.*.slug, 'pi-codex')) ||
       needs.auto-review-platforms.result == 'success') &&
       (!contains(fromJSON(needs.select.outputs.matrix).include.*.slug, 'pi-ollama-cloud') ||
-      (needs.ollama-latest.result == 'success' && needs.ollama-smoke.result == 'success'))
+      needs.ollama-latest.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:

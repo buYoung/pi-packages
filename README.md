@@ -101,7 +101,7 @@ Pushing a `<folder name>-v<version>` tag verifies, packs, and publishes only tha
 
 `@buyong/pi-ollama-cloud` also keeps its existing npm name and independent version. The full Git history of `buYoung/pi-ollama-cloud` was merged into `apps/pi-ollama-cloud`. For installation and switching from a Git installation, see the [app README](apps/pi-ollama-cloud/README.md); for generated data updates and releases, see the [maintenance guide](apps/pi-ollama-cloud/docs/maintaining.md) (Korean).
 
-Shared CI adds a latest-Pi compatibility check and a live-service check for this app. The live-service key is registered as `OLLAMA_CLOUD_API_KEY` and is not passed to pull requests. A `pi-ollama-cloud-v*` release tag requires the key and the live-service check. Only the former standalone GitHub repository (`buYoung/pi-ollama-cloud`) is retired; the npm package is not deprecated.
+Shared CI adds a latest-Pi compatibility check for this app. Only the former standalone GitHub repository (`buYoung/pi-ollama-cloud`) is retired; the npm package is not deprecated.
 
 ## Rules for apps
 
