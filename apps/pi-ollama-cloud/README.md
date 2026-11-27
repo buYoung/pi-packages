@@ -329,7 +329,7 @@ mkdir -p "$verification_dir/agent" "$verification_dir/work"
 
 In Pi, run `/ollama` (open the settings screen, then close it with Esc), `/ollama webtools off`, `/ollama webtools on`, and `/reload`, and confirm that the tool state changes without errors. The two `webtools` commands save values to `ollama-cloud.json` in the isolated agent directory. This check covers startup and command behavior only; it does not show that model or API calls succeed. The isolated directory is not a security boundary that blocks the code's file or network access.
 
-Live-service checks need an API key and use quota. CI's `Smoke pi-ollama-cloud` checks model replies, thinking off, and web tools with the packed extension. To check the web tools for real on your machine, run `pnpm run smoke:web-tools` in the app directory. It makes one web search, one page fetch, and one balance query for purchased-credit protection, checks the tool result size limit and cache reuse, and does not retry failures.
+Live-service checks need an API key and use quota. To check the web tools for real on your machine, run `pnpm run smoke:web-tools` in the app directory. It makes one web search, one page fetch, and one balance query for purchased-credit protection, checks the tool result size limit and cache reuse, and does not retry failures.
 
 Bundled data updates, release approval, and tagging are described in the [maintenance guide](https://github.com/buYoung/pi-packages/blob/main/apps/pi-ollama-cloud/docs/maintaining.md) (Korean).
 
