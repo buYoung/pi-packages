@@ -5,6 +5,8 @@
 ### Improved
 
 - Update Effect and the bundled `@effect/platform-node` to 4.1.6.
+- Uses less memory once Devin is in use. The protobuf schema now holds only the 110 types the requests use instead of the 2,773 parsed from every `.proto` file. With this repository's other Effect-based packages installed too, the JavaScript heap after a Devin reply went from about 83 MB to about 68 MB.
+- The package is now one bundled build in `dist/` with no npm dependencies. Installing it no longer adds `effect`, `@effect/platform-node` or `protobufjs`, and another package's `effect` version can no longer break it. The archive has 13 files instead of 203 and no longer ships `proto/`; the licenses of the bundled packages are in `dist/THIRD_PARTY_LICENSES.txt`. The first start after an update takes longer and more memory once, while Pi prepares the build.
 - Pi processes that do not use Devin no longer pay for its runtime. The extension now loads Effect, its Node platform packages and protobufjs on first use: a session on a Devin model or with a Devin run, a switch to a Devin model, `/devin`, `/devin-fusion`, `devin_sidekick`, sign-in, a request, or a model refresh that has to reach Devin. Until then `/model` lists the same Devin models from the list Pi stored. In a measured RPC process with another default model and no startup network refresh, the memory footprint went from about 173 MB to about 80 MB; without the extension it is about 74 MB. The model list a lead stores now also records the package version and Fusion choice it was built with.
 
 ### Fixed

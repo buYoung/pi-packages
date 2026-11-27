@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
 import type { ModelsStoreEntry } from "@earendil-works/pi-ai";
 import type { Credential, JsonObject } from "../../../core/types.ts";
+import { PACKAGE_VERSION } from "../../../package.ts";
 import { CATALOG_VERSION, DEVIN_API } from "./constants.ts";
 import { catalogScope } from "./scope.ts";
 import type { DevinModel, FusionSelection, StoredBy } from "./types.ts";
@@ -13,7 +13,6 @@ import type { DevinModel, FusionSelection, StoredBy } from "./types.ts";
 /** A catalog checked this recently is not looked up again unless the refresh is forced. */
 export const FRESHNESS_MS = 5 * 60_000;
 const ACCOUNT_HASH = /^[a-f0-9]{64}$/;
-const PACKAGE_VERSION = (JSON.parse(readFileSync(new URL("../../../../package.json", import.meta.url), "utf8")) as { version: string }).version;
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 

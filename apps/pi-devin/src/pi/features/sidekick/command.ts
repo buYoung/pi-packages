@@ -7,10 +7,6 @@ import type { SidekickCommand, SidekickLaunch } from "./types.ts";
 
 const PI_PACKAGE = "@earendil-works/pi-coding-agent";
 
-/** This package root. Passed to the child Pi with `-e` so it uses the same extension copy as the lead. Pi loads a path only once. */
-export const PACKAGE_ROOT = dirname(fileURLToPath(new URL("../../../../package.json", import.meta.url)));
-
-
 function piPackageRoot(start: string): string | undefined {
   let directory = dirname(start);
   while (directory !== dirname(directory)) {

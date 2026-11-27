@@ -7,6 +7,8 @@
 ### 달라진 것
 
 - Effect와 포함된 `@effect/platform-node`를 4.1.6으로 업데이트했습니다.
+- Devin을 쓰기 시작한 뒤 메모리를 덜 씁니다. protobuf 스키마에는 이제 모든 `.proto` 파일을 파싱한 형식 2,773개 대신 요청에 쓰는 형식 110개만 들어 있습니다. 이 저장소의 다른 Effect 기반 패키지를 함께 설치한 환경에서 Devin 응답 뒤 JavaScript 힙이 약 83 MB에서 약 68 MB로 줄었습니다.
+- 이제 패키지는 npm 의존성 없이 `dist/`의 묶음 빌드 하나로 배포됩니다. 설치할 때 `effect`, `@effect/platform-node`, `protobufjs`를 더 받지 않으며, 다른 패키지의 `effect` 버전 때문에 이 패키지가 깨지지 않습니다. 압축 파일의 파일 수는 203개에서 13개로 줄었고 `proto/`는 더 이상 넣지 않습니다. 함께 묶은 패키지의 라이선스는 `dist/THIRD_PARTY_LICENSES.txt`에 있습니다. 업데이트 뒤 처음 시작할 때는 Pi가 빌드를 한 번 준비하느라 시간과 메모리가 더 듭니다.
 - Devin을 쓰지 않는 Pi 프로세스는 이제 Devin 런타임 비용을 내지 않습니다. Effect, Node 플랫폼 패키지, protobufjs는 처음 쓸 때 불러옵니다. Devin 모델이나 Devin 실행 기록이 있는 세션, Devin 모델로의 전환, `/devin`, `/devin-fusion`, `devin_sidekick`, 로그인, 요청, Devin에 접속해야 하는 모델 목록 새로 고침이 그 시점입니다. 그전에도 `/model`은 Pi가 저장한 목록에서 같은 Devin 모델을 보여 줍니다. 다른 기본 모델을 쓰고 시작 시 네트워크 새로 고침을 하지 않는 RPC 프로세스에서 측정한 메모리 사용량(footprint)은 약 173 MB에서 약 80 MB로 줄었습니다. 확장이 없으면 약 74 MB입니다. 리드가 저장하는 모델 목록에는 이제 그 목록을 만든 패키지 버전과 Fusion 선택도 기록됩니다.
 
 ### 해결된 것

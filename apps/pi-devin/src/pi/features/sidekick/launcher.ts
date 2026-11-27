@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { Context, Layer } from "effect";
-import { PACKAGE_ROOT, resolvePiCommand } from "./command.ts";
+import { PACKAGE_ROOT } from "../../../package.ts";
+import { resolvePiCommand } from "./command.ts";
 import type { SidekickLauncherShape } from "./types.ts";
 
 /** How sidekick child Pi processes start. */

@@ -18,7 +18,8 @@ import { formatTokens, progressBar, relativeTime, remainingTone, sessionUsage, u
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { FUSION_MODEL_ID } from "../src/pi/features/catalog/constants.ts";
 import type { DevinModel } from "../src/pi/features/catalog/types.ts";
-import { extensionArgs, PACKAGE_ROOT } from "../src/pi/features/sidekick/command.ts";
+import { PACKAGE_ROOT } from "../src/package.ts";
+import { extensionArgs } from "../src/pi/features/sidekick/command.ts";
 import { FUSION_CHILD_ENV, SIDEKICK_REPORT_MESSAGE } from "../src/pi/features/sidekick/prompts.ts";
 import { SIDEKICK_REPORT_CHAR_LIMIT } from "../src/pi/features/sidekick/report.ts";
 import type { SidekickLauncherShape } from "../src/pi/features/sidekick/types.ts";
