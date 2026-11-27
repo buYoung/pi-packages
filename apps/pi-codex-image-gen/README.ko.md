@@ -154,6 +154,7 @@ SDK·도구 호출자 참고: 저장에 성공하면 `details.savedPath`에 경�
 | 도구가 숨겨졌거나 구독 인증 정보가 없음 | `/login openai-codex`로 다시 로그인합니다. 대화 모델은 유지하세요. `--tools`, `--exclude-tools`, `--no-tools`나 Pi의 `defaultTools` 설정으로 직접 끈 도구는 확장이 다시 켜지 않으므로, `image_gen`을 켜고 Pi를 시작합니다. |
 | 잘못된 이미지 모델 설정 | `<agentDir>/codex-image-gen/settings.json`(오류에 표시된 경로)의 `model`을 `gpt-image-2.5`나 `gpt-image-2`로 고칩니다. 다음 요청이 파일을 다시 읽습니다. `gif`는 `true`나 `false`로 지정하거나 지웁니다. |
 | `GIF output is unavailable in this session.` | 설정 파일에 `"gif": true`를 지정한 뒤 새 세션을 시작하거나 `/reload`를 실행합니다. |
+| `GIF output is not enabled for this request.` | ChatGPT 백엔드가 이 계정에 GIF 출력을 열지 않았습니다. 설정 파일에서 `gif`를 지우거나 `false`로 바꿉니다. |
 | 로컬 참조를 읽거나 디코딩할 수 없음 | 경로가 절대 경로(또는 `~/`로 시작)인지, 파일을 읽을 수 있는지, 유효한 PNG·JPEG·WebP나 Pi가 디코딩할 수 있는 형식인지 확인합니다. |
 | 요청한 최근 이미지가 없음 | 다시 첨부하거나 저장한 로컬 경로를 사용합니다. 현재 모델이 볼 수 있는 대화 밖의 이미지는 자동으로 복구하지 않습니다. |
 | 백엔드가 모델·계정을 거부함 | 계정 접근과 반환 오류를 확인합니다. 다른 모델로 대체하거나 API 키를 구독 인증 대신 사용하지 않습니다. |

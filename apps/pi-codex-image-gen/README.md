@@ -154,6 +154,7 @@ In the interactive terminal, each `image_gen` call shows the request (operation,
 | Tool hidden or missing subscription credentials | Run `/login openai-codex` again. Keep your conversation model selected. If you turned the tool off yourself (with `--tools`, `--exclude-tools`, `--no-tools`, or Pi's `defaultTools` setting), the extension does not turn it back on; start Pi with `image_gen` enabled. |
 | Invalid image-model setting | Set `model` to `gpt-image-2.5` or `gpt-image-2` in `<agentDir>/codex-image-gen/settings.json` (the path in the error); the next request rereads it. Set `gif` to `true` or `false`, or remove it. |
 | `GIF output is unavailable in this session.` | Set `"gif": true` in the settings file, then start a new session or run `/reload`. |
+| `GIF output is not enabled for this request.` | The ChatGPT backend has not enabled GIF output for this account. Remove `gif` from the settings file or set it to `false`. |
 | Local reference cannot be read/decoded | Check that the path is absolute (or starts with `~/`), the file is readable, and it is a valid PNG, JPEG, or WebP image or another format Pi can decode. |
 | Requested recent images are unavailable | Attach them again or use their saved local paths; images outside the current model-visible context are not recovered automatically. |
 | Backend rejects the model or account | Check your account access and the returned error. The extension does not substitute another model or use an API key as a subscription fallback. |
