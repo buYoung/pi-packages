@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-28
+
 ### Improved
 
 - Update `@earendil-works/pi-mcp` to 1.7.0 and the Effect runtime dependency to 4.1.6.
