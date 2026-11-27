@@ -6,6 +6,10 @@
 
 - Update `@earendil-works/pi-mcp` to 1.6.1.
 
+### Fixed
+
+- Browser Use no longer fails with `The browser access host is unavailable` on Codex Desktop 26.1120 and later, which launch the runtime with a `--require-browser-access` flag.
+
 ## [0.3.5] - 2026-11-21
 
 ### Improved

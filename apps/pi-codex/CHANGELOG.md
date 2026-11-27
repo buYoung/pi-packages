@@ -6,6 +6,10 @@
 
 - Computer Use uses `@earendil-works/pi-mcp` 1.6.1.
 
+### Fixed
+
+- Browser Use no longer fails with `The browser access host is unavailable` on Codex Desktop 26.1120 and later.
+
 ## [0.7.2] - 2026-11-21
 
 ### Improved

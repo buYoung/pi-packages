@@ -6,6 +6,10 @@
 
 - Computer Use가 `@earendil-works/pi-mcp` 1.6.1을 사용합니다.
 
+### 해결된 것
+
+- Codex Desktop 26.1120 이후에도 Browser Use가 `The browser access host is unavailable`로 실패하지 않습니다.
+
 ## [0.7.2] - 2026-11-21
 
 ### 달라진 것
