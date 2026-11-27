@@ -4,7 +4,7 @@ import { requiredString } from "../../../core/validation.ts";
 import { ExtensionConfig } from "../../app/config.ts";
 import { AuthState } from "../auth/state.ts";
 import { evictOldest } from "../bounded.ts";
-import { catalogScope } from "../catalog/projection.ts";
+import { catalogScope } from "../catalog/scope.ts";
 import { DevinClients } from "../clients/service.ts";
 import { ProviderLifetime } from "../lifetime/service.ts";
 import { UsageStore } from "../settings/service.ts";

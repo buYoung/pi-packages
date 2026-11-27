@@ -5,7 +5,7 @@ import { CHAT_METHOD } from "../src/core/protocol/protobuf.ts";
 import type { JsonObject } from "../src/core/types.ts";
 import { attachSession } from "../src/pi/app/session.ts";
 import { FIRST_REFRESH_WAIT_MS } from "../src/pi/features/catalog/service.ts";
-import { DEVIN_STATE_ENTRY } from "../src/pi/features/runs/state.ts";
+import { DEVIN_STATE_ENTRY } from "../src/pi/features/runs/entry.ts";
 import type { DevinSessionState } from "../src/pi/features/runs/types.ts";
 import { makeTestProvider, type TestProvider } from "./extension-harness.ts";
 import { finalFrames, MODELS_METHOD, STATUS_METHOD, statusResponse, streamResponse, unaryResponse } from "./helpers.ts";

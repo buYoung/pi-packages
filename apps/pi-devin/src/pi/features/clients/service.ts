@@ -5,7 +5,7 @@ import { DeviceIdentitySource } from "../../../core/services/device-identity.ts"
 import { fetchTransport, HttpTransport } from "../../../core/services/http-transport.ts";
 import type { Credential } from "../../../core/types.ts";
 import { evictOldest } from "../bounded.ts";
-import { catalogScope } from "../catalog/projection.ts";
+import { catalogScope } from "../catalog/scope.ts";
 import type { DevinClientsShape } from "./types.ts";
 
 /**

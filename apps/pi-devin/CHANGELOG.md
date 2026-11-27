@@ -5,6 +5,7 @@
 ### Improved
 
 - Update Effect and the bundled `@effect/platform-node` to 4.1.6.
+- Pi processes that do not use Devin no longer pay for its runtime. The extension now loads Effect, its Node platform packages and protobufjs on first use: a session on a Devin model or with a Devin run, a switch to a Devin model, `/devin`, `/devin-fusion`, `devin_sidekick`, sign-in, a request, or a model refresh that has to reach Devin. Until then `/model` lists the same Devin models from the list Pi stored. In a measured RPC process with another default model and no startup network refresh, the memory footprint went from about 173 MB to about 80 MB; without the extension it is about 74 MB. The model list a lead stores now also records the package version and Fusion choice it was built with.
 
 ### Fixed
 

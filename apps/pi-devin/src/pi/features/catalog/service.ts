@@ -13,15 +13,16 @@ import { AuthState } from "../auth/state.ts";
 import { ProviderLifetime } from "../lifetime/service.ts";
 import { DisplaySettings, FusionSettings } from "../settings/service.ts";
 import { UsageChanges } from "../usage/changes.ts";
-import { DEVIN_API, isFusionModelID } from "./constants.ts";
+import { isFusionModelID } from "./constants.ts";
 import { fusionChoices } from "./fusion.ts";
 import { isUsable, publicModelIDs } from "./ids.ts";
-import { catalogScope, modelsFromProjection } from "./projection.ts";
+import { modelsFromProjection } from "./projection.ts";
 import { RemoteCatalog } from "./remote.ts";
 import { restoredCatalog } from "./restore.ts";
+import { catalogScope, modelsInScope } from "./scope.ts";
+import { isFresh, storedBy, storedCheckedAtMs } from "./stored.ts";
 import type { DevinModel, ModelCatalogShape } from "./types.ts";
 
-const FRESHNESS_MS = 5 * 60_000;
 /** How long a request waits for the first refresh. Pi's offline restore takes well under a second. */
 export const FIRST_REFRESH_WAIT_MS = 10_000;
 
@@ -48,10 +49,14 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
 
   // The stored list is shared by every Pi process that uses the lead's agent directory. Only the default list is stored,
   // without display filters or the sidekick-only exact list. It still holds every catalog config, so each process rebuilds its own list after restore.
+  // A lead marks the list it stores with what it was built from, so the extension entry can show it before it loads.
   const build = (next: VariantProjection, credential: Credential, account: string | undefined, isForStorage = false) => Effect.gen(function* () {
     const fusion = config.isFusionChild ? false : yield* fusionSettings.read;
     const recommendedOnly = !isForStorage && !config.isFusionChild && (yield* displaySettings.read).recommendedOnly;
-    return modelsFromProjection(next, credential, { fusion, recommendedOnly, listsAllExactModels: !isForStorage && config.isFusionChild, account });
+    const models = modelsFromProjection(next, credential, { fusion, recommendedOnly, listsAllExactModels: !isForStorage && config.isFusionChild, account });
+    if (!isForStorage || fusion === false) return models;
+    const mark = storedBy(fusion);
+    return models.map((model) => ({ ...model, devin: { ...model.devin, storedBy: mark } }));
   });
   let models: DevinModel[] = [], projection: VariantProjection | undefined, scope: string | undefined, catalogAccount: string | undefined;
   let checkedAtMs = 0, endpointOverride: string | undefined, modelCredential: Credential | undefined, credentialScope: string | undefined;
@@ -98,8 +103,7 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
     if (restored && (scope !== expectedScope || !projection || (context.stored?.checkedAt ?? 0) > checkedAtMs)) {
       const { projection: restoredProjection, account: restoredAccount, isSameSession } = restored;
       const restoredModels = yield* build(restoredProjection, credential, restoredAccount);
-      const checkedAt = context.stored?.checkedAt;
-      const restoredAtMs = typeof checkedAt === "number" && Number.isFinite(checkedAt) && checkedAt >= 0 && checkedAt <= now() ? checkedAt : 0;
+      const restoredAtMs = storedCheckedAtMs(context.stored, now());
       const accepted = yield* publish(context, {
         // A catalog reused for a new session of the same account is stored under the new session, so a restart restores it too.
         ...(isSameSession ? {} : { persist: { models: yield* build(restoredProjection, credential, restoredAccount, true), checkedAt: restoredAtMs } }),
@@ -123,8 +127,7 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
     const credential = yield* restore(context);
     if (!credential || !context.allowNetwork) return;
     const expectedScope = catalogScope(credential);
-    const ageMs = now() - checkedAtMs;
-    if (!context.force && scope === expectedScope && projection && checkedAtMs > 0 && ageMs >= 0 && ageMs < FRESHNESS_MS) return;
+    if (!context.force && scope === expectedScope && projection && isFresh(checkedAtMs, now())) return;
     const catalog = yield* fetchCatalog(credential);
     const nextProjection = yield* projectModelVariants(catalog);
     // Known after an account check in this process, or carried over from this same session's catalog.
@@ -150,11 +153,8 @@ export const ModelCatalogLive = Layer.effect(ModelCatalog, Effect.gen(function* 
       ? Effect.map(build(projection, modelCredential, catalogAccount), (next) => { models = next; }) : Effect.void),
     currentScope: Effect.sync(() => credentialScope),
     invalidate: Effect.sync(clear),
-    filter: (candidates, credential) => Effect.map(effectiveCredential(credential, endpointOverride), (resolved) => {
-      if (!resolved) return [];
-      const expected = catalogScope(resolved);
-      return candidates.filter((model) => model.provider === "devin" && model.api === DEVIN_API && model.baseUrl === resolved.apiServerURL && (model as DevinModel).devin?.scope === expected);
-    }).pipe(Effect.catchCause(() => Effect.succeed([]))),
+    filter: (candidates, credential) => Effect.map(effectiveCredential(credential, endpointOverride), (resolved) => resolved ? modelsInScope(candidates, resolved) : [])
+      .pipe(Effect.catchCause(() => Effect.succeed([]))),
     // Sign-in, logout and restores change the current credential, which decides whose quota is shown.
     // A refresh Pi superseded ends aborted, or, once it had finished before, finds its publication rejected; the newer one ends the wait.
     refresh: (context) => Effect.suspend(() => {

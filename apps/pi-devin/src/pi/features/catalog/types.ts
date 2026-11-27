@@ -24,8 +24,13 @@ export interface DevinModel extends Model<DevinAPI> {
     recommended?: true;
     /** Account identity hash (endpoint and user ID) the catalog belongs to. Lets a new session of the same account reuse it. */
     account?: string;
+    /** Only on a list a lead stored. Lets the extension entry show the stored list before it loads the runtime. */
+    storedBy?: StoredBy;
   };
 }
+
+/** The package version whose projection built a stored list, and the Fusion choice saved when it was built. */
+export interface StoredBy { version: string; fusion: FusionSelection | null }
 
 /** One remote catalog lookup for a credential, with the team's model policy applied. */
 export interface RemoteCatalogShape {

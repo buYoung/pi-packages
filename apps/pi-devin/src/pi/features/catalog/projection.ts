@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
 import { EFFECTIVE_THINKING_LEVELS, type EffectiveThinkingLevel, type ModelVariant, type VariantProjection } from "../../../core/models/variants.ts";
 import type { Credential } from "../../../core/types.ts";
 import { CATALOG_VERSION, DEVIN_API, FUSION_MODEL_ID } from "./constants.ts";
 import { effectiveFusion } from "./fusion.ts";
 import { groupDisplayNames, isUsable, publicModelIDs, publishedVariants } from "./ids.ts";
+import { catalogScope } from "./scope.ts";
 import type { DevinModel, FusionSelection } from "./types.ts";
 
 /** Options for projecting the model list. Defaults: group list, Fusion included, recommended filter off. */
@@ -24,11 +24,6 @@ export interface ProjectionOptions {
  */
 export function hasExtendedPromptCacheRetention(variant: ModelVariant): boolean {
   return variant.dimensions.some((dimension) => dimension.key === "Prompt Cache Retention" && dimension.name === "24h");
-}
-
-/** Scope of one credential on one endpoint. Credentials reaching here already carry a validated endpoint origin. */
-export function catalogScope(credential: Credential): string {
-  return createHash("sha256").update(credential.apiServerURL + "\0" + credential.sessionToken).digest("hex");
 }
 
 function thinkingMap(mappings: Partial<Record<EffectiveThinkingLevel, string>>) {
