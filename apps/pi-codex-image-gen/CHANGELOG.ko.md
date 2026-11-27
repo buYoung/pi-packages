@@ -2,9 +2,17 @@
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-28
+
 ### 새로워진 것
 
 - Codex처럼 `image_gen`으로 2~16프레임의 간단한 움직이는 GIF를 만들 수 있습니다. 이미지 설정 파일에 `"gif": true`를 넣으면 켜지며, 기본으로는 꺼져 있습니다. GIF는 `.gif` 파일로 저장하고, 모델과 터미널에는 첫 프레임을 보여 줍니다.
+- GIF를 요청할 때 `frame_count`와 `frame_duration_ms`(프레임당 20~2000 ms)를 지정할 수 있습니다. `{}`로 요청하면 백엔드 기본값대로 9프레임을 프레임당 200 ms로 만듭니다.
+- `"gif": true`를 넣으면 다음 세션을 시작할 때(새 세션, `/reload`, Pi 재시작)부터 `gif` 인자를 쓸 수 있습니다. 키를 지우거나 `false`로 바꾸면 다음 GIF 요청은 `GIF output is unavailable in this session.` 오류로 실패하고, `true`·`false` 외의 값은 설정 오류를 반환합니다.
+
+### 달라진 것
+
+- GIF 요청이면 터미널 요약의 요청 줄에 `GIF`가 붙고, 결과 제목은 `Generated GIF`나 `Edited GIF`로 나옵니다.
 
 ## [0.3.3] - 2026-11-02
 

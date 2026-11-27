@@ -2,9 +2,17 @@
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-11-28
+
 ### New
 
 - `image_gen` can create simple animated GIFs with 2–16 frames, following Codex. Turn it on with `"gif": true` in the image settings file; it is off by default. The GIF is saved as a `.gif` file, and the model and terminal show its first frame.
+- A GIF request can set `frame_count` and `frame_duration_ms` (20–2000 ms per frame). With `{}`, the backend uses 9 frames at 200 ms per frame.
+- After you set `"gif": true`, the `gif` argument becomes available at the next session start (a new session, `/reload`, or restarting Pi). If you remove the key or set it to `false`, the next GIF request fails with `GIF output is unavailable in this session.` Any value other than `true` or `false` returns a settings error.
+
+### Improved
+
+- In the terminal summary, a GIF request shows `GIF` on the request line, and its result heading reads `Generated GIF` or `Edited GIF`.
 
 ## [0.3.3] - 2026-11-02
 
