@@ -5,9 +5,9 @@ packages:
 # One version of the Pi host packages and the toolchain for every workspace package.
 catalog:
   "@biomejs/biome": 2.6.9
-  "@earendil-works/pi-ai": 1.6.1
-  "@earendil-works/pi-coding-agent": 1.6.1
-  "@earendil-works/pi-tui": 1.6.1
+  "@earendil-works/pi-ai": 1.7.0
+  "@earendil-works/pi-coding-agent": 1.7.0
+  "@earendil-works/pi-tui": 1.7.0
   "@types/node": 26.6.11
   "@types/proper-lockfile": 4.1.4
   esbuild: 0.28.2
@@ -18,17 +18,17 @@ catalog:
 # Package-specific Pi SDK baselines; do not upgrade unrelated apps for one consumer.
 catalogs:
   memory:
-    "@earendil-works/pi-ai": 1.6.1
-    "@earendil-works/pi-coding-agent": 1.6.1
-    "@earendil-works/pi-tui": 1.6.1
+    "@earendil-works/pi-ai": 1.7.0
+    "@earendil-works/pi-coding-agent": 1.7.0
+    "@earendil-works/pi-tui": 1.7.0
   devin:
-    "@earendil-works/pi-ai": 1.6.1
-    "@earendil-works/pi-coding-agent": 1.6.1
-    "@earendil-works/pi-tui": 1.6.1
+    "@earendil-works/pi-ai": 1.7.0
+    "@earendil-works/pi-coding-agent": 1.7.0
+    "@earendil-works/pi-tui": 1.7.0
   mcp-adapter:
-    "@earendil-works/pi-ai": 1.6.1
-    "@earendil-works/pi-coding-agent": 1.6.1
-    "@earendil-works/pi-tui": 1.6.1
+    "@earendil-works/pi-ai": 1.7.0
+    "@earendil-works/pi-coding-agent": 1.7.0
+    "@earendil-works/pi-tui": 1.7.0
 
 # Install scripts the workspace does not need. @google/genai and protobufjs come with the Pi host packages, and type
 # checking does not use their scripts; esbuild and @bufbuild/buf load their platform binary packages without them.
@@ -42,3 +42,13 @@ allowBuilds:
 permissions:
   "@buyong/pi-codex-image-gen":
     skills: false
+
+minimumReleaseAgeExclude:
+  - "@earendil-works/pi-agent-core@1.7.0"
+  - "@earendil-works/pi-ai@1.7.0"
+  - "@earendil-works/pi-codemode@1.7.0"
+  - "@earendil-works/pi-coding-agent@1.7.0"
+  - "@earendil-works/pi-mcp@1.7.0"
+  - "@earendil-works/pi-schema@1.7.0"
+  - "@earendil-works/pi-telemetry@1.7.0"
+  - "@earendil-works/pi-tui@1.7.0"

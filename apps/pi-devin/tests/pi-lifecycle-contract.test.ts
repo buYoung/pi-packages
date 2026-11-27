@@ -52,7 +52,7 @@ async function fixture(options: {
   const settings = SettingsManager.inMemory({
     compaction: { enabled: options.compaction ?? false, reserveTokens: 1000, keepRecentTokens: 0 },
     retry: { enabled: true, maxRetries: 1, baseDelayMs: 1, maxAgentDelayMs: 1 },
-    cacheWarming: "off", enableInstallTelemetry: false, defaultProjectTrust: "never",
+    cacheWarming: "off", defaultProjectTrust: "never",
   });
   const loader = new DefaultResourceLoader({ cwd: directory, agentDir: join(directory, "agent"), settingsManager: settings,
     noExtensions: true, noSkills: true, noThemes: true, noPromptTemplates: true, noContextFiles: true,

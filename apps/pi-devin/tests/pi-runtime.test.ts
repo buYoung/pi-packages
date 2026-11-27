@@ -22,7 +22,7 @@ async function runtimeFixture(options: Parameters<typeof providerFixture>[0] & {
   const registrations: { extension: TestProvider; ready: Promise<void> }[] = [], errors: string[] = [], events: string[] = [];
   const factory: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager, sessionStartEvent }) => {
     const modelRuntime = await ModelRuntime.create({ credentials, modelsPath: null, modelsStore, refreshOnCreate: false, allowModelNetwork: false });
-    const settingsManager = SettingsManager.inMemory({ defaultProjectTrust: "never", enableInstallTelemetry: false, cacheWarming: "off", retry: { enabled: false }, compaction: { enabled: false }, ...options.settings });
+    const settingsManager = SettingsManager.inMemory({ defaultProjectTrust: "never", cacheWarming: "off", retry: { enabled: false }, compaction: { enabled: false }, ...options.settings });
     const services = await createAgentSessionServices({ cwd, agentDir: join(directory, "agent"), modelRuntime, settingsManager,
       resourceLoaderOptions: { noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true, systemPrompt: "Fixture only", extensionFactories: [(pi) => {
         const extension = registerTestExtension(pi, fixture.dependencies), { provider } = extension;

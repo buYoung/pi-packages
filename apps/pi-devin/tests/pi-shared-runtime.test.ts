@@ -38,7 +38,7 @@ async function sharedRuntime(options: { modelsJson?: boolean } = {}) {
   }
   const runtime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: join(directory, "models.json"),
     modelsStore: new InMemoryModelsStore(), refreshOnCreate: false, allowModelNetwork: false });
-  const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", enableInstallTelemetry: false, cacheWarming: "off",
+  const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", cacheWarming: "off",
     compaction: { enabled: false, keepRecentTokens: 1 }, retry: { enabled: false } });
   const agentDir = join(directory, "agent"), errors: string[] = [];
   const extensions: ReturnType<typeof registerTestExtension>[] = [];

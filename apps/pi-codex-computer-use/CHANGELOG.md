@@ -4,7 +4,7 @@
 
 ### Improved
 
-- Update `@earendil-works/pi-mcp` to 1.6.1.
+- Update `@earendil-works/pi-mcp` to 1.7.0.
 - Approval dialogs report a permission wait to terminals that show program status (OSC 7501), on Pi 1.6.1 and later.
 
 ### Fixed

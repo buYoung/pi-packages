@@ -9,7 +9,7 @@
 
 ### Improved
 
-- Computer Use uses `@earendil-works/pi-mcp` 1.6.1.
+- Computer Use uses `@earendil-works/pi-mcp` 1.7.0.
 - Auto Review and Computer Use approval dialogs report a permission wait to terminals that show program status (OSC 7501), on Pi 1.6.1 and later.
 - Auto Review follows the Guardian policy from Codex `rust-v0.172.0`. Saved allow rules from earlier versions are asked again (included `@buyong/pi-codex-auto-review`).
 - Fast mode's built-in list, used when the model catalog cannot be read, covers `openai-codex` `gpt-6.2-sol`, `gpt-6.2-astra`, and `gpt-6.1-terra` (included `@buyong/pi-codex-fast-mode`).
