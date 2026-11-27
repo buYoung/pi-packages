@@ -4,11 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.15.7] - 2026-11-28
+
 ### Improved
 
 - Update the Effect runtime dependency to 4.1.6.
 - Refresh the generated model catalog, pricing, and reasoning levels from Ollama Cloud on November 27, 2026: 18 -> 24 models. Added `beam`, `deepseek-v4.1-flash:1017`, `hy4`, `inkling-2-small`, `kimi-k3.1-pro`, `mimo-v2.6-flash`, `mimo-v2.6-pro`, `minimax-m3.1-flash`, and `muse-spark-open`; removed `minimax-m2.7`, `mistral-large-3:675b`, and `nemotron-3-nano:30b`, which are no longer listed. Output limits for the new models were probed against the live API: 131072 tokens for `beam`, `hy4`, `inkling-2-small`, `mimo-v2.6-flash`, and `mimo-v2.6-pro`, 393216 for `deepseek-v4.1-flash:1017`, and at least 524288 for `kimi-k3.1-pro`, `minimax-m3.1-flash`, and `muse-spark-open`.
 - A price the Ollama pricing page lists under a base name, such as `deepseek-v4-pro`, applies to a tagged model ID when it is the only catalog ID with that base name, such as `deepseek-v4-pro:0813`.
+- `mistral-large-4` cost estimates use the current Ollama rates: $0.70 input and $2.10 output per million tokens, up from $0.68 and $2.09.
+- `deepseek-v4-pro:0813` now offers the `low` thinking level, which was hidden before.
 
 ### Fixed
 
