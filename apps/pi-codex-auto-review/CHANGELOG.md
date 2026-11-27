@@ -4,6 +4,7 @@
 
 ### Improved
 
+- The reviewer uses the Guardian policy from Codex `rust-v0.172.0`. When you approve an action again after it was denied and you saw its risk, the reviewer counts that as your approval even if your wording is not exact. Actions that remain critical are still denied. Because the policy changed, saved allow rules from earlier versions no longer match and are asked again.
 - Approval dialogs report a permission wait to terminals that show program status (OSC 7501), on Pi 1.6.1 and later.
 
 ## [0.8.1] - 2026-11-02
