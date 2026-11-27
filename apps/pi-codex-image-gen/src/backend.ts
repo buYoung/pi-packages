@@ -1,5 +1,5 @@
 import { STATUS_CODES } from "node:http";
-import type { ImageRequestPlan } from "./arguments.js";
+import type { GifOptions, ImageRequestPlan } from "./arguments.js";
 import type { OpenAiCredentials } from "./auth.js";
 import { boundErrorText } from "./error-output.js";
 import { isValidImageBase64 } from "./image-data.js";
@@ -447,6 +447,19 @@ export interface ImagesClientOptions {
     random?: () => number;
 }
 
+/**
+ * Flattened `ImageOutput::Gif` (Codex `codex-api/src/images.rs`): `output_format` plus the set
+ * controls as sibling fields, or nothing for still images.
+ */
+function outputFields(gif: GifOptions | undefined): Record<string, unknown> {
+    if (gif === undefined) return {};
+    const fields: Record<string, unknown> = { output_format: "gif" };
+    if (gif.frame_count !== undefined) fields.frame_count = gif.frame_count;
+    if (gif.frame_duration_ms !== undefined)
+        fields.frame_duration_ms = gif.frame_duration_ms;
+    return fields;
+}
+
 /** `ImageReference::Inline` data URL (`into_data_url` in Codex). */
 function imageDataUrl(image: ReferenceImage): string {
     return `data:${image.mimeType};base64,${Buffer.from(image.bytes).toString("base64")}`;
@@ -475,6 +488,7 @@ export class ImagesClient {
     ): Promise<ImageResponse> {
         const body = JSON.stringify({
             prompt: plan.prompt,
+            ...outputFields(plan.gif),
             background: plan.background,
             model: plan.model,
             quality: plan.quality,
@@ -496,6 +510,7 @@ export class ImagesClient {
         const body = JSON.stringify({
             images: images.map((image) => ({ image_url: imageDataUrl(image) })),
             prompt: plan.prompt,
+            ...outputFields(plan.gif),
             background: plan.background,
             model: plan.model,
             quality: plan.quality,

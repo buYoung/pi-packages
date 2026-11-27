@@ -63,6 +63,7 @@ Use image_gen to edit /absolute/path/to/product.png. Remove the background and k
 | `transparent_background` | 불리언. 기본값은 `false`입니다. |
 | `referenced_image_paths` | 로컬 절대 경로 최대 5개. `~/`는 홈 디렉터리로 확장합니다. |
 | `num_last_images_to_include` | 현재 모델이 볼 수 있는 대화의 최근 이미지 1~5개 사용 |
+| `gif` | 움직이는 GIF 요청. [GIF 출력](#움직이는-gif-출력)을 켰을 때만 제공합니다. |
 
 모델이 요청에 맞춰 이 인자를 정합니다. 로컬 파일은 `referenced_image_paths`, 대화 이미지는 `num_last_images_to_include`를 쓰고, 새 이미지에는 둘 다 쓰지 않습니다. 한 호출에 두 참조 인자를 함께 쓸 수는 없습니다. 알 수 없는 필드, 잘못된 타입·개수와 참조 선택 충돌은 요청 전에 거부합니다.
 
@@ -89,6 +90,32 @@ Use image_gen to edit /absolute/path/to/product.png. Remove the background and k
 
 이 모델명은 구독 백엔드에 전달합니다. 선택창에 있다는 이유만으로 계정·백엔드의 지원을 확인할 수는 없습니다.
 
+## 움직이는 GIF 출력
+
+GIF 출력은 Codex에서도 아직 개발 중인 기능이라 기본으로 꺼져 있습니다. 켜려면 위 설정 파일에 `"gif": true`를 추가합니다.
+
+```json
+{
+  "model": "gpt-image-2.5",
+  "gif": true
+}
+```
+
+다음 세션 시작(새 세션, `/reload`, Pi 재시작)부터 도구가 `gif` 인자와 Codex의 GIF 안내를 제공합니다. 요청마다 파일을 다시 읽으므로 키를 지우거나 `false`로 바꾸면 다음 호출부터 GIF 요청을 거부합니다. `true`·`false` 외의 값은 잘못된 설정이며 오류를 반환합니다.
+
+간단한 애니메이션을 요청합니다.
+
+```text
+Use image_gen to create a two-frame GIF of a pixel alternating between red and blue.
+```
+
+| `gif` 값 | 동작 |
+| --- | --- |
+| `{}` | 백엔드 기본값: 9프레임, 프레임당 200 ms |
+| `{"frame_count": 2, "frame_duration_ms": 200}` | 2~16프레임, 프레임당 20~2000 ms. 범위는 백엔드가 확인합니다. |
+
+GIF 결과는 애니메이션을 그대로 담아 `.gif`로 저장합니다. 모델과 Pi 터미널에는 첫 프레임의 정지 PNG가 전달되며, 애니메이션은 저장 경로를 클릭해 확인합니다. Pi가 이 미리보기를 만들지 못하면 결과에는 저장 경로만 담깁니다. GIF를 바꿀 때는 GIF 자체가 아니라 프레임으로 만든 스프라이트시트를 참조 이미지로 넘기도록 모델에게 안내합니다. 설정을 켰다고 계정·백엔드가 GIF 요청을 받아들인다는 보장은 없습니다.
+
 ## 출력과 저장
 
 백엔드 응답의 첫 이미지를 PNG 이미지 콘텐츠로 반환하고 다음 위치에 저장을 시도합니다.
@@ -96,6 +123,8 @@ Use image_gen to edit /absolute/path/to/product.png. Remove the background and k
 ```text
 <agentDir>/generated_images/<sessionId>/<toolCallId>.png
 ```
+
+GIF는 대신 `.gif` 확장자로 저장하며, 이미지 콘텐츠는 [움직이는 GIF 출력](#움직이는-gif-출력)에서 설명한 첫 프레임 미리보기입니다.
 
 세션 ID와 도구 호출 ID에서 파일명에 쓸 수 없는 문자는 바꿉니다. 저장에 실패해도 도구는 이미지를 그대로 반환합니다. 대화 문맥에서 빠진 뒤에도 편집하려면 저장된 파일의 복사본을 두세요.
 
@@ -105,7 +134,7 @@ Use image_gen to edit /absolute/path/to/product.png. Remove the background and k
 du -sh "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/generated_images"
 ```
 
-정리하려면 필요한 이미지를 먼저 복사한 뒤 파일 관리자에서 `generated_images` 디렉터리의 불필요한 PNG 파일이나 세션 하위 디렉터리를 직접 삭제하세요. 이 작업은 Pi 세션 기록에 이미 남은 이미지 데이터까지 지우지는 않습니다.
+정리하려면 필요한 이미지를 먼저 복사한 뒤 파일 관리자에서 `generated_images` 디렉터리의 불필요한 PNG·GIF 파일이나 세션 하위 디렉터리를 직접 삭제하세요. 이 작업은 Pi 세션 기록에 이미 남은 이미지 데이터까지 지우지는 않습니다.
 
 인증을 확인할 수 없거나 참조 이미지를 로드할 수 없는 경우, 잘못된 설정, 백엔드 실패, 이미지 데이터 부재·빈 데이터·잘못된 base64에는 오류를 반환합니다. 성공 응답 본문은 base64와 JSON을 합쳐 128 MiB까지 허용하며, 초과하면 수신을 중단하고 재시도 없이 오류를 반환합니다. HTTP 오류 본문이 16 KiB를 넘으면 상태 코드는 유지하고 본문은 생략합니다. 백엔드 오류 텍스트는 비밀값을 치환한 뒤 4 KiB로 제한하며 줄였다는 안내를 붙입니다. 호출자의 취소 신호를 이미지 요청과 응답 읽기에 전달하지만, 취소만으로 원격 서비스가 이미 작업했는지 알 수는 없습니다.
 
@@ -123,7 +152,8 @@ SDK·도구 호출자 참고: 저장에 성공하면 `details.savedPath`에 경�
 | 증상 | 조치 |
 | --- | --- |
 | 도구가 숨겨졌거나 구독 인증 정보가 없음 | `/login openai-codex`로 다시 로그인합니다. 대화 모델은 유지하세요. `--tools`, `--exclude-tools`, `--no-tools`나 Pi의 `defaultTools` 설정으로 직접 끈 도구는 확장이 다시 켜지 않으므로, `image_gen`을 켜고 Pi를 시작합니다. |
-| 잘못된 이미지 모델 설정 | `<agentDir>/codex-image-gen/settings.json`(오류에 표시된 경로)의 `model`을 `gpt-image-2.5`나 `gpt-image-2`로 고칩니다. 다음 요청이 파일을 다시 읽습니다. |
+| 잘못된 이미지 모델 설정 | `<agentDir>/codex-image-gen/settings.json`(오류에 표시된 경로)의 `model`을 `gpt-image-2.5`나 `gpt-image-2`로 고칩니다. 다음 요청이 파일을 다시 읽습니다. `gif`는 `true`나 `false`로 지정하거나 지웁니다. |
+| `GIF output is unavailable in this session.` | 설정 파일에 `"gif": true`를 지정한 뒤 새 세션을 시작하거나 `/reload`를 실행합니다. |
 | 로컬 참조를 읽거나 디코딩할 수 없음 | 경로가 절대 경로(또는 `~/`로 시작)인지, 파일을 읽을 수 있는지, 유효한 PNG·JPEG·WebP나 Pi가 디코딩할 수 있는 형식인지 확인합니다. |
 | 요청한 최근 이미지가 없음 | 다시 첨부하거나 저장한 로컬 경로를 사용합니다. 현재 모델이 볼 수 있는 대화 밖의 이미지는 자동으로 복구하지 않습니다. |
 | 백엔드가 모델·계정을 거부함 | 계정 접근과 반환 오류를 확인합니다. 다른 모델로 대체하거나 API 키를 구독 인증 대신 사용하지 않습니다. |

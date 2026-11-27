@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 새로워진 것
+
+- 이미지 설정 파일에 `"gif": true`를 넣으면 이미지 생성이 간단한 애니메이션 GIF를 만듭니다(포함된 `@buyong/pi-codex-image-gen`).
+
 ### 달라진 것
 
 - Computer Use가 `@earendil-works/pi-mcp` 1.6.1을 사용합니다.

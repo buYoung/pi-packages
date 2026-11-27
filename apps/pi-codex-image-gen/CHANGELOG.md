@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### New
+
+- `image_gen` can create simple animated GIFs with 2–16 frames, following Codex. Turn it on with `"gif": true` in the image settings file; it is off by default. The GIF is saved as a `.gif` file, and the model and terminal show its first frame.
+
 ## [0.3.3] - 2026-11-02
 
 ### Improved

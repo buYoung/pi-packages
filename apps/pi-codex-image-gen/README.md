@@ -63,6 +63,7 @@ Replace the example path with your file. Ask explicitly for transparency when ne
 | `transparent_background` | Boolean; defaults to `false` |
 | `referenced_image_paths` | Up to five absolute local paths; `~/` expands to the home directory |
 | `num_last_images_to_include` | Use the latest 1–5 images from the current model-visible conversation |
+| `gif` | Request an animated GIF; offered only when [GIF output](#animated-gif-output) is turned on |
 
 The model sets these arguments from your request: `referenced_image_paths` for local files, `num_last_images_to_include` for conversation images, and neither for a new image. One call cannot use both reference arguments. Unknown fields, invalid types/counts, and conflicting reference choices are rejected before a request is sent.
 
@@ -89,6 +90,32 @@ The choice is saved and applies to subsequent generation/editing requests, inclu
 
 These model names are sent to the subscription backend. Their presence in the selector is not proof that the account/backend supports them.
 
+## Animated GIF output
+
+GIF output is off by default, as it is in Codex, where it is still under development. To turn it on, add `"gif": true` to the settings file above:
+
+```json
+{
+  "model": "gpt-image-2.5",
+  "gif": true
+}
+```
+
+The tool offers the `gif` argument and Codex's GIF guidance from the next session start (a new session, `/reload`, or restarting Pi). Every request rereads the file, so removing the key or setting it to `false` stops GIF requests from the next call. Any value other than `true` or `false` is an invalid setting and returns an error.
+
+Ask for a simple animation:
+
+```text
+Use image_gen to create a two-frame GIF of a pixel alternating between red and blue.
+```
+
+| `gif` value | Behavior |
+| --- | --- |
+| `{}` | Backend defaults: 9 frames, 200 ms per frame |
+| `{"frame_count": 2, "frame_duration_ms": 200}` | 2–16 frames and 20–2000 ms per frame; the backend checks these ranges |
+
+A GIF result is saved as `.gif` with the animation intact. The model and Pi's terminal receive a still PNG of the first frame; click the saved path to view the animation. If Pi cannot make that preview, the result contains only the saved path. To change a GIF, the model is told to build a spritesheet of its frames and pass that as a reference image, not the GIF itself. Turning the setting on does not prove that your account or the backend accepts GIF requests.
+
 ## Output and storage
 
 The tool returns the first image from the backend response as PNG image content and attempts to save it at:
@@ -96,6 +123,8 @@ The tool returns the first image from the backend response as PNG image content 
 ```text
 <agentDir>/generated_images/<sessionId>/<toolCallId>.png
 ```
+
+A GIF is saved with a `.gif` extension instead, and its image content is the first-frame preview described in [animated GIF output](#animated-gif-output).
 
 Characters that are not safe in filenames are replaced in the session and tool-call IDs. If saving fails, the tool still returns the image. Keep a copy of the saved file if you need to edit the result after it leaves conversation context.
 
@@ -105,7 +134,7 @@ Saved images are not automatically deleted. With the default agent directory, th
 du -sh "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/generated_images"
 ```
 
-To clean up, open that directory in your file manager and manually delete unneeded PNG files or session subdirectories after copying any images you want to keep. This does not remove image data already recorded in Pi's session history.
+To clean up, open that directory in your file manager and manually delete unneeded PNG or GIF files or session subdirectories after copying any images you want to keep. This does not remove image data already recorded in Pi's session history.
 
 An error is returned when authentication cannot be resolved, a reference cannot be loaded, settings are invalid, the backend fails, or image data is missing, empty, or invalid base64. Successful response bodies are limited to 128 MiB (including base64 and JSON); larger responses are stopped and reported as errors without retrying. HTTP error bodies over 16 KiB are omitted while preserving the status code. Backend error text is limited to 4 KiB after secret redaction, with a notice when shortened. The caller's cancellation signal is passed to image requests and response reads; cancellation does not establish whether a remote service already performed work.
 
@@ -123,7 +152,8 @@ In the interactive terminal, each `image_gen` call shows the request (operation,
 | Symptom | Action |
 | --- | --- |
 | Tool hidden or missing subscription credentials | Run `/login openai-codex` again. Keep your conversation model selected. If you turned the tool off yourself (with `--tools`, `--exclude-tools`, `--no-tools`, or Pi's `defaultTools` setting), the extension does not turn it back on; start Pi with `image_gen` enabled. |
-| Invalid image-model setting | Set `model` to `gpt-image-2.5` or `gpt-image-2` in `<agentDir>/codex-image-gen/settings.json` (the path in the error); the next request rereads it. |
+| Invalid image-model setting | Set `model` to `gpt-image-2.5` or `gpt-image-2` in `<agentDir>/codex-image-gen/settings.json` (the path in the error); the next request rereads it. Set `gif` to `true` or `false`, or remove it. |
+| `GIF output is unavailable in this session.` | Set `"gif": true` in the settings file, then start a new session or run `/reload`. |
 | Local reference cannot be read/decoded | Check that the path is absolute (or starts with `~/`), the file is readable, and it is a valid PNG, JPEG, or WebP image or another format Pi can decode. |
 | Requested recent images are unavailable | Attach them again or use their saved local paths; images outside the current model-visible context are not recovered automatically. |
 | Backend rejects the model or account | Check your account access and the returned error. The extension does not substitute another model or use an API key as a subscription fallback. |

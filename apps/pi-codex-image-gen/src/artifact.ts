@@ -7,6 +7,17 @@ export const GENERATED_IMAGES_DIR = "generated_images";
 /** `MAX_IMAGE_GENERATION_OUTPUT_HINT_BYTES` in Codex `artifact.rs`. */
 export const MAX_OUTPUT_HINT_BYTES = 1024;
 
+/** Encoded format of a generated image (`GeneratedImageFormat` in Codex `artifact.rs`). */
+export type GeneratedImageFormat = "png" | "gif";
+
+/** Detects GIFs from the base64 of their `GIF87a`/`GIF89a` header; everything else is PNG. */
+export function generatedImageFormat(base64: string): GeneratedImageFormat {
+    const trimmed = base64.trim();
+    return trimmed.startsWith("R0lGODdh") || trimmed.startsWith("R0lGODlh")
+        ? "gif"
+        : "png";
+}
+
 /** Keeps `[A-Za-z0-9_-]`, replaces every other code point with `_`, never empty. */
 export function sanitizeArtifactName(value: string): string {
     const sanitized = value.replace(/[^A-Za-z0-9_-]/gu, "_");
@@ -18,12 +29,13 @@ export function imageGenerationArtifactPath(
     saveRoot: string,
     sessionId: string,
     callId: string,
+    format: GeneratedImageFormat,
 ): string {
     return join(
         saveRoot,
         GENERATED_IMAGES_DIR,
         sanitizeArtifactName(sessionId),
-        `${sanitizeArtifactName(callId)}.png`,
+        `${sanitizeArtifactName(callId)}.${format}`,
     );
 }
 
@@ -37,18 +49,24 @@ function decodeStrictBase64(value: string): Buffer {
 }
 
 /**
- * Saves the generated image under the save root, creating parents and overwriting an existing
- * file. Returns the path, or `undefined` when saving failed (the call still succeeds).
+ * Saves the generated image under the save root as `.png` or `.gif` by its encoded header,
+ * creating parents and overwriting an existing file. Returns the path, or `undefined` when saving
+ * failed (the call still succeeds).
  */
 export async function saveGeneratedImage(
     saveRoot: string,
     sessionId: string,
     callId: string,
-    base64Png: string,
+    base64Image: string,
 ): Promise<string | undefined> {
-    const path = imageGenerationArtifactPath(saveRoot, sessionId, callId);
+    const path = imageGenerationArtifactPath(
+        saveRoot,
+        sessionId,
+        callId,
+        generatedImageFormat(base64Image),
+    );
     try {
-        const bytes = decodeStrictBase64(base64Png);
+        const bytes = decodeStrictBase64(base64Image);
         await mkdir(dirname(path), { recursive: true });
         await writeFile(path, bytes);
         return path;

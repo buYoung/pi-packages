@@ -12,8 +12,13 @@ export function isImageModel(value: unknown): value is ImageModel {
 /** Maximum reference images per edit (`MAX_EDIT_IMAGES` in Codex `tool.rs`). */
 export const MAX_EDIT_IMAGES = 5;
 
+/** `RespondToModel` text when `gif` is requested while GIF output is off (Codex `tool.rs`). */
+export const GIF_UNAVAILABLE_MESSAGE =
+    "GIF output is unavailable in this session.";
+
 const FIELD_NAMES = [
     "prompt",
+    "gif",
     "transparent_background",
     "referenced_image_paths",
     "num_last_images_to_include",
@@ -22,15 +27,27 @@ const FIELD_NAMES = [
 /** Arguments after Codex-order validation, in the shape the declared schema accepts. */
 export interface ImageGenArguments {
     prompt: string;
+    gif?: GifOptions;
     transparent_background: boolean;
     referenced_image_paths?: string[];
     num_last_images_to_include?: number;
+}
+
+/**
+ * GIF controls (`GifOptions` in Codex `codex-api/src/images.rs`). The documented ranges, 2–16
+ * frames and 20–2000 ms per frame, are enforced by the Images API, not locally.
+ */
+export interface GifOptions {
+    frame_count?: number;
+    frame_duration_ms?: number;
 }
 
 export type ImageBackground = "transparent" | "opaque";
 
 interface ImageRequestBase {
     prompt: string;
+    /** Present when the request asks the Images API for an animated GIF. */
+    gif?: GifOptions;
     background: ImageBackground;
     model: ImageModel;
     quality: "auto";
@@ -116,6 +133,38 @@ function parseReferencedImagePaths(value: unknown): string[] | undefined {
     return value.map(parseAbsolutePath);
 }
 
+const U32_MAX = 0xffff_ffff;
+
+function parseU32(value: unknown): number | undefined {
+    if (value === null) {
+        return undefined;
+    }
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+        throw invalidType(value, "u32");
+    }
+    if (value < 0 || value > U32_MAX) {
+        throw new Error(`invalid value: integer \`${value}\`, expected u32`);
+    }
+    return value;
+}
+
+/** Deserializes `Option<GifOptions>`; serde ignores unknown fields because the struct allows them. */
+function parseGifOptions(value: unknown): GifOptions | undefined {
+    if (value === null) {
+        return undefined;
+    }
+    if (typeof value !== "object" || Array.isArray(value)) {
+        throw invalidType(value, "struct GifOptions");
+    }
+    const options: GifOptions = {};
+    for (const [key, field] of Object.entries(value)) {
+        if (key !== "frame_count" && key !== "frame_duration_ms") continue;
+        const parsed = parseU32(field);
+        if (parsed !== undefined) options[key] = parsed;
+    }
+    return options;
+}
+
 function parseNumLastImages(value: unknown): number | undefined {
     if (value === null) {
         return undefined;
@@ -141,6 +190,7 @@ function deserializeArguments(args: unknown): ImageGenArguments {
         throw invalidType(args, "struct ImagegenArgs");
     }
     let prompt: string | undefined;
+    let gif: GifOptions | undefined;
     let transparentBackground = false;
     let referencedImagePaths: string[] | undefined;
     let numLastImages: number | undefined;
@@ -151,6 +201,9 @@ function deserializeArguments(args: unknown): ImageGenArguments {
                     throw invalidType(value, "a string");
                 }
                 prompt = value;
+                break;
+            case "gif":
+                gif = parseGifOptions(value);
                 break;
             case "transparent_background":
                 if (typeof value !== "boolean") {
@@ -177,6 +230,9 @@ function deserializeArguments(args: unknown): ImageGenArguments {
         prompt,
         transparent_background: transparentBackground,
     };
+    if (gif !== undefined) {
+        result.gif = gif;
+    }
     if (referencedImagePaths !== undefined) {
         result.referenced_image_paths = referencedImagePaths;
     }
@@ -198,6 +254,9 @@ function planRequest(
         quality: "auto",
         size: "auto",
     };
+    if (args.gif !== undefined) {
+        base.gif = args.gif;
+    }
     const paths = args.referenced_image_paths ?? [];
     if (paths.length > MAX_EDIT_IMAGES) {
         throw new Error(
@@ -227,11 +286,16 @@ function planRequest(
 /**
  * Validates raw tool arguments in Codex order and returns both the normalized arguments
  * (for Pi's schema validation) and the request plan. Throws `Error` with Codex's messages.
+ * A `gif` argument is rejected after deserialization unless GIF output is enabled.
  */
 export function parseImageGenArguments(
     args: unknown,
     model: ImageModel = IMAGE_MODEL,
+    isGifEnabled = false,
 ): ParsedImageGenArguments {
     const normalized = deserializeArguments(args);
+    if (normalized.gif !== undefined && !isGifEnabled) {
+        throw new Error(GIF_UNAVAILABLE_MESSAGE);
+    }
     return { arguments: normalized, plan: planRequest(normalized, model) };
 }

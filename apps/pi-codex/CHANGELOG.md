@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### New
+
+- Image generation can create simple animated GIFs when `"gif": true` is set in the image settings file (included `@buyong/pi-codex-image-gen`).
+
 ### Improved
 
 - Computer Use uses `@earendil-works/pi-mcp` 1.6.1.
