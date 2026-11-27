@@ -94,9 +94,18 @@ export async function collectCatalog(options: CollectCatalogOptions = {}): Promi
   const allReasoning = parseReasoningOptions(await input.reasoning(signal));
   const reasoningAt = clock();
   signal?.throwIfAborted();
+  const baseNameOf = (id: string) => {
+    const colon = id.lastIndexOf(":");
+    return colon > 0 ? id.slice(0, colon) : id;
+  };
+  // A row under a base name, such as `deepseek-v4-pro`, prices a tagged ID only when that ID is the
+  // only candidate with the base name.
+  const isOnlyTaggedId = (id: string) =>
+    baseNameOf(id) !== id && ids.filter((other) => baseNameOf(other) === baseNameOf(id)).length === 1;
   const pricing = Object.fromEntries(
     ids.flatMap((id) => {
-      const price = parsedPricing.prices.get(id);
+      const price =
+        parsedPricing.prices.get(id) ?? (isOnlyTaggedId(id) ? parsedPricing.prices.get(baseNameOf(id)) : undefined);
       return price ? [[id, price] as const] : [];
     }),
   );
@@ -144,7 +153,7 @@ export async function collectCatalog(options: CollectCatalogOptions = {}): Promi
         limits: "existing measurements; not reprobed",
       },
       notes: [
-        "Unknown prices are omitted, not declared free; aliases/date tags do not inherit prices or limits.",
+        "Unknown prices are omitted, not declared free; a base-name price applies only to the one candidate with that base name, and limits are never inherited.",
         `Input-only pricing rows: ${parsedPricing.unpricedRows.length}; off-peak rows not applied: ${parsedPricing.offPeakRows.length}.`,
       ],
     },

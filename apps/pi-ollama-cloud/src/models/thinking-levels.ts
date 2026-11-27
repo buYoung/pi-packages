@@ -150,7 +150,8 @@ function resolveGeneratedThinking(
   // to DEFAULT rather than a degenerate map whose only selectable level can
   // be a leaking off.
   if (options === undefined || options.length === 0) {
-    return { map: applyOffRestriction(id, DEFAULT), source: "fallback", warnings: [] };
+    // A tagged id hides off like its family even when the table has no entry for either.
+    return { map: applyOffRestriction(matchedKey || id, DEFAULT), source: "fallback", warnings: [] };
   }
   return { map: buildMap(options, matchedKey), source: "generated", warnings: [] };
 }

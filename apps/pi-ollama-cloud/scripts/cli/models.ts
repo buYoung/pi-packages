@@ -50,9 +50,11 @@ export const modelsFeature: VerificationFeature = {
       assert.equal(all.length, 6);
       assert.equal(all.find((m) => m.requestedId === "clef:27b")?.isChatCandidate, false);
       assert.equal(assembleModels(raw).length, 5);
+      // The generated snapshot prices beam and muse-spark-open; the other two have no standard price.
+      const generatedPriceIds = new Set(["beam", "muse-spark-open"]);
       for (const id of ["beam", "muse-spark-open", "deepseek-v4.1-flash:1017", "glm-5.3-flash:cloud"]) {
         const metadata = resolveModelMetadata(id, raw[id]);
-        assert.equal(metadata.sources.price, "unknown");
+        assert.equal(metadata.sources.price, generatedPriceIds.has(id) ? "generated" : "unknown");
         assert.equal(metadata.sources.maxTokens, "fallback");
         assert.equal(metadata.maxTokens, 32768);
         assert.equal(metadata.sources.contextWindow, "api");
