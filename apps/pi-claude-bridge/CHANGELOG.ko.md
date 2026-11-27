@@ -2,7 +2,7 @@
 
 0.12.0까지의 변경 이력은 영문 [CHANGELOG.md](CHANGELOG.md)에만 있습니다.
 
-## UNRELEASED
+## 0.14.9 — 2026-11-28
 
 ### 달라진 것
 
