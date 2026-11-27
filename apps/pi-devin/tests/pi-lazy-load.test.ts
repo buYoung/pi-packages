@@ -117,7 +117,7 @@ test("the provider loads the runtime for a stored list it cannot vouch for, a cr
 /** One model runtime on shared stores, as one Pi process; sessions load the extension as Pi's entry point does. */
 async function lazyRuntime(stores: { credentials: InMemoryCredentialStore; modelsStore: InMemoryModelsStore }, directory: string) {
   const runtime = await ModelRuntime.create({ ...stores, modelsPath: join(directory, "models.json"), refreshOnCreate: false, allowModelNetwork: false });
-  const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", enableInstallTelemetry: false, cacheWarming: "off", compaction: { enabled: false, keepRecentTokens: 1 }, retry: { enabled: false } });
+  const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", cacheWarming: "off", compaction: { enabled: false, keepRecentTokens: 1 }, retry: { enabled: false } });
   const registrations: ReturnType<typeof registerLazyTestExtension>[] = [], sessions: { dispose(): void }[] = [], errors: string[] = [];
   const open = async (model: Model<any> = fixture.model, seed?: (manager: SessionManager) => void) => {
     const loader = new DefaultResourceLoader({ cwd: directory, agentDir: join(directory, "agent"), settingsManager: settings,

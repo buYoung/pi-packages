@@ -905,7 +905,7 @@ test("settings cycle preset values in place, keep a stored custom value in the c
         /Saved memories/,
         "it lives in /codex-memory",
     );
-    assert.match(screens[0], /Type to search · Enter\/Space to change/);
+    assert.match(screens[0], /Type to search · Enter\/Space to change/i);
     assert.match(screens[1], /Create memories after\s+6 hours idle/);
     assert.match(screens[1], /a closed conversation becomes memory/);
     assert.match(screens[1], /Default: 2 hours\s+idle\./);

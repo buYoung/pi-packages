@@ -98,7 +98,7 @@ async function fusionSession(chat: (request: CapturedProviderRequest, index: num
   fixture.shutdown();
   const runtime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: join(directory, "models.json"),
     modelsStore: new InMemoryModelsStore(), refreshOnCreate: false, allowModelNetwork: false });
-  const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", enableInstallTelemetry: false, cacheWarming: "off",
+  const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", cacheWarming: "off",
     compaction: { enabled: false }, retry: { enabled: false } });
   let extension!: ReturnType<typeof registerTestExtension>, ready!: () => void;
   const restored = new Promise<void>((resolve) => { ready = resolve; });
@@ -156,7 +156,7 @@ test("public loader → OAuth → model/thinking → tool results, host retry an
   const configPath = join(directory, "models.json");
   const runtime = await ModelRuntime.create({ credentials, modelsPath: configPath, modelsStore, refreshOnCreate: false, allowModelNetwork: false });
   expect(runtime.getProvider("devin"), "ID collision in the default registry under test").toBe(undefined);
-  const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", enableInstallTelemetry: false, cacheWarming: "off",
+  const settings = SettingsManager.inMemory({ defaultProjectTrust: "never", cacheWarming: "off",
     compaction: { enabled: false }, retry: { enabled: true, maxRetries: 1, baseDelayMs: 1, maxAgentDelayMs: 1 },
   });
   const events: string[] = [], errors: string[] = [];

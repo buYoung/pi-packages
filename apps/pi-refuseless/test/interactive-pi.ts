@@ -130,7 +130,6 @@ export async function startInteractivePi(options: {
     }) => {
       const settingsManager = SettingsManager.inMemory({
         defaultProjectTrust: "never",
-        enableInstallTelemetry: false,
         retry: { enabled: false },
         compaction: { enabled: false },
         quietStartup: true,
