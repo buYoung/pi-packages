@@ -351,7 +351,11 @@ export class GuardController {
                 const selected = await context.ui.select(
                     `Approve this action?\n${text}`,
                     isOnceOnly ? ["Allow once", "Deny"] : Object.keys(scopes),
-                    { signal: options.signal, timeout: options.timeoutMs },
+                    {
+                        signal: options.signal,
+                        timeout: options.timeoutMs,
+                        blockedKind: "permission",
+                    },
                 );
                 if (selected && selected in scopes)
                     this.reviewContext.confirm({

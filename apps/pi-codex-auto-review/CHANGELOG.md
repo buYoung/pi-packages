@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Improved
+
+- Approval dialogs report a permission wait to terminals that show program status (OSC 7501), on Pi 1.6.1 and later.
+
 ## [0.8.1] - 2026-11-02
 
 ### New

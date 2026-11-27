@@ -9,6 +9,7 @@
 ### Improved
 
 - Computer Use uses `@earendil-works/pi-mcp` 1.6.1.
+- Auto Review and Computer Use approval dialogs report a permission wait to terminals that show program status (OSC 7501), on Pi 1.6.1 and later.
 
 ### Fixed
 

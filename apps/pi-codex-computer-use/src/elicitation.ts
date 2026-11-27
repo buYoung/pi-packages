@@ -673,7 +673,7 @@ export function createElicitationHandler(
         const chosen = await ctx.ui.select(
             formatDialogTitle(classification),
             labels,
-            { signal },
+            { signal, blockedKind: "permission" },
         );
         const choice = options[labels.indexOf(chosen ?? "")]?.value;
         const response = responseForChoice(choice);

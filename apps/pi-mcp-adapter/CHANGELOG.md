@@ -5,6 +5,7 @@
 ### Improved
 
 - Update `@earendil-works/pi-mcp` to 1.6.1 and the Effect runtime dependency to 4.1.6.
+- The prompt for a sign-in redirect URL reports an authentication wait to terminals that show program status (OSC 7501), on Pi 1.6.1 and later.
 
 ## [0.1.7] - 2026-11-21
 

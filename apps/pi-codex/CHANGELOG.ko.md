@@ -9,6 +9,7 @@
 ### 달라진 것
 
 - Computer Use가 `@earendil-works/pi-mcp` 1.6.1을 사용합니다.
+- Pi 1.6.1 이상에서는 프로그램 상태(OSC 7501)를 표시하는 터미널에 Auto Review와 Computer Use 승인 대화상자를 권한 대기로 알립니다.
 
 ### 해결된 것
 
